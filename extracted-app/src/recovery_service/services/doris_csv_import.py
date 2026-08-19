@@ -1521,18 +1521,7 @@ async def _stream_load(
         f"{quote(database, safe='')}/{quote(table_name, safe='')}/_stream_load"
     )
     label = f"csv_import_{uuid.uuid4().hex}"
-    headers = {
-        "format": "csv",
-        "column_separator": _stream_load_separator(delimiter),
-        "skip_lines": "1",
-        "strict_mode": "false",
-        "max_filter_ratio": "1",
-        "enclose": '"',
-        "trim_double_quotes": "true",
-        "label": label,
-        "columns": ",".join(columns),
-        "Expect": "100-continue",
-    }
+    headers = _stream_load_headers(columns, delimiter=delimiter, label=label)
     async with httpx.AsyncClient(timeout=600.0, follow_redirects=False) as client:
         response = await _trusted_stream_load_put(
             client,
@@ -1562,6 +1551,24 @@ async def _stream_load(
         reject_download_url=reject_download_url,
         raw_result=data,
     )
+
+
+def _stream_load_headers(columns: list[str], *, delimiter: str, label: str) -> dict[str, str]:
+    has_non_ascii_column = any(not column.isascii() for column in columns)
+    headers = {
+        "format": "csv_with_names" if has_non_ascii_column else "csv",
+        "column_separator": _stream_load_separator(delimiter),
+        "strict_mode": "false",
+        "max_filter_ratio": "1",
+        "enclose": '"',
+        "trim_double_quotes": "true",
+        "label": label,
+        "Expect": "100-continue",
+    }
+    if not has_non_ascii_column:
+        headers["skip_lines"] = "1"
+        headers["columns"] = ",".join(columns)
+    return headers
 
 
 async def _trusted_stream_load_put(

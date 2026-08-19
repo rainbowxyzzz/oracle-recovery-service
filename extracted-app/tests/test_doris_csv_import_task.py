@@ -121,6 +121,32 @@ def test_parse_task_auto_detects_mixed_file_charsets(tmp_path, monkeypatch):
     assert status.preview.files[1].sample_rows[0]["\u540d\u79f0"] == "\u8d22\u653f\u4e00\u5904"
 
 
+def test_stream_load_headers_keep_legacy_columns_for_ascii_mapping():
+    headers = doris_csv_import._stream_load_headers(
+        ["id", "mapped_name"],
+        delimiter=",",
+        label="ascii_mapping",
+    )
+
+    assert headers["format"] == "csv"
+    assert headers["skip_lines"] == "1"
+    assert headers["columns"] == "id,mapped_name"
+    assert all(value.isascii() for value in headers.values())
+
+
+def test_stream_load_headers_use_csv_names_for_chinese_mapping():
+    headers = doris_csv_import._stream_load_headers(
+        ["\u6570\u636e\u4ed3\u5206\u7c7b", "shared_type"],
+        delimiter=",",
+        label="chinese_mapping",
+    )
+
+    assert headers["format"] == "csv_with_names"
+    assert "skip_lines" not in headers
+    assert "columns" not in headers
+    assert all(value.isascii() for value in headers.values())
+
+
 def test_import_task_accepts_database_after_parse(tmp_path, monkeypatch):
     factory = _session_factory(tmp_path, monkeypatch)
     profile = _profile(factory)

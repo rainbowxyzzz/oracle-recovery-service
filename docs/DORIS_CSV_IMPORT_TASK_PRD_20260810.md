@@ -233,3 +233,22 @@ Doris CSV 导入页面的文件编码下拉框新增 `GB18030` 选项。该改�
 - 导入阶段不得重新猜测编码，应优先复用解析阶段保存的文件级识别结果；旧任务或旧接口没有文件级编码信息时，才回退任务级 `charset`。
 - 多文件导入同一表时，仍只展示一套字段映射，但后续文件也必须独立识别编码并显示文件节点编码。
 - 本需求不改变建库、建表、字段映射、CSV 重新输出为 UTF-8、Stream Load 参数和历史 `preview/import`、FTP 兼容接口的业务语义。
+
+## 18. 2026-08-19 中文映射字段 Stream Load 编码修复
+
+现场发现：CSV 解析和建表均成功，但当映射后的目标字段名包含中文时，导入阶段在发送 Doris Stream Load 前报 `'ascii' codec can't encode characters`。原因是当前实现把目标字段名直接写入 HTTP `columns` Header，`httpx/httpcore` 按 ASCII 序列化 Header，请求尚未到达 Doris 就失败。
+
+修复规则：
+
+- 目标字段名全为 ASCII 时，继续使用现有 `format=csv`、`columns` Header 和 `skip_lines=1`，不改变英文字段及旧接口语义。
+- 任一目标字段名包含非 ASCII 字符时，使用 Doris `format=csv_with_names`，由 Doris 从已重新输出为 UTF-8 的 CSV 首行读取目标字段名；不再发送含 Unicode 的 `columns` Header，也不再叠加 `skip_lines`。
+- CSV 首行继续由当前字段映射生成，因此字段改名、重排和子集导入语义保持不变。
+- 新建表和已有表都必须覆盖；不得为规避编码异常而删除字段映射或强制将中文字段重命名为英文。
+
+验收要求：
+
+1. 纯英文映射仍使用原 `columns` Header 并导入成功。
+2. 中文及中英文混合映射不再触发 ASCII 编码异常，Stream Load 导入成功。
+3. 中文字段改名、顺序调整和字段子集导入后，Doris 表中列与数据对应正确。
+4. Stream Load 请求所有 Header 值都可以按 ASCII 序列化。
+5. 在 `192.168.150.128` 使用隔离库表完成真实中文映射导入，并回归英文映射路径。

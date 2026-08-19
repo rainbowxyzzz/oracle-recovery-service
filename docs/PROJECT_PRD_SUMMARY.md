@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-08-19 Doris CSV 导入补充中文映射字段 Stream Load 编码规则：英文字段继续使用现有 `columns` Header；映射字段包含非 ASCII 字符时改用 `csv_with_names`，从 UTF-8 CSV 首行读取目标列名，避免 HTTP Header ASCII 序列化失败，同时保留改名、重排和字段子集导入语义。详见 `docs/DORIS_CSV_IMPORT_TASK_PRD_20260810.md` 第 18 节。
+
 2026-08-19 审批流自动授权模块补充 `createUserDepartment` 解析规则：当值以 `重庆市审计局/` 开头时取斜杠后内容，否则取斜杠前内容；该规则用于后续 Doris 单位与数据库映射查询。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
 
 2026-08-19 审批流自动授权模块补齐自动监听和审批状态回写闭环：配置可启用定时监听 `getMyTodoList`，默认每 5 分钟扫描且每轮只处理 1 个 `auditStatus=0` 或空值申请；同一配置运行中跳过，避免并发重复消费。完整授权成功后新增最后一步 `audit_status_update`，调用审批系统 `/api/market/dataModelApplyFlow/auditStatus`，Header 使用审批系统 `workflow_token`，Body 使用 `{ "id": applyFlowId }`。若有数人员权限导入已成功但审批状态回写失败，后续监听只重试回写，不重复创建 Doris 用户、授权、`apiAdd` 或 `importDataPermissions`。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
