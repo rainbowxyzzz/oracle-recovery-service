@@ -1880,6 +1880,114 @@
     .modal.ok { border-top: 4px solid var(--ok); }
     .modal.error { border-top: 4px solid var(--bad); }
     .modal .actions { justify-content: flex-end; margin-top: 14px; }
+    .approval-auth-run-modal {
+      width: min(1180px, calc(100vw - 36px));
+      height: min(780px, calc(100vh - 36px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .approval-auth-log-modal {
+      width: min(1080px, calc(100vw - 52px));
+      height: min(720px, calc(100vh - 52px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .approval-auth-level-three { z-index: 100; background: rgba(15, 23, 42, .5); }
+    .approval-auth-modal-toolbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex: 0 0 auto;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .approval-auth-modal-toolbar h2 { margin: 0; }
+    .approval-auth-run-summary {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(110px, 1fr));
+      gap: 8px;
+      flex: 0 0 auto;
+      padding: 12px 0;
+    }
+    .approval-auth-run-summary-item {
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #f8fafc;
+    }
+    .approval-auth-run-summary-item strong,
+    .approval-auth-run-summary-item span { display: block; overflow-wrap: anywhere; }
+    .approval-auth-run-summary-item span { margin-bottom: 3px; color: var(--muted); font-size: 12px; }
+    .approval-auth-run-layout {
+      display: grid;
+      grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+      gap: 12px;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .approval-auth-flow-nav,
+    .approval-auth-step-panel {
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .approval-auth-flow-nav { padding: 8px; }
+    .approval-auth-flow-button {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      margin: 0 0 6px;
+      padding: 9px 10px;
+      text-align: left;
+      background: #fff;
+      border-color: var(--line);
+    }
+    .approval-auth-flow-button.active { background: #eaf2ff; border-color: #8bb7f0; color: #174f91; }
+    .approval-auth-flow-button span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .approval-auth-step-panel { padding: 10px; }
+    .approval-auth-step-row {
+      display: grid;
+      grid-template-columns: minmax(170px, .85fr) minmax(220px, 1.4fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 11px 10px;
+      border-bottom: 1px solid #e5ecf3;
+    }
+    .approval-auth-step-row:last-child { border-bottom: 0; }
+    .approval-auth-step-row.failed { background: #fff7f7; }
+    .approval-auth-step-index { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .approval-auth-step-main { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; }
+    .approval-auth-step-message {
+      display: -webkit-box;
+      min-width: 0;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      text-overflow: ellipsis;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+    .approval-auth-step-time { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .approval-auth-log-meta { flex: 0 0 auto; padding: 10px 0; color: var(--muted); overflow-wrap: anywhere; }
+    .approval-auth-log-tabs { flex: 0 0 auto; margin-bottom: 10px; }
+    .approval-auth-log-content {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--log);
+    }
+    .approval-auth-log-content pre { max-height: none; min-height: 100%; margin: 0; border-radius: 0; }
+    .approval-auth-modal-actions { flex: 0 0 auto; justify-content: flex-end; margin-top: 12px; }
     pre {
       max-height: 360px;
       overflow: auto;
@@ -1922,6 +2030,11 @@
       .side-nav { padding: 8px 10px; }
       .tree-title { display: none; }
       .connection-grid, .connection-type-grid, .cleanup-layout, .doris-layout, .batch-auth-layout, .approval-auth-credential-row, .data-platform-workbench, .data-platform-canvas-toolbar, .data-platform-schedule-fields, .data-platform-schedule-manager-toolbar, .data-platform-log-layout, .sql-workbench, .advanced-box .grid.two, .grid-2, .grid-3, .kv { grid-template-columns: 1fr; }
+      .approval-auth-run-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .approval-auth-run-layout { grid-template-columns: 1fr; }
+      .approval-auth-flow-nav { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; }
+      .approval-auth-flow-button { width: auto; min-width: 180px; margin-bottom: 0; }
+      .approval-auth-step-row { grid-template-columns: minmax(140px, .8fr) minmax(0, 1.3fr) auto; }
       .data-platform-schedule-manager-summary { text-align: left; }
       .sql-workbench { min-height: auto; }
       .sql-workbench-sidebar { max-height: 320px; }
@@ -1936,6 +2049,11 @@
       }
     }
     @media (max-width: 720px) {
+      .approval-auth-run-modal,
+      .approval-auth-log-modal { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+      .approval-auth-run-summary { grid-template-columns: 1fr 1fr; }
+      .approval-auth-step-row { grid-template-columns: 1fr; gap: 7px; }
+      .approval-auth-step-row .actions { justify-content: flex-start; }
       .component-task-form-grid { grid-template-columns: 1fr; }
       .component-task-wide { grid-column: auto; }
       .component-task-actions {
@@ -4043,21 +4161,57 @@
           <pre id="approvalAuthStepResult" class="detail" style="white-space: pre-wrap; max-height: 360px; overflow: auto"></pre>
         </div>
       </div>
-      <div class="grid-2" style="margin-top: 14px">
-        <div class="detail">
-          <h3>运行记录</h3>
-          <div id="approvalAuthRunList" class="list">
-            <div class="muted" style="padding: 10px">暂无运行记录。</div>
-          </div>
-        </div>
-        <div class="detail">
-          <h3>运行日志</h3>
-          <div id="approvalAuthRunDetail" class="list">
-            <div class="muted" style="padding: 10px">选择运行记录后查看每一步的原始响应、结构化结果和 SQL。</div>
-          </div>
+      <div class="detail" style="margin-top: 14px">
+        <h3>运行记录</h3>
+        <div class="muted" style="margin-bottom: 8px">点击“查看日志”后，在独立窗口中按申请和步骤查看详细内容。</div>
+        <div id="approvalAuthRunList" class="list">
+          <div class="muted" style="padding: 10px">暂无运行记录。</div>
         </div>
       </div>
     </section>
+
+    <div id="approvalAuthRunModal" class="modal-backdrop" hidden>
+      <section class="modal approval-auth-run-modal" role="dialog" aria-modal="true" aria-labelledby="approvalAuthRunModalTitle">
+        <div class="approval-auth-modal-toolbar">
+          <div>
+            <h2 id="approvalAuthRunModalTitle">运行日志</h2>
+            <div id="approvalAuthRunModalSubtitle" class="muted"></div>
+          </div>
+          <button id="approvalAuthRunModalCloseBtn" type="button">关闭</button>
+        </div>
+        <div id="approvalAuthRunSummary" class="approval-auth-run-summary"></div>
+        <div class="approval-auth-run-layout">
+          <nav id="approvalAuthFlowNav" class="approval-auth-flow-nav" aria-label="申请日志分组"></nav>
+          <div id="approvalAuthStepList" class="approval-auth-step-panel"></div>
+        </div>
+        <div class="actions approval-auth-modal-actions">
+          <button id="approvalAuthRunModalBottomCloseBtn" type="button">关闭</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="approvalAuthLogModal" class="modal-backdrop approval-auth-level-three" hidden>
+      <section class="modal approval-auth-log-modal" role="dialog" aria-modal="true" aria-labelledby="approvalAuthLogModalTitle">
+        <div class="approval-auth-modal-toolbar">
+          <div>
+            <h2 id="approvalAuthLogModalTitle">步骤日志详情</h2>
+            <div id="approvalAuthLogMeta" class="approval-auth-log-meta"></div>
+          </div>
+          <button id="approvalAuthLogModalCloseBtn" type="button">返回运行日志</button>
+        </div>
+        <div id="approvalAuthLogTabs" class="tabbar approval-auth-log-tabs">
+          <button class="active" type="button" data-approval-auth-log-tab="overview">概览</button>
+          <button type="button" data-approval-auth-log-tab="request">请求</button>
+          <button type="button" data-approval-auth-log-tab="response">响应</button>
+          <button type="button" data-approval-auth-log-tab="extracted">提取结果</button>
+          <button type="button" data-approval-auth-log-tab="sql">SQL</button>
+        </div>
+        <div id="approvalAuthLogContent" class="approval-auth-log-content"></div>
+        <div class="actions approval-auth-modal-actions">
+          <button id="approvalAuthLogModalBottomCloseBtn" type="button">返回运行日志</button>
+        </div>
+      </section>
+    </div>
 
     <section class="module-panel" data-module="batchAuthorization">
       <div class="toolbar">
@@ -5666,6 +5820,10 @@
       let approvalAuthRuns = [];
       let approvalAuthSelectedConfigId = "";
       let approvalAuthSelectedRunId = "";
+      let approvalAuthRunDetail = null;
+      let approvalAuthSelectedApplyFlowId = "__all__";
+      let approvalAuthSelectedLogId = "";
+      let approvalAuthLogTab = "overview";
       let resourceProvisioningPreviewData = null;
       let resourceProvisioningBatches = [];
       let resourceProvisioningSelectedBatchId = "";
@@ -5919,6 +6077,12 @@
         approvalAuthRuns = [];
         approvalAuthSelectedConfigId = "";
         approvalAuthSelectedRunId = "";
+        approvalAuthRunDetail = null;
+        approvalAuthSelectedApplyFlowId = "__all__";
+        approvalAuthSelectedLogId = "";
+        approvalAuthLogTab = "overview";
+        if ($("approvalAuthLogModal")) $("approvalAuthLogModal").hidden = true;
+        if ($("approvalAuthRunModal")) $("approvalAuthRunModal").hidden = true;
         resourceProvisioningPreviewData = null;
         resourceProvisioningBatches = [];
         resourceProvisioningSelectedBatchId = "";
@@ -9956,20 +10120,124 @@
 
       async function openApprovalAuthRun(runId) {
         approvalAuthSelectedRunId = runId;
-        const detail = await api(`/api/v1/approval-authorization/runs/${encodeURIComponent(runId)}`);
+        approvalAuthRunDetail = await api(`/api/v1/approval-authorization/runs/${encodeURIComponent(runId)}`);
+        approvalAuthSelectedApplyFlowId = "__all__";
+        approvalAuthSelectedLogId = "";
+        approvalAuthLogTab = "overview";
         renderApprovalAuthRuns();
-        $("approvalAuthRunDetail").innerHTML = (detail.logs || []).map((log) => `
-          <div class="list-item ${log.status === "failed" ? "protected" : ""}">
-            <strong>${escapeHtml(log.step_name)}</strong>
-            <span class="badge ${log.status === "success" ? "business" : log.status === "failed" ? "system" : ""}">${escapeHtml(log.status)}</span>
-            <div class="muted">applyFlowId：${escapeHtml(log.apply_flow_id || "-")}</div>
-            <div>${escapeHtml(log.message || "")}</div>
-            ${log.error_message ? `<div class="message error">${escapeHtml(log.error_message)}</div>` : ""}
-            <details><summary>结构化提取结果</summary><pre>${escapeHtml(JSON.stringify(log.extracted_data || {}, null, 2))}</pre></details>
-            <details><summary>原始响应</summary><pre>${escapeHtml(JSON.stringify(log.response_data || {}, null, 2))}</pre></details>
-            <details><summary>SQL 与返回</summary><pre>${escapeHtml((log.sql_text || "-") + "\\n" + JSON.stringify(log.sql_result || {}, null, 2))}</pre></details>
-          </div>
-        `).join("") || '<div class="muted" style="padding: 10px">暂无日志。</div>';
+        renderApprovalAuthRunModal();
+        $("approvalAuthRunModal").hidden = false;
+        $("approvalAuthRunModalCloseBtn")?.focus();
+      }
+
+      function approvalAuthRunModeLabel(run) {
+        return run?.context?.mode === "auto_watch" ? "自动监听" : run?.context?.mode === "step_test" ? "单步测试" : "完整运行";
+      }
+
+      function approvalAuthStatusBadgeClass(status) {
+        return status === "success" ? "business" : status === "failed" ? "system" : "";
+      }
+
+      function approvalAuthJson(value) {
+        if (value === undefined || value === null || value === "") return "暂无数据";
+        if (typeof value === "string") return value;
+        return JSON.stringify(value, null, 2);
+      }
+
+      function approvalAuthFlowGroups(logs) {
+        const counts = new Map();
+        (logs || []).forEach((log) => {
+          const key = log.apply_flow_id || "__global__";
+          counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        return Array.from(counts.entries());
+      }
+
+      function renderApprovalAuthRunModal() {
+        const run = approvalAuthRunDetail;
+        if (!run) return;
+        const logs = run.logs || [];
+        const groups = approvalAuthFlowGroups(logs);
+        const selectedLogs = approvalAuthSelectedApplyFlowId === "__all__"
+          ? logs
+          : logs.filter((log) => (log.apply_flow_id || "__global__") === approvalAuthSelectedApplyFlowId);
+        $("approvalAuthRunModalSubtitle").textContent = `${run.config_name || "-"} · ${approvalAuthRunModeLabel(run)} · ${formatTime(run.started_at || run.created_at)}`;
+        $("approvalAuthRunSummary").innerHTML = `
+          <div class="approval-auth-run-summary-item"><span>状态</span><strong>${escapeHtml(run.state || "-")}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>总数</span><strong>${run.total_count || 0}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>成功 / 失败</span><strong>${run.success_count || 0} / ${run.failed_count || 0}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>跳过</span><strong>${run.skipped_count || 0}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>步骤日志</span><strong>${logs.length}</strong></div>
+        `;
+        $("approvalAuthFlowNav").innerHTML = `
+          <button type="button" class="approval-auth-flow-button ${approvalAuthSelectedApplyFlowId === "__all__" ? "active" : ""}" data-approval-auth-flow="__all__">
+            <span>全部申请</span><span class="badge">${logs.length}</span>
+          </button>
+          ${groups.map(([flowId, count]) => `
+            <button type="button" class="approval-auth-flow-button ${approvalAuthSelectedApplyFlowId === flowId ? "active" : ""}" data-approval-auth-flow="${escapeHtml(flowId)}">
+              <span>${escapeHtml(flowId === "__global__" ? "运行级日志" : flowId)}</span><span class="badge">${count}</span>
+            </button>
+          `).join("")}
+        `;
+        $("approvalAuthStepList").innerHTML = selectedLogs.map((log, index) => `
+          <button type="button" class="approval-auth-step-row ${log.status === "failed" ? "failed" : ""}" data-approval-auth-log="${escapeHtml(log.id)}">
+            <span class="approval-auth-step-index">${index + 1}</span>
+            <span class="approval-auth-step-main">
+              <span><strong>${escapeHtml(log.step_name || "未命名步骤")}</strong> <span class="badge ${approvalAuthStatusBadgeClass(log.status)}">${escapeHtml(log.status || "-")}</span></span>
+              <span class="approval-auth-step-message">${escapeHtml(log.error_message || log.message || "无附加信息")}</span>
+              <span class="approval-auth-step-time">${escapeHtml(log.apply_flow_id || "运行级日志")} · ${formatTime(log.started_at || log.created_at)}</span>
+            </span>
+            <span>查看详情 ›</span>
+          </button>
+        `).join("") || '<div class="muted" style="padding: 18px">该分组暂无步骤日志。</div>';
+      }
+
+      function closeApprovalAuthRunModal() {
+        closeApprovalAuthLogModal();
+        $("approvalAuthRunModal").hidden = true;
+      }
+
+      function openApprovalAuthLogModal(logId) {
+        approvalAuthSelectedLogId = logId;
+        approvalAuthLogTab = "overview";
+        renderApprovalAuthLogModal();
+        $("approvalAuthLogModal").hidden = false;
+        $("approvalAuthLogModalCloseBtn")?.focus();
+      }
+
+      function closeApprovalAuthLogModal() {
+        $("approvalAuthLogModal").hidden = true;
+        approvalAuthSelectedLogId = "";
+      }
+
+      function renderApprovalAuthLogModal() {
+        const log = (approvalAuthRunDetail?.logs || []).find((item) => String(item.id) === String(approvalAuthSelectedLogId));
+        if (!log) return;
+        $("approvalAuthLogModalTitle").textContent = log.step_name || "步骤日志详情";
+        $("approvalAuthLogMeta").innerHTML = `
+          <span class="badge ${approvalAuthStatusBadgeClass(log.status)}">${escapeHtml(log.status || "-")}</span>
+          <span>applyFlowId：${escapeHtml(log.apply_flow_id || "-")}</span>
+          <span>时间：${formatTime(log.started_at || log.created_at)}</span>
+        `;
+        document.querySelectorAll("[data-approval-auth-log-tab]").forEach((button) => {
+          button.classList.toggle("active", button.getAttribute("data-approval-auth-log-tab") === approvalAuthLogTab);
+        });
+        let value;
+        if (approvalAuthLogTab === "request") value = log.request_data;
+        else if (approvalAuthLogTab === "response") value = log.response_data;
+        else if (approvalAuthLogTab === "extracted") value = log.extracted_data;
+        else if (approvalAuthLogTab === "sql") value = { sql: log.sql_text || null, params: log.sql_params || null, result: log.sql_result || null };
+        else value = {
+          message: log.message || null,
+          error_message: log.error_message || null,
+          apply_flow_id: log.apply_flow_id || null,
+          step_key: log.step_key || null,
+          step_name: log.step_name || null,
+          status: log.status || null,
+          started_at: log.started_at || null,
+          finished_at: log.finished_at || null
+        };
+        $("approvalAuthLogContent").innerHTML = `<pre>${escapeHtml(approvalAuthJson(value))}</pre>`;
       }
 
       async function refreshBatchAuthorizationAll() {
@@ -19233,6 +19501,38 @@
           const button = event.target.closest("[data-approval-auth-run]");
           if (!button) return;
           openApprovalAuthRun(button.getAttribute("data-approval-auth-run") || "").catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
+        });
+        $("approvalAuthFlowNav")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-flow]");
+          if (!button) return;
+          approvalAuthSelectedApplyFlowId = button.getAttribute("data-approval-auth-flow") || "__all__";
+          renderApprovalAuthRunModal();
+        });
+        $("approvalAuthStepList")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-log]");
+          if (!button) return;
+          openApprovalAuthLogModal(button.getAttribute("data-approval-auth-log") || "");
+        });
+        $("approvalAuthLogTabs")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-log-tab]");
+          if (!button) return;
+          approvalAuthLogTab = button.getAttribute("data-approval-auth-log-tab") || "overview";
+          renderApprovalAuthLogModal();
+        });
+        $("approvalAuthRunModalCloseBtn")?.addEventListener("click", closeApprovalAuthRunModal);
+        $("approvalAuthRunModalBottomCloseBtn")?.addEventListener("click", closeApprovalAuthRunModal);
+        $("approvalAuthLogModalCloseBtn")?.addEventListener("click", closeApprovalAuthLogModal);
+        $("approvalAuthLogModalBottomCloseBtn")?.addEventListener("click", closeApprovalAuthLogModal);
+        $("approvalAuthRunModal")?.addEventListener("click", (event) => {
+          if (event.target === $("approvalAuthRunModal")) closeApprovalAuthRunModal();
+        });
+        $("approvalAuthLogModal")?.addEventListener("click", (event) => {
+          if (event.target === $("approvalAuthLogModal")) closeApprovalAuthLogModal();
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape") return;
+          if (!$("approvalAuthLogModal")?.hidden) closeApprovalAuthLogModal();
+          else if (!$("approvalAuthRunModal")?.hidden) closeApprovalAuthRunModal();
         });
         $("resourceProvisioningRefreshBtn").addEventListener("click", () => {
           refreshResourceProvisioningAll().catch((e) => {

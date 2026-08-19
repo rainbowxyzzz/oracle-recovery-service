@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-08-19 审批流自动授权运行日志改为三级信息架构：主页面仅保留运行摘要，二级窗口按 `applyFlowId` 分组展示步骤时间线，三级窗口分页展示概览、请求、响应、提取结果和 SQL。本次只改前端展示，不改日志 API、数据、脱敏和运行语义。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md` 第 7 节。
+
 2026-08-19 Doris CSV 导入补充中文映射字段 Stream Load 编码规则：英文字段继续使用现有 `columns` Header；映射字段包含非 ASCII 字符时改用 `csv_with_names`，从 UTF-8 CSV 首行读取目标列名，避免 HTTP Header ASCII 序列化失败，同时保留改名、重排和字段子集导入语义。详见 `docs/DORIS_CSV_IMPORT_TASK_PRD_20260810.md` 第 18 节。
 
 2026-08-19 审批流自动授权模块补充 `createUserDepartment` 解析规则：当值以 `重庆市审计局/` 开头时取斜杠后内容，否则取斜杠前内容；该规则用于后续 Doris 单位与数据库映射查询。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
