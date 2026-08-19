@@ -1,0 +1,72 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+credentials*
+secrets*
+
+# Python caches, environments, and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated artifacts, releases, backups, and temporary work
+artifacts/
+backups/
+output/
+release-packages/
+tmp/
+extracted-app/tmp/
+.codex-backup/
+tmp_auto_charset_test/
+
+# Historical nested project and extracted duplicate source tree
+ORACLE导出导入/
+extracted-app/src/src/
+extracted-app/src/oracle_recovery_service.egg-info/
+extracted-app/scripts/scripts/
+
+# Runtime data and logs
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+*.db
+
+# Binary packages, images, and generated archives
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.rar
+*.iso
+*.jpg
+*.jpeg
+
+# One-off local investigation scripts
+tmp_install_*.sh
+
+# Large reference documents kept outside source control
+*.pdf

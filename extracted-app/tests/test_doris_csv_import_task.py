@@ -1,0 +1,163 @@
+import uuid
+from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from recovery_service.core.models.task import Base, DatabaseConnectionProfile
+from recovery_service.services import doris_csv_import
+from recovery_service.services.doris_csv_import import (
+    create_csv_parse_task,
+    get_csv_parse_task_status_sync,
+    request_import_csv_task_sync,
+    request_stop_csv_parse_task_sync,
+    run_csv_parse_task_sync,
+)
+
+
+def _session_factory(tmp_path, monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(doris_csv_import, "get_sync_session_factory", lambda: factory)
+
+    class Settings:
+        staging_dir = str(tmp_path)
+
+    monkeypatch.setattr(doris_csv_import, "get_settings", lambda: Settings())
+    return factory
+
+
+def _profile(factory):
+    session = factory()
+    try:
+        profile = DatabaseConnectionProfile(
+            id=uuid.uuid4(),
+            name="Doris Test",
+            engine="doris",
+            host="127.0.0.1",
+            port=9030,
+            username="root",
+            password_enc="",
+            database=None,
+        )
+        session.add(profile)
+        session.commit()
+        session.refresh(profile)
+        return profile
+    finally:
+        session.close()
+
+
+def test_parse_task_single_table_reuses_first_file_structure(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile,
+        [
+            ("orders_a.csv", "id,name\n1,alpha\n2,beta\n".encode("utf-8")),
+            ("orders_b.csv", "3,gamma\n4,delta\n".encode("utf-8")),
+        ],
+        database=None,
+        has_header=True,
+        import_mode="single_table",
+    )
+
+    run_csv_parse_task_sync(task.task_id)
+    status = get_csv_parse_task_status_sync(task.task_id)
+
+    assert status.state == "completed"
+    assert status.completed_files == 2
+    assert status.failed_files == 0
+    assert status.preview is not None
+    assert [item.table_name for item in status.preview.files] == ["orders_a", "orders_a"]
+    assert status.preview.files[1].has_header is False
+    assert status.preview.files[1].valid_row_count == 2
+    assert Path(tmp_path, "doris-csv-parse", str(task.task_id)).exists()
+
+
+def test_parse_task_keeps_chinese_header_names(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile,
+        [("事件.csv", "统计月份,事件单编码,事件标题\n202401,SJ001,标题1\n".encode("utf-8"))],
+        database=None,
+        has_header=True,
+        import_mode="multiple_tables",
+    )
+
+    run_csv_parse_task_sync(task.task_id)
+    status = get_csv_parse_task_status_sync(task.task_id)
+
+    assert status.state == "completed"
+    assert status.preview is not None
+    assert [column.name for column in status.preview.files[0].columns] == ["统计月份", "事件单编码", "事件标题"]
+    assert not status.preview.files[0].warnings
+
+
+def test_parse_task_auto_detects_mixed_file_charsets(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile,
+        [
+            ("utf8.csv", "id,name\n1,alpha\n".encode("utf-8")),
+            ("gb18030.csv", "\u7f16\u53f7,\u540d\u79f0\n2,\u8d22\u653f\u4e00\u5904\n".encode("gb18030")),
+        ],
+        database=None,
+        charset="auto",
+        has_header=True,
+        import_mode="multiple_tables",
+    )
+
+    run_csv_parse_task_sync(task.task_id)
+    status = get_csv_parse_task_status_sync(task.task_id)
+
+    assert status.state == "completed"
+    assert status.preview is not None
+    assert [item.charset for item in status.preview.files] == ["utf-8", "gb18030"]
+    assert status.preview.files[1].columns[0].name == "\u7f16\u53f7"
+    assert status.preview.files[1].sample_rows[0]["\u540d\u79f0"] == "\u8d22\u653f\u4e00\u5904"
+
+
+def test_import_task_accepts_database_after_parse(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile,
+        [("orders.csv", b"id,name\n1,alpha\n")],
+        database=None,
+        has_header=True,
+        import_mode="multiple_tables",
+    )
+
+    run_csv_parse_task_sync(task.task_id)
+    status = request_import_csv_task_sync(
+        task.task_id,
+        create_table=True,
+        overwrite=False,
+        database="TARGET_DB",
+    )
+
+    assert status.database == "TARGET_DB"
+    assert status.preview is not None
+    assert status.preview.database == "TARGET_DB"
+
+
+def test_parse_task_stop_marks_waiting_files_stopped(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile,
+        [("a.csv", b"id\n1\n"), ("b.csv", b"id\n2\n")],
+        database=None,
+        import_mode="multiple_tables",
+    )
+
+    request_stop_csv_parse_task_sync(task.task_id)
+    run_csv_parse_task_sync(task.task_id)
+    status = get_csv_parse_task_status_sync(task.task_id)
+
+    assert status.state == "stopped"
+    assert all(item.state == "stopped" for item in status.files)

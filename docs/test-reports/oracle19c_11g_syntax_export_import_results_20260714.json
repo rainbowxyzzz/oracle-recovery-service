@@ -1,0 +1,1261 @@
+{
+  "report_date": "2026-07-14",
+  "test_target": "http://192.168.150.128:8000",
+  "source_database": "Oracle Database 19c Standard Edition 2 19.3.0.0.0",
+  "compatibility_scope": "Oracle 11g-compatible export syntax executed by Oracle 19c utilities",
+  "source_baseline": {
+    "segment_gib": 0.995,
+    "character_set": "ZHS16GBK",
+    "tables": {
+      "C11_SRC_A.BIG_HEAP": {
+        "rows": 350000,
+        "id_sum": 61250175000
+      },
+      "C11_SRC_A.EVENTS_HEAP": {
+        "rows": 250000,
+        "id_sum": 31250125000
+      },
+      "C11_SRC_A.LOB_CASES": {
+        "rows": 20000,
+        "id_sum": 200010000
+      },
+      "C11_SRC_B.REF_CODES": {
+        "rows": 50000,
+        "id_sum": 1250025000
+      }
+    }
+  },
+  "final_audit": {
+    "source_segment_gib": 0.995,
+    "source_counts_unchanged": true,
+    "source_objects_valid": true,
+    "source_tablespaces_online": true,
+    "remaining_test_target_users": 0,
+    "remaining_test_target_tablespaces": 0,
+    "remaining_test_database_links": 0,
+    "remaining_root_test_dump_par_log_files": 0,
+    "active_tasks": 0,
+    "remote_free_space_gib": 28
+  },
+  "environment": {
+    "runtime_summary": "ORACLE_CONTAINER_NAME=oracle-recovery-oracle19c\nORACLE_PDB=ORCLPDB1\nORACLE_TABLESPACE_INITIAL_SIZE=10G\nORACLE_TABLESPACE_NEXT_SIZE=1G\nORACLE_CONTAINER_NAME=oracle-recovery-oracle19c\n/dev/sda3      77089300480 47795200000 29294100480  62% /\n\nExport: Release 19.0.0.0.0 - Production on Tue Jul 14 23:41:50 2026\nVersion 19.3.0.0.0\n\nExport: Release 19.0.0.0.0 - Production on Tue Jul 14 23:41:50 2026\nVersion 19.3.0.0.0",
+    "current_scn": "3519818"
+  },
+  "cases": [
+    {
+      "id": "DP00_DEFAULT_SCHEMA",
+      "family": "expdp",
+      "description": "Default schema mode as the connected schema owner",
+      "parameters": [
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17076224,
+      "dump_mb": 16.29,
+      "dump_files": [
+        {
+          "name": "dp00_default_schema.dmp",
+          "bytes": 17076224
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp00_default_schema.dmp",
+          "sha256": "f5ab840c8ea12450ce161971bad6b61c54857fb1667dcfa5d7ddbf8dc8351cd1"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "e17db94a-965d-4bbe-a06a-b5540761f8ec",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP00_DEFAULT_SCHEMA_260714_233"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "Export, system import and data validation completed."
+    },
+    {
+      "id": "DP01_SCHEMA_SINGLE",
+      "family": "expdp",
+      "description": "SCHEMAS single schema, single dump file",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17100800,
+      "dump_mb": 16.31,
+      "dump_files": [
+        {
+          "name": "dp01_schema_single.dmp",
+          "bytes": 17100800
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp01_schema_single.dmp",
+          "sha256": "df15c33a7fbaa6126a18c1b029567cd73f9177fce30e0a2c563cde19ee8c8470"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "9d55753e-0398-411f-816f-124a21d0e34b",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP01_SCHEMA_SINGLE_260714_2245"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "Export, system import and data validation completed."
+    },
+    {
+      "id": "DP02_PARALLEL_SE2",
+      "family": "expdp",
+      "description": "SCHEMAS multiple schemas with PARALLEL on Standard Edition 2",
+      "parameters": [
+        "SCHEMAS=C11_SRC_A,C11_SRC_B",
+        "FILESIZE=256M",
+        "PARALLEL=2",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "failed",
+      "export_rc": 1,
+      "dump_bytes": 0,
+      "dump_mb": 0.0,
+      "dump_files": [],
+      "checksums": [],
+      "no_export_logs": true,
+      "task_id": null,
+      "task_state": null,
+      "dump_type": null,
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": null,
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": null,
+      "orphan_tablespace_cleanup": null,
+      "classification": "export_failed",
+      "final_status": "EXPORT_BLOCKED",
+      "evidence": "ORA-39002: invalid operation | ORA-39094: Parallel execution not supported in this database edition."
+    },
+    {
+      "id": "DP02B_SCHEMA_MULTI_U",
+      "family": "expdp",
+      "description": "SCHEMAS multiple schemas with %U and FILESIZE, without PARALLEL",
+      "parameters": [
+        "SCHEMAS=C11_SRC_A,C11_SRC_B",
+        "FILESIZE=256M",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 727072768,
+      "dump_mb": 693.39,
+      "dump_files": [
+        {
+          "name": "dp02b_schema_multi_01.dmp",
+          "bytes": 268435456
+        },
+        {
+          "name": "dp02b_schema_multi_02.dmp",
+          "bytes": 268435456
+        },
+        {
+          "name": "dp02b_schema_multi_03.dmp",
+          "bytes": 190201856
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp02b_schema_multi_01.dmp",
+          "sha256": "6c708ce1969cca6c9804289dcca4fc42060522d80fcde42f9d3cc1e8e9221bf1"
+        },
+        {
+          "name": "dp02b_schema_multi_02.dmp",
+          "sha256": "d1a52d68fc33681f77355457d25e92d350468006159154cdfe6bb99e6246872b"
+        },
+        {
+          "name": "dp02b_schema_multi_03.dmp",
+          "sha256": "60bf30f4850a1b5bca2d699631c2b5994c778b4a7f5428e53f06b6160a4f1ae6"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "bb7ecf5e-08d8-48ac-ae47-ac6941d6c97e",
+      "task_state": "succeeded_with_warnings",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A",
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP02B_SCHEMA_MULTI_SET_C11_SRC",
+        "C11_SRC_B": "DP02B_SCHEMA_MULTI_SET_C11_SRC"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 2,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS_WITH_WARNINGS",
+      "evidence": "[warn] impdp returned a non-zero code, but copied logs only contain ORA-39082 compilation warnings."
+    },
+    {
+      "id": "DP03_TABLE_SINGLE",
+      "family": "expdp",
+      "description": "TABLES single table",
+      "parameters": [
+        "TABLES=C11_SRC_A.BIG_HEAP",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 426471424,
+      "dump_mb": 406.71,
+      "dump_files": [
+        {
+          "name": "dp03_table_single.dmp",
+          "bytes": 426471424
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp03_table_single.dmp",
+          "sha256": "b0ec81639687025091fdc147ef6938e9104adf021f41343c167c12ead62b30ca"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "1621b6cc-eb4a-495b-bb0a-2d4335ade5c3",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP03_TABLE_SINGLE_260714_2249"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "[retry] SCHEMAS import selected no objects (ORA-39039/ORA-31655); retrying once with FULL=Y."
+    },
+    {
+      "id": "DP04_TABLE_MULTI",
+      "family": "expdp",
+      "description": "TABLES multiple tables across schemas",
+      "parameters": [
+        "TABLES=C11_SRC_A.EVENTS_HEAP,C11_SRC_A.LOB_CASES,C11_SRC_B.REF_CODES",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 300503040,
+      "dump_mb": 286.58,
+      "dump_files": [
+        {
+          "name": "dp04_table_multi.dmp",
+          "bytes": 300503040
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp04_table_multi.dmp",
+          "sha256": "0d7eb5e93fba015c204e2ce95d9dc7020317df78a69e22a9ce1646fc0b5deea7"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "a89c6d36-fe42-42fb-8577-6cf13a55e46b",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A",
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP04_TABLE_MULTI_C11_SRC_A_260",
+        "C11_SRC_B": "DP04_TABLE_MULTI_C11_SRC_B_260"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "[retry] SCHEMAS import selected no objects (ORA-39039/ORA-31655); retrying once with FULL=Y."
+    },
+    {
+      "id": "DP05_TABLESPACES",
+      "family": "expdp",
+      "description": "TABLESPACES mode",
+      "parameters": [
+        "TABLESPACES=C11_SRC_TS_A,C11_SRC_TS_B",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 726855680,
+      "dump_mb": 693.18,
+      "dump_files": [
+        {
+          "name": "dp05_tablespaces.dmp",
+          "bytes": 726855680
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp05_tablespaces.dmp",
+          "sha256": "273429873603422820d2c7b4d510ae76e86d0fa3e8209ac02a4434087f08a13b"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "ddf71911-77ba-4006-bdac-70a5e0af0e0d",
+      "task_state": "failed",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A",
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP05_TABLESPACES_C11_SRC_A_260",
+        "C11_SRC_B": "DP05_TABLESPACES_C11_SRC_B_260"
+      },
+      "validation_state": "not_run",
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "current_system_not_supported_or_failed",
+      "final_status": "FAIL_IMPORT",
+      "evidence": "Import retry with FULL=Y failed with exit code 5. Check /opt/oracle-recovery-service-package/oracle-auto-import-runs/task_ddf7191177ba4006bdac70a5/import."
+    },
+    {
+      "id": "DP06_FULL_FILTERED",
+      "family": "expdp",
+      "description": "FULL=Y with INCLUDE=SCHEMA safety filter",
+      "parameters": [
+        "FULL=Y",
+        "INCLUDE=SCHEMA:\"IN ('C11_SRC_A','C11_SRC_B')\""
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 727285760,
+      "dump_mb": 693.59,
+      "dump_files": [
+        {
+          "name": "dp06_full_filtered.dmp",
+          "bytes": 727285760
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp06_full_filtered.dmp",
+          "sha256": "a7d34b5b93fa671080acb09849072e8700ba23cd4dab40442f1b7fdd748a45bd"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "d745d6f2-55bf-425d-9850-0981dc2aab5d",
+      "task_state": "succeeded_with_warnings",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A",
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP06_FULL_FILTERED_C11_SRC_A_2",
+        "C11_SRC_B": "DP06_FULL_FILTERED_C11_SRC_B_2"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 2,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS_WITH_WARNINGS",
+      "evidence": "[warn] impdp returned a non-zero code, but copied logs only contain ORA-39082 compilation warnings."
+    },
+    {
+      "id": "DP07_METADATA_ONLY",
+      "family": "expdp",
+      "description": "CONTENT=METADATA_ONLY",
+      "parameters": [
+        "SCHEMAS=C11_SRC_A",
+        "CONTENT=METADATA_ONLY",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 462848,
+      "dump_mb": 0.44,
+      "dump_files": [
+        {
+          "name": "dp07_metadata_only.dmp",
+          "bytes": 462848
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp07_metadata_only.dmp",
+          "sha256": "407e2bbc1ea3b82cddac9f1023d7a24b1aa24d0cb233c2abce1b52e66dafdfae"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "12598c43-c756-4b6c-bf3a-45224de33c88",
+      "task_state": "succeeded_with_warnings",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP07_METADATA_ONLY_260714_2258"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 1,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS_WITH_WARNINGS",
+      "evidence": "[warn] impdp returned a non-zero code, but copied logs only contain ORA-39082 compilation warnings."
+    },
+    {
+      "id": "DP08_DATA_ONLY",
+      "family": "expdp",
+      "description": "CONTENT=DATA_ONLY",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "CONTENT=DATA_ONLY"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17018880,
+      "dump_mb": 16.23,
+      "dump_files": [
+        {
+          "name": "dp08_data_only.dmp",
+          "bytes": 17018880
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp08_data_only.dmp",
+          "sha256": "d7759129412fb938a6635fec377087f20bfb046792171f1951ea9a775c33e647"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "a0638d69-e555-4be9-8f1a-7d156fa5fd09",
+      "task_state": "failed",
+      "dump_type": "unknown",
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": "not_run",
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": "not_needed",
+      "orphan_tablespace_cleanup": null,
+      "classification": "current_system_not_supported_or_failed",
+      "final_status": "FAIL_IMPORT",
+      "evidence": "unknown dump type"
+    },
+    {
+      "id": "DP09_QUERY",
+      "family": "expdp",
+      "description": "TABLES with QUERY row filter",
+      "parameters": [
+        "TABLES=C11_SRC_A.BIG_HEAP",
+        "QUERY=C11_SRC_A.BIG_HEAP:\"WHERE ID <= 5000\"",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 6275072,
+      "dump_mb": 5.98,
+      "dump_files": [
+        {
+          "name": "dp09_query.dmp",
+          "bytes": 6275072
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp09_query.dmp",
+          "sha256": "d2f25d12870e1aa065a8c14b4604c260a615ae38e4db2e6a97db3f81f6b587c3"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "b936c37c-9fe7-4ff6-ba31-a9d979150894",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP09_QUERY_260714_2300"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "[retry] SCHEMAS import selected no objects (ORA-39039/ORA-31655); retrying once with FULL=Y."
+    },
+    {
+      "id": "DP10_SAMPLE",
+      "family": "expdp",
+      "description": "TABLES with SAMPLE=10",
+      "parameters": [
+        "TABLES=C11_SRC_B.REF_CODES",
+        "SAMPLE=10",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 1839104,
+      "dump_mb": 1.75,
+      "dump_files": [
+        {
+          "name": "dp10_sample.dmp",
+          "bytes": 1839104
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp10_sample.dmp",
+          "sha256": "4750af51dfad885aff87b946890b2241024864bfd4751d46c9ab36db1e84aeec"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "98419e1f-89fc-4016-9181-5e9194c21f87",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP10_SAMPLE_260714_2301"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "[retry] SCHEMAS import selected no objects (ORA-39039/ORA-31655); retrying once with FULL=Y."
+    },
+    {
+      "id": "DP11_EXCLUDE_TABLE",
+      "family": "expdp",
+      "description": "SCHEMAS with EXCLUDE=TABLE filter",
+      "parameters": [
+        "SCHEMAS=C11_SRC_A",
+        "EXCLUDE=TABLE:\"IN ('BIG_HEAP')\"",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 283963392,
+      "dump_mb": 270.81,
+      "dump_files": [
+        {
+          "name": "dp11_exclude_table.dmp",
+          "bytes": 283963392
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp11_exclude_table.dmp",
+          "sha256": "3e04c158f45d349b3965bd66be7e5cd50b9981c94ec1af2b0e4cebf603ccb66b"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "a9c2014a-29f0-4a69-87e9-1fb56ac41d7d",
+      "task_state": "succeeded_with_warnings",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_A"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "DP11_EXCLUDE_TABLE_260714_2303"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 2,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS_WITH_WARNINGS",
+      "evidence": "[warn] impdp returned a non-zero code, but copied logs only contain ORA-39082 compilation warnings."
+    },
+    {
+      "id": "DP12_FLASHBACK_SCN",
+      "family": "expdp",
+      "description": "SCHEMAS with FLASHBACK_SCN",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "FLASHBACK_SCN=3466046",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17100800,
+      "dump_mb": 16.31,
+      "dump_files": [
+        {
+          "name": "dp12_flashback_scn.dmp",
+          "bytes": 17100800
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp12_flashback_scn.dmp",
+          "sha256": "e38de8441cf2b1639a84bc2f297d3d432544ed68190d7816fc1b5e8b90131e2d"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "e7ba5e6d-5a49-49ea-bff4-1bdfd20f3fd3",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP12_FLASHBACK_SCN_260714_2305"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "Export, system import and data validation completed."
+    },
+    {
+      "id": "DP13_FLASHBACK_TIME",
+      "family": "expdp",
+      "description": "SCHEMAS with FLASHBACK_TIME=SYSTIMESTAMP",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "FLASHBACK_TIME=\"SYSTIMESTAMP\"",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17100800,
+      "dump_mb": 16.31,
+      "dump_files": [
+        {
+          "name": "dp13_flashback_time.dmp",
+          "bytes": 17100800
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp13_flashback_time.dmp",
+          "sha256": "bb939c9fab0869c93c31ce7032bd7571050f904ff6339610cafc1e5a90627b3f"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "bf0e0d79-bd2a-45f7-80ce-478290f1e12d",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP13_FLASHBACK_TIME_260714_230"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "Export, system import and data validation completed."
+    },
+    {
+      "id": "DP14_VERSION_11_2",
+      "family": "expdp",
+      "description": "VERSION=11.2 compatible dump format",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "VERSION=11.2",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17051648,
+      "dump_mb": 16.26,
+      "dump_files": [
+        {
+          "name": "dp14_version_11_2.dmp",
+          "bytes": 17051648
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp14_version_11_2.dmp",
+          "sha256": "7e1fd4d801b4fe043328cc2e2939c363fc81729af0535bf1179c33cf0d69e53a"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "5e6fa5f7-640e-4925-808c-ef4c450609ae",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP14_VERSION_11_2_260714_2308"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "Export, system import and data validation completed."
+    },
+    {
+      "id": "DP15_COMPRESSION_METADATA",
+      "family": "expdp",
+      "description": "COMPRESSION=METADATA_ONLY",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "COMPRESSION=METADATA_ONLY",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17100800,
+      "dump_mb": 16.31,
+      "dump_files": [
+        {
+          "name": "dp15_compression_metadata.dmp",
+          "bytes": 17100800
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp15_compression_metadata.dmp",
+          "sha256": "3671256642ffb1fac697d2ea060c35b9fc07a8b162f9d471b30879ec1f2864b7"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "849d3b89-b10b-4a6a-85de-27ec7626d084",
+      "task_state": "succeeded",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B"
+      ],
+      "schema_map": {
+        "C11_SRC_B": "DP15_COMPRESSION_METADATA_2607"
+      },
+      "validation_state": "passed",
+      "validation_failures": [],
+      "invalid_object_count": 0,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "supported",
+      "final_status": "PASS",
+      "evidence": "Export, system import and data validation completed."
+    },
+    {
+      "id": "DP16_TRANSPORT_TS",
+      "family": "expdp",
+      "description": "TRANSPORT_TABLESPACES dump without transport datafile input in the current system",
+      "parameters": [
+        "TRANSPORT_TABLESPACES=C11_SRC_TS_B",
+        "TRANSPORT_FULL_CHECK=Y"
+      ],
+      "export_state": "failed",
+      "export_rc": 1,
+      "dump_bytes": 0,
+      "dump_mb": 0.0,
+      "dump_files": [],
+      "checksums": [],
+      "no_export_logs": true,
+      "task_id": null,
+      "task_state": null,
+      "dump_type": null,
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": null,
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": null,
+      "orphan_tablespace_cleanup": null,
+      "classification": "export_failed",
+      "final_status": "EXPORT_BLOCKED",
+      "evidence": "ORA-39123: Data Pump transportable tablespace job aborted | ORA-00439: feature not enabled: Export transportable tablespaces"
+    },
+    {
+      "id": "DP17_COMPRESSION_ALL",
+      "family": "expdp",
+      "description": "COMPRESSION=ALL on Standard Edition 2",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "COMPRESSION=ALL",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "failed",
+      "export_rc": 1,
+      "dump_bytes": 0,
+      "dump_mb": 0.0,
+      "dump_files": [],
+      "checksums": [],
+      "no_export_logs": true,
+      "task_id": null,
+      "task_state": null,
+      "dump_type": null,
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": null,
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": null,
+      "orphan_tablespace_cleanup": null,
+      "classification": "export_failed",
+      "final_status": "EXPORT_BLOCKED",
+      "evidence": "ORA-39002: invalid operation | ORA-00439: feature not enabled: Dump File Data Compression"
+    },
+    {
+      "id": "DP18_PASSWORD_ENCRYPTION",
+      "family": "expdp",
+      "description": "Password-encrypted Data Pump dump",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "ENCRYPTION=ALL",
+        "ENCRYPTION_MODE=PASSWORD",
+        "ENCRYPTION_PASSWORD=******",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "failed",
+      "export_rc": 1,
+      "dump_bytes": 0,
+      "dump_mb": 0.0,
+      "dump_files": [],
+      "checksums": [],
+      "no_export_logs": true,
+      "task_id": null,
+      "task_state": null,
+      "dump_type": null,
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": null,
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": null,
+      "orphan_tablespace_cleanup": null,
+      "classification": "export_failed",
+      "final_status": "EXPORT_BLOCKED",
+      "evidence": "ORA-39002: invalid operation | ORA-00439: feature not enabled: Dump File Encryption"
+    },
+    {
+      "id": "DP19_NETWORK_LINK",
+      "family": "expdp",
+      "description": "NETWORK_LINK export through a temporary loopback database link",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "NETWORK_LINK=C11_LOOP_LINK",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "failed",
+      "export_rc": 1,
+      "dump_bytes": 0,
+      "dump_mb": 0.0,
+      "dump_files": [],
+      "checksums": [],
+      "no_export_logs": true,
+      "task_id": null,
+      "task_state": null,
+      "dump_type": null,
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": null,
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": null,
+      "orphan_tablespace_cleanup": null,
+      "classification": "export_failed",
+      "final_status": "EXPORT_BLOCKED",
+      "evidence": "ORA-31631: privileges are required | ORA-39149: cannot link privileged user to non-privileged user"
+    },
+    {
+      "id": "DP19B_NETWORK_LINK_OWNER",
+      "family": "expdp",
+      "description": "NETWORK_LINK export as a non-privileged schema owner",
+      "parameters": [
+        "SCHEMAS=C11_SRC_B",
+        "NETWORK_LINK=C11_OWNER_LOOP_LINK",
+        "EXCLUDE=STATISTICS"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 17788928,
+      "dump_mb": 16.96,
+      "dump_files": [
+        {
+          "name": "dp19b_network_link_owner.dmp",
+          "bytes": 17788928
+        }
+      ],
+      "checksums": [
+        {
+          "name": "dp19b_network_link_owner.dmp",
+          "sha256": "ce2945c7de5c80e36790ee5bf48544f6194097705f70c15dd19b4e7192095d15"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "adbc61fe-e568-4c5d-a5be-659d40936ad7",
+      "task_state": "failed",
+      "dump_type": "datapump",
+      "source_schemas": [
+        "C11_SRC_B",
+        "TO"
+      ],
+      "schema_map": {
+        "TO": "DP19B_NETWORK_LINK_OWNER_TO_26",
+        "C11_SRC_B": "DP19B_NETWORK_LINK_OWNER_C11_S"
+      },
+      "validation_state": "not_run",
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "current_system_not_supported_or_failed",
+      "final_status": "FAIL_IMPORT",
+      "evidence": "Import command failed with exit code 1. Check /opt/oracle-recovery-service-package/oracle-auto-import-runs/task_adbc61fee5684c5da5be659d/import."
+    },
+    {
+      "id": "EXP00_DEFAULT_SCHEMA",
+      "family": "exp",
+      "description": "Legacy exp default schema mode as the connected owner",
+      "parameters": [
+        "CONSISTENT=Y",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 16801792,
+      "dump_mb": 16.02,
+      "dump_files": [
+        {
+          "name": "exp00_default_schema.dmp",
+          "bytes": 16801792
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp00_default_schema.dmp",
+          "sha256": "78de7319f58601cfc26771d35ecd5f24b3cb7a200e35679d5215999044c22048"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "1ae6bc9a-a542-4481-8e2d-fff1002e7d90",
+      "task_state": "succeeded",
+      "dump_type": "legacy_exp",
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": "failed",
+      "validation_failures": [
+        "No target schema mapping for C11_SRC_B"
+      ],
+      "invalid_object_count": null,
+      "cleanup_state": "not_needed",
+      "orphan_tablespace_cleanup": "success",
+      "classification": "imported_validation_failed",
+      "final_status": "FAIL_VALIDATION",
+      "evidence": "No target schema mapping for C11_SRC_B"
+    },
+    {
+      "id": "EXP01_OWNER_SINGLE",
+      "family": "exp",
+      "description": "Legacy exp OWNER single schema with CONSISTENT=Y",
+      "parameters": [
+        "OWNER=C11_SRC_B",
+        "CONSISTENT=Y",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 16801792,
+      "dump_mb": 16.02,
+      "dump_files": [
+        {
+          "name": "exp01_owner_single.dmp",
+          "bytes": 16801792
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp01_owner_single.dmp",
+          "sha256": "2db7e25e2ff4ce70eba462e4021c3ac5b252cf4185e1cb3bb7ba52a70048a1e7"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "9ecd47c5-a067-4e01-831c-a2f2686f53d2",
+      "task_state": "succeeded",
+      "dump_type": "legacy_exp",
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": "failed",
+      "validation_failures": [
+        "No target schema mapping for C11_SRC_B"
+      ],
+      "invalid_object_count": null,
+      "cleanup_state": "not_needed",
+      "orphan_tablespace_cleanup": null,
+      "classification": "imported_validation_failed",
+      "final_status": "FAIL_VALIDATION",
+      "evidence": "No target schema mapping for C11_SRC_B"
+    },
+    {
+      "id": "EXP02_OWNER_MULTI",
+      "family": "exp",
+      "description": "Legacy exp OWNER multiple schemas",
+      "parameters": [
+        "OWNER=(C11_SRC_A,C11_SRC_B)",
+        "CONSISTENT=Y",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 732119040,
+      "dump_mb": 698.2,
+      "dump_files": [
+        {
+          "name": "exp02_owner_multi.dmp",
+          "bytes": 732119040
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp02_owner_multi.dmp",
+          "sha256": "dde1d50506a5440ef5c11d4f731661f9316f7c4c84354b7d1da8a9a4d3cc3747"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "5fac2215-725a-4808-a892-3af30af47b8c",
+      "task_state": "succeeded_with_warnings",
+      "dump_type": "legacy_exp",
+      "source_schemas": [
+        "C11_SRC_A"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "EXP02_OWNER_MULTI_260714_2319"
+      },
+      "validation_state": "failed",
+      "validation_failures": [
+        "C11_SRC_A.LOB_CASES: expected 20000, got None",
+        "No target schema mapping for C11_SRC_B"
+      ],
+      "invalid_object_count": 1,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "imported_validation_failed",
+      "final_status": "FAIL_VALIDATION",
+      "evidence": "C11_SRC_A.LOB_CASES: expected 20000, got None; No target schema mapping for C11_SRC_B"
+    },
+    {
+      "id": "EXP03_TABLES",
+      "family": "exp",
+      "description": "Legacy exp TABLES mode",
+      "parameters": [
+        "TABLES=(C11_SRC_A.EVENTS_HEAP,C11_SRC_B.REF_CODES)",
+        "CONSISTENT=Y",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 199761920,
+      "dump_mb": 190.51,
+      "dump_files": [
+        {
+          "name": "exp03_tables.dmp",
+          "bytes": 199761920
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp03_tables.dmp",
+          "sha256": "5dc5ce5a4d8f8a3f5aa9925439dd480f648c6800f13c9e2a34f200dbe8b941fe"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "203e9ef3-19ac-478a-9203-acc57eb2f660",
+      "task_state": "succeeded",
+      "dump_type": "legacy_exp",
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": "failed",
+      "validation_failures": [
+        "No target schema mapping for C11_SRC_A",
+        "No target schema mapping for C11_SRC_B"
+      ],
+      "invalid_object_count": null,
+      "cleanup_state": "not_needed",
+      "orphan_tablespace_cleanup": "success",
+      "classification": "imported_validation_failed",
+      "final_status": "FAIL_VALIDATION",
+      "evidence": "No target schema mapping for C11_SRC_A; No target schema mapping for C11_SRC_B"
+    },
+    {
+      "id": "EXP04_ROWS_N",
+      "family": "exp",
+      "description": "Legacy exp ROWS=N metadata only",
+      "parameters": [
+        "OWNER=C11_SRC_A",
+        "ROWS=N",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 16384,
+      "dump_mb": 0.02,
+      "dump_files": [
+        {
+          "name": "exp04_rows_n.dmp",
+          "bytes": 16384
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp04_rows_n.dmp",
+          "sha256": "b57863e1569a9faabe4463b69d72618141c9a5abc1e8a5e4d1446da358ac4076"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "09fb46d5-c1d8-4b1d-95b2-2e8418a2ca87",
+      "task_state": "succeeded_with_warnings",
+      "dump_type": "legacy_exp",
+      "source_schemas": [
+        "C11_SRC_A"
+      ],
+      "schema_map": {
+        "C11_SRC_A": "EXP04_ROWS_N_260714_2330"
+      },
+      "validation_state": "failed",
+      "validation_failures": [
+        "C11_SRC_A.LOB_CASES: expected 0, got None"
+      ],
+      "invalid_object_count": 1,
+      "cleanup_state": "success",
+      "orphan_tablespace_cleanup": null,
+      "classification": "imported_validation_failed",
+      "final_status": "FAIL_VALIDATION",
+      "evidence": "C11_SRC_A.LOB_CASES: expected 0, got None"
+    },
+    {
+      "id": "EXP05_DIRECT_Y",
+      "family": "exp",
+      "description": "Legacy exp direct path",
+      "parameters": [
+        "OWNER=C11_SRC_B",
+        "DIRECT=Y",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "succeeded",
+      "export_rc": 0,
+      "dump_bytes": 16703488,
+      "dump_mb": 15.93,
+      "dump_files": [
+        {
+          "name": "exp05_direct_y.dmp",
+          "bytes": 16703488
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp05_direct_y.dmp",
+          "sha256": "d925c9c909ccfaa5363f81377a27a6ac573aeed67de1adf84c9205e72ec77c02"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": "7ae21c55-8e6d-4103-ad43-c0dd4dac6e8b",
+      "task_state": "succeeded",
+      "dump_type": "legacy_exp",
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": "failed",
+      "validation_failures": [
+        "No target schema mapping for C11_SRC_B"
+      ],
+      "invalid_object_count": null,
+      "cleanup_state": "not_needed",
+      "orphan_tablespace_cleanup": "success",
+      "classification": "imported_validation_failed",
+      "final_status": "FAIL_VALIDATION",
+      "evidence": "No target schema mapping for C11_SRC_B"
+    },
+    {
+      "id": "EXP06_FULL",
+      "family": "exp",
+      "description": "Legacy exp FULL=Y",
+      "parameters": [
+        "FULL=Y",
+        "CONSISTENT=Y",
+        "STATISTICS=NONE"
+      ],
+      "export_state": "failed",
+      "export_rc": 1,
+      "dump_bytes": 16384,
+      "dump_mb": 0.02,
+      "dump_files": [
+        {
+          "name": "exp06_full.dmp",
+          "bytes": 16384
+        }
+      ],
+      "checksums": [
+        {
+          "name": "exp06_full.dmp",
+          "sha256": "3ccc122d999363c09501acea9f6198cdbf3e99da4b3c40dce23415816d904b2c"
+        }
+      ],
+      "no_export_logs": true,
+      "task_id": null,
+      "task_state": null,
+      "dump_type": null,
+      "source_schemas": [],
+      "schema_map": {},
+      "validation_state": null,
+      "validation_failures": [],
+      "invalid_object_count": null,
+      "cleanup_state": null,
+      "orphan_tablespace_cleanup": null,
+      "classification": "export_failed",
+      "final_status": "EXPORT_BLOCKED",
+      "evidence": "EXP-00058: Password Verify Function for ORA_STIG_PROFILE profile does not exist | EXP-00000: Export terminated unsuccessfully"
+    }
+  ]
+}

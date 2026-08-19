@@ -1,0 +1,288 @@
+services:
+  mysql:
+    image: ${MYSQL_SERVICE_IMAGE:-mysql:8.4}
+    container_name: oracle-recovery-mysql
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-oracle_recovery}
+      MYSQL_USER: ${MYSQL_USER:-recovery}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-recovery}
+    command: ["--default-time-zone=+08:00"]
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: ${REDIS_SERVICE_IMAGE:-redis:7-alpine}
+    container_name: oracle-recovery-redis
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker-oracle:
+    profiles: ["microservices"]
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker-oracle
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: oracle-restore
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker-sm4:
+    profiles: ["microservices"]
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker-sm4
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: sm4
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker-sm3:
+    profiles: ["microservices"]
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker-sm3
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: sm3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker-sql:
+    profiles: ["microservices"]
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker-sql
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: doris-sql
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker-data-sync:
+    profiles: ["microservices"]
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker-data-sync
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: data-sync
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker-data-platform:
+    profiles: ["microservices"]
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker-data-platform
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: data-platform
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  mysql-restore:
+    profiles: ["targets"]
+    image: ${MYSQL_RESTORE_IMAGE:-mysql:8.4}
+    container_name: ${MYSQL_RESTORE_CONTAINER_NAME:-mysql-recovery-target}
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_RESTORE_ROOT_PASSWORD:-ChangeMe_MySqlRestore_123!}
+    command: ["--default-time-zone=+08:00"]
+    volumes:
+      - ${MYSQL_RESTORE_DATA_HOST_PATH:-/data/mysql-recovery/data}:/var/lib/mysql
+      - ${MYSQL_RESTORE_BACKUP_HOST_PATH:-/data/mysql-recovery/backup}:${MYSQL_RESTORE_BACKUP_CONTAINER_PATH:-/recovery_backup}
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  migrate:
+    image: oracle-recovery-service-api:latest
+    container_name: oracle-recovery-migrate
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      APP_SERVICE_MODE: ${APP_SERVICE_MODE:-monolith}
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+    command: ["python", "scripts/init_db.py"]
+    restart: "no"
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  api:
+    image: oracle-recovery-service-api:latest
+    container_name: oracle-recovery-api
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WORKER_SERVICE_MODE: ${WORKER_SERVICE_MODE:-monolith}
+      WORKER_QUEUES: ${WORKER_QUEUES:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${API_PORT:-8000}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+  worker:
+    image: oracle-recovery-service-worker:latest
+    container_name: oracle-recovery-worker
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - seccomp=unconfined
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - sm4_jars:/app/data/sm4-jars
+      - staging:/tmp/oracle-recovery-staging
+      - ${ORACLE_HOME_HOST:-./oracle-client-empty}:/opt/oracle/client:ro
+    pids_limit: -1
+    ulimits:
+      nproc: 65535
+
+volumes:
+  mysql_data:
+  staging:
+  sm4_jars:

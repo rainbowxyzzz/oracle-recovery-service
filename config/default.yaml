@@ -1,0 +1,27 @@
+impdp:
+  parallel: 4
+  table_exists_action: SKIP
+  logtime: ALL
+  metrics: "Y"
+  exclude_statistics: true
+  trial_content: METADATA_ONLY
+  sqlfile_suffix: _probe.sql
+
+timeouts:
+  ssh_connect_seconds: 30
+  sqlfile_probe_seconds: 600
+  trial_import_seconds: 900
+  full_import_seconds: 14400
+
+retry:
+  max_correction_attempts: 5
+  backoff_seconds: 10
+
+staging:
+  backend: local
+  local_base_dir: /tmp/oracle-recovery-staging
+
+security:
+  mask_patterns:
+    - "password="
+    - "PASSWORD="

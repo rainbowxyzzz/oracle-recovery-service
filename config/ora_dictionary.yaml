@@ -1,0 +1,84 @@
+# ORA error code -> corrective actions (ordered)
+rules:
+  - code: ORA-01918
+    patterns:
+      - "user .* does not exist"
+      - "ORA-01918"
+    actions:
+      - type: create_user_from_remap
+        priority: 10
+      - type: remap_schema
+        priority: 20
+    max_retries: 3
+
+  - code: ORA-00959
+    patterns:
+      - "tablespace .* does not exist"
+      - "ORA-00959"
+    actions:
+      - type: create_tablespace_stub
+        priority: 10
+      - type: remap_tablespace
+        priority: 20
+    max_retries: 3
+
+  - code: ORA-31684
+    patterns:
+      - "ORA-31684"
+      - "already exists"
+    actions:
+      - type: set_table_exists_action
+        params:
+          value: REPLACE
+        priority: 10
+      - type: set_table_exists_action
+        params:
+          value: APPEND
+        priority: 20
+    max_retries: 2
+
+  - code: ORA-39001
+    patterns:
+      - "ORA-39001"
+      - "invalid argument value"
+    actions:
+      - type: drop_invalid_parameter
+        priority: 10
+    max_retries: 2
+
+  - code: ORA-39087
+    patterns:
+      - "ORA-39087"
+      - "directory name"
+    actions:
+      - type: ensure_oracle_directory
+        priority: 10
+    max_retries: 2
+
+  - code: ORA-39142
+    patterns:
+      - "ORA-39142"
+      - "compatible"
+    actions:
+      - type: set_version
+        params:
+          value: "11.2.0"
+        priority: 10
+      - type: set_version
+        params:
+          value: "12.2.0"
+        priority: 20
+    max_retries: 2
+
+  - code: ORA-39006
+    patterns:
+      - "ORA-39006"
+      - "internal error"
+    actions:
+      - type: reduce_parallel
+        priority: 10
+    max_retries: 2
+
+default_action:
+  type: log_and_fail
+  priority: 100

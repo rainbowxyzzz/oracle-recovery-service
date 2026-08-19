@@ -1,0 +1,13 @@
+{
+  "source": {
+    "host": "A_SERVER_IP",
+    "port": 22,
+    "user": "root",
+    "password": "A_SERVER_PASSWORD",
+    "directory": "/sda/数据收集/2026"
+  },
+  "oracle_password": "ORACLE_HOST_ROOT_PASSWORD_IF_NOT_SET_IN_ENV",
+  "generated_user_password": "ChangeMe_123456",
+  "volume_group_index": 0,
+  "auto_confirm": true
+}

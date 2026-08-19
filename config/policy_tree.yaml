@@ -1,0 +1,36 @@
+# Strategy tree execution order (strict)
+nodes:
+  - id: parse_log
+    enabled: true
+    on_success: execute_import
+    on_failure: parse_parfile
+
+  - id: parse_parfile
+    enabled: true
+    on_success: execute_import
+    on_failure: parse_filename
+
+  - id: parse_filename
+    enabled: true
+    on_success: execute_import
+    on_failure: sqlfile_probe
+
+  - id: sqlfile_probe
+    enabled: true
+    on_success: execute_import
+    on_failure: trial_import
+
+  - id: trial_import
+    enabled: true
+    on_success: execute_import
+    on_failure: fail_task
+
+  - id: execute_import
+    enabled: true
+    on_failure: ora_correction_loop
+
+  - id: ora_correction_loop
+    enabled: true
+    max_iterations: 5
+    on_success: execute_import
+    on_failure: fail_task

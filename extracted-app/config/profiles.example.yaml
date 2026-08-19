@@ -1,0 +1,35 @@
+# 连接配置示例（可复制为 profiles.local.yaml，勿提交含密码的文件）
+#
+# 架构:
+#   A 机: 本恢复服务 (无 Oracle)
+#   B 机: DMP 文件 + Oracle Docker
+#   C 机: 目标 19c 库 (可与 B 不同)
+
+profile: dev-cross-host
+
+# B 机 — SSH
+ssh:
+  host: "192.168.1.50"
+  port: 22
+  user: "root"
+  password: "CHANGE_ME"   # 或使用 private_key_path
+
+# B 机 — 宿主机上 DMP 目录（SSH ls 用）
+dmp:
+  host_path: "/data/oracle/dump"
+
+# B 机 — Docker 内 Oracle
+docker_oracle:
+  container: "oracle19c"              # docker ps 里的 NAMES
+  container_path: "/opt/oracle/admin/ORCL/dpdump"  # 容器内路径
+  oracle_directory: "DATA_PUMP_DIR"   # 库内 DIRECTORY 名
+  oracle_home: "/opt/oracle/product/19c/dbhome_1"
+  # 若用 compose:
+  # compose_dir: "/opt/oracle-compose"
+  # compose_service: "oracle"
+
+# C 机 — 导入目标库
+target:
+  connection: "192.168.1.100:1521/ORCLPDB1"
+  admin_user: "system"
+  admin_password: "CHANGE_ME"
