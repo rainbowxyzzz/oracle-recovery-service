@@ -1887,6 +1887,33 @@
       flex-direction: column;
       overflow: hidden;
     }
+    .approval-auth-watch-card {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(120px, .65fr)) auto;
+      gap: 10px;
+      align-items: stretch;
+      margin: 10px 0 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-left: 4px solid #64748b;
+      border-radius: 9px;
+      background: #f8fafc;
+    }
+    .approval-auth-watch-card.enabled { border-left-color: var(--ok); background: #f3fbf7; }
+    .approval-auth-watch-card.disabled { border-left-color: #94a3b8; }
+    .approval-auth-watch-card.warning { border-left-color: #d97706; background: #fffaf0; }
+    .approval-auth-watch-head,
+    .approval-auth-watch-metric {
+      min-width: 0;
+      padding: 6px 8px;
+    }
+    .approval-auth-watch-head strong,
+    .approval-auth-watch-metric strong { display: block; overflow-wrap: anywhere; }
+    .approval-auth-watch-head .badge { margin: 5px 0 3px; }
+    .approval-auth-watch-metric span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+    .approval-auth-watch-actions { display: flex; flex-direction: column; justify-content: center; gap: 7px; }
+    .approval-auth-watch-dirty { color: #9a5b00; font-size: 12px; font-weight: 700; }
+    .approval-auth-watch-run-state { margin-top: 5px; }
     .approval-auth-log-modal {
       width: min(1080px, calc(100vw - 52px));
       height: min(720px, calc(100vh - 52px));
@@ -1988,6 +2015,16 @@
     }
     .approval-auth-log-content pre { max-height: none; min-height: 100%; margin: 0; border-radius: 0; }
     .approval-auth-modal-actions { flex: 0 0 auto; justify-content: flex-end; margin-top: 12px; }
+    @media (max-width: 1500px) {
+      [data-module="approvalAuthorization"] > .grid-2 { grid-template-columns: 1fr; }
+      [data-module="approvalAuthorization"] > .grid-2 > * { min-width: 0; }
+      [data-module="approvalAuthorization"] .toolbar,
+      [data-module="approvalAuthorization"] .toolbar .actions { flex-wrap: wrap; }
+      .approval-auth-watch-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .approval-auth-watch-head,
+      .approval-auth-watch-actions { grid-column: 1 / -1; }
+      .approval-auth-watch-actions { flex-direction: row; justify-content: flex-start; }
+    }
     pre {
       max-height: 360px;
       overflow: auto;
@@ -2031,6 +2068,10 @@
       .tree-title { display: none; }
       .connection-grid, .connection-type-grid, .cleanup-layout, .doris-layout, .batch-auth-layout, .approval-auth-credential-row, .data-platform-workbench, .data-platform-canvas-toolbar, .data-platform-schedule-fields, .data-platform-schedule-manager-toolbar, .data-platform-log-layout, .sql-workbench, .advanced-box .grid.two, .grid-2, .grid-3, .kv { grid-template-columns: 1fr; }
       .approval-auth-run-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .approval-auth-watch-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .approval-auth-watch-head,
+      .approval-auth-watch-actions { grid-column: 1 / -1; }
+      .approval-auth-watch-actions { flex-direction: row; justify-content: flex-start; }
       .approval-auth-run-layout { grid-template-columns: 1fr; }
       .approval-auth-flow-nav { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; }
       .approval-auth-flow-button { width: auto; min-width: 180px; margin-bottom: 0; }
@@ -2051,6 +2092,9 @@
     @media (max-width: 720px) {
       .approval-auth-run-modal,
       .approval-auth-log-modal { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+      .approval-auth-watch-card { grid-template-columns: 1fr; }
+      .approval-auth-watch-head,
+      .approval-auth-watch-actions { grid-column: auto; }
       .approval-auth-run-summary { grid-template-columns: 1fr 1fr; }
       .approval-auth-step-row { grid-template-columns: 1fr; gap: 7px; }
       .approval-auth-step-row .actions { justify-content: flex-start; }
@@ -4070,6 +4114,7 @@
         </div>
       </div>
       <div id="approvalAuthMessage" class="message"></div>
+      <div id="approvalAuthWatchStatusCard" class="approval-auth-watch-card disabled" aria-live="polite"></div>
       <div class="grid-2">
         <div class="detail">
           <h3>流程配置</h3>
@@ -4109,6 +4154,7 @@
             <input id="approvalAuthDebugLogSensitivePayloads" type="checkbox">
             <span>启用诊断日志模式（仅测试环境，输出完整 token 和请求内容）</span>
           </label>
+          <div id="approvalAuthWatchSettings" tabindex="-1">
           <label class="checkbox-row" style="margin-top: 8px">
             <input id="approvalAuthAutoWatchEnabled" type="checkbox">
             <span>启用定时监听待办申请</span>
@@ -4124,6 +4170,7 @@
             </div>
           </div>
           <div id="approvalAuthAutoWatchScheduleHint" class="muted" style="margin-top: 8px">启用后会按监听间隔定时扫描待办。</div>
+          </div>
           <label class="checkbox-row" style="margin-top: 8px">
             <input id="approvalAuthUpdateAuditStatusAfterSuccess" type="checkbox" checked>
             <span>授权成功后回写审批状态</span>
@@ -5824,6 +5871,7 @@
       let approvalAuthSelectedApplyFlowId = "__all__";
       let approvalAuthSelectedLogId = "";
       let approvalAuthLogTab = "overview";
+      let approvalAuthWatchSettingsDirty = false;
       let resourceProvisioningPreviewData = null;
       let resourceProvisioningBatches = [];
       let resourceProvisioningSelectedBatchId = "";
@@ -6081,6 +6129,7 @@
         approvalAuthSelectedApplyFlowId = "__all__";
         approvalAuthSelectedLogId = "";
         approvalAuthLogTab = "overview";
+        approvalAuthWatchSettingsDirty = false;
         if ($("approvalAuthLogModal")) $("approvalAuthLogModal").hidden = true;
         if ($("approvalAuthRunModal")) $("approvalAuthRunModal").hidden = true;
         resourceProvisioningPreviewData = null;
@@ -9977,8 +10026,62 @@
         return `最近扫描 ${formatDateTime(lastScan)}，下次扫描 ${formatDateTime(nextScan)}。`;
       }
 
+      function approvalAuthWatchState(config) {
+        if (!config) return { key: "none", label: "未选择配置", badge: "", description: "请选择已有配置或先保存新配置。" };
+        if (config.status !== "active") return { key: "warning", label: "配置已禁用", badge: "system", description: "只有状态为 active 的配置会被后台调度器扫描。" };
+        if (!config.config?.auto_watch_enabled) return { key: "disabled", label: "监听已停用", badge: "", description: "勾选启用监听并保存配置后，后台才会持续扫描。" };
+        return { key: "enabled", label: "监听已开启", badge: "business", description: "后台调度器会按已保存的时间间隔持续扫描。" };
+      }
+
+      function approvalAuthConfigForRun(run) {
+        return approvalAuthConfigs.find((item) => String(item.id) === String(run.config_id))
+          || approvalAuthConfigs.find((item) => item.name === run.config_name);
+      }
+
+      function renderApprovalAuthWatchStatus() {
+        const box = $("approvalAuthWatchStatusCard");
+        if (!box) return;
+        const config = approvalAuthConfigs.find((item) => item.id === approvalAuthSelectedConfigId);
+        const state = approvalAuthWatchState(config);
+        const saved = config?.config || {};
+        const interval = Math.max(1, Math.min(1440, Number(saved.auto_watch_interval_minutes || 5)));
+        const maxItems = Math.max(1, Math.min(100, Number(saved.auto_watch_max_items_per_scan || 1)));
+        const lastScan = saved.auto_watch_last_scan_at ? new Date(saved.auto_watch_last_scan_at) : null;
+        const hasLastScan = lastScan && !Number.isNaN(lastScan.getTime());
+        const nextScan = hasLastScan ? new Date(lastScan.getTime() + interval * 60 * 1000) : null;
+        box.className = `approval-auth-watch-card ${state.key}`;
+        box.innerHTML = `
+          <div class="approval-auth-watch-head">
+            <strong>自动监听状态</strong>
+            <span class="badge ${state.badge}">${escapeHtml(state.label)}</span>
+            <div class="muted">${escapeHtml(config?.name || "尚未选择已保存配置")}</div>
+            <div class="muted">${escapeHtml(state.description)}</div>
+            ${approvalAuthWatchSettingsDirty ? '<div class="approval-auth-watch-dirty">● 有未保存的监听设置，当前状态仍以服务器已保存配置为准。</div>' : ""}
+          </div>
+          <div class="approval-auth-watch-metric"><span>监听间隔</span><strong>${config ? `${interval} 分钟` : "-"}</strong></div>
+          <div class="approval-auth-watch-metric"><span>每轮处理</span><strong>${config ? `${maxItems} 条` : "-"}</strong></div>
+          <div class="approval-auth-watch-metric"><span>最近扫描</span><strong>${hasLastScan ? formatDateTime(lastScan) : "尚无记录"}</strong></div>
+          <div class="approval-auth-watch-metric"><span>下次预计</span><strong>${state.key === "enabled" ? (nextScan ? formatDateTime(nextScan) : "等待首次扫描") : "-"}</strong></div>
+          <div class="approval-auth-watch-actions">
+            <button type="button" data-approval-auth-watch-action="edit">修改监听设置</button>
+            <button type="button" class="primary" data-approval-auth-watch-action="save">保存并应用</button>
+          </div>
+        `;
+      }
+
+      function markApprovalAuthWatchSettingsDirty() {
+        approvalAuthWatchSettingsDirty = true;
+        renderApprovalAuthWatchStatus();
+        const draft = {
+          auto_watch_enabled: $("approvalAuthAutoWatchEnabled").checked,
+          auto_watch_interval_minutes: $("approvalAuthAutoWatchInterval").value
+        };
+        $("approvalAuthAutoWatchScheduleHint").textContent = `${approvalAuthAutoWatchScheduleText(draft)} 保存配置后生效。`;
+      }
+
       function renderApprovalAuthConfigForm() {
         const config = approvalAuthConfigs.find((item) => item.id === approvalAuthSelectedConfigId);
+        approvalAuthWatchSettingsDirty = false;
         $("approvalAuthName").value = config?.name || "";
         $("approvalAuthDorisConnection").value = config?.doris_connection_id || "";
         $("approvalAuthWorkflowBaseUrl").value = config?.workflow_base_url || "";
@@ -9995,6 +10098,7 @@
         $("approvalAuthUpdateAuditStatusAfterSuccess").checked = config?.config?.update_audit_status_after_success !== false;
         $("approvalAuthConfigJson").value = JSON.stringify(config?.config || approvalAuthDefaultConfigJson(), null, 2);
         $("approvalAuthAutoWatchScheduleHint").textContent = approvalAuthAutoWatchScheduleText(config?.config || {});
+        renderApprovalAuthWatchStatus();
         renderApprovalAuthStepContextTemplate();
       }
 
@@ -10106,16 +10210,21 @@
           box.innerHTML = '<div class="muted" style="padding: 10px">暂无运行记录。</div>';
           return;
         }
-        box.innerHTML = approvalAuthRuns.map((run) => `
+        box.innerHTML = approvalAuthRuns.map((run) => {
+          const runConfig = approvalAuthConfigForRun(run);
+          const watchState = approvalAuthWatchState(runConfig);
+          return `
           <div class="list-item ${run.id === approvalAuthSelectedRunId ? "selected" : ""}">
             <strong>${escapeHtml(run.config_name || "-")}</strong>
             <span class="badge ${run.state === "success" ? "business" : run.state === "failed" ? "system" : ""}">${escapeHtml(run.state || "-")}</span>
             <div class="muted">模式：${escapeHtml(run.context?.mode === "auto_watch" ? "自动监听" : run.context?.mode === "step_test" ? "单步测试" : "完整运行")}</div>
+            <div class="approval-auth-watch-run-state muted">当前监听：<span class="badge ${watchState.badge}">${escapeHtml(watchState.label)}</span></div>
             <div class="muted">成功 ${run.success_count || 0} / 失败 ${run.failed_count || 0} / 总数 ${run.total_count || 0}</div>
             <div class="muted">${escapeHtml(run.message || "")}</div>
             <div class="actions" style="margin-top: 8px"><button type="button" data-approval-auth-run="${escapeHtml(run.id)}">查看日志</button></div>
           </div>
-        `).join("");
+        `;
+        }).join("");
       }
 
       async function openApprovalAuthRun(runId) {
@@ -10138,7 +10247,7 @@
         return status === "success" ? "business" : status === "failed" ? "system" : "";
       }
 
-      function approvalAuthJson(value) {
+      function approvalAuthPrettyValue(value) {
         if (value === undefined || value === null || value === "") return "暂无数据";
         if (typeof value === "string") return value;
         return JSON.stringify(value, null, 2);
@@ -10237,7 +10346,7 @@
           started_at: log.started_at || null,
           finished_at: log.finished_at || null
         };
-        $("approvalAuthLogContent").innerHTML = `<pre>${escapeHtml(approvalAuthJson(value))}</pre>`;
+        $("approvalAuthLogContent").innerHTML = `<pre>${escapeHtml(approvalAuthPrettyValue(value))}</pre>`;
       }
 
       async function refreshBatchAuthorizationAll() {
@@ -19496,6 +19605,21 @@
         $("approvalAuthConfigSelect")?.addEventListener("change", (event) => {
           approvalAuthSelectedConfigId = event.target.value;
           renderApprovalAuthConfigForm();
+        });
+        ["approvalAuthAutoWatchEnabled", "approvalAuthAutoWatchInterval", "approvalAuthAutoWatchMaxItems"].forEach((id) => {
+          $(id)?.addEventListener("change", markApprovalAuthWatchSettingsDirty);
+          $(id)?.addEventListener("input", markApprovalAuthWatchSettingsDirty);
+        });
+        $("approvalAuthWatchStatusCard")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-watch-action]");
+          if (!button) return;
+          const action = button.getAttribute("data-approval-auth-watch-action");
+          if (action === "edit") {
+            $("approvalAuthWatchSettings")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            $("approvalAuthAutoWatchEnabled")?.focus();
+          } else if (action === "save") {
+            saveApprovalAuthConfig().catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
+          }
         });
         $("approvalAuthRunList")?.addEventListener("click", (event) => {
           const button = event.target.closest("[data-approval-auth-run]");

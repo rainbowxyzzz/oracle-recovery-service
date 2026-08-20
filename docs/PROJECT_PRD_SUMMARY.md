@@ -1,5 +1,9 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-08-20 审批流自动授权增加配置级自动监听状态可视化：页面主视区显示当前配置的监听开关、间隔、每轮处理数量、最近及下次扫描时间，并提示未保存的监听设置；运行记录补充“当前监听”状态注释，明确区分持续监听配置与单次“监听扫描/完整运行”。本次只改前端展示和操作引导，不改变调度、接口、数据库或权限语义。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md` 第 8 节。
+
+2026-08-20 上述监听状态可视化已热更新到 `192.168.150.128`：当前 `dess` 配置保持监听停用，真实完成未保存提示、保存回读、运行记录注释及 1440/1200/960/720 多窗口回归；API、MySQL 和 8 个独立 Worker 健康，未创建自动监听运行。详见 `docs/RELEASE_VALIDATION_20260820_APPROVAL_AUTH_WATCH_STATUS.md`。
+
 2026-08-19 审批流自动授权运行日志改为三级信息架构：主页面仅保留运行摘要，二级窗口按 `applyFlowId` 分组展示步骤时间线，三级窗口分页展示概览、请求、响应、提取结果和 SQL。本次只改前端展示，不改日志 API、数据、脱敏和运行语义。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md` 第 7 节。
 
 2026-08-19 Doris CSV 导入补充中文映射字段 Stream Load 编码规则：英文字段继续使用现有 `columns` Header；映射字段包含非 ASCII 字符时改用 `csv_with_names`，从 UTF-8 CSV 首行读取目标列名，避免 HTTP Header ASCII 序列化失败，同时保留改名、重排和字段子集导入语义。详见 `docs/DORIS_CSV_IMPORT_TASK_PRD_20260810.md` 第 18 节。
