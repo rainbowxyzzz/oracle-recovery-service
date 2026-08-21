@@ -77,6 +77,7 @@ from recovery_service.services.doris_sm4_function import (
     sm4_jar_path,
 )
 from recovery_service.services.file_decryption import decrypt_file_content
+from recovery_service.services.ip_allowlist import ip_allowed
 from recovery_service.services.sm4_key_versions import (
     get_sm4_key_seed,
     get_sm4_key_seed_for_batch,
@@ -211,10 +212,15 @@ def _parse_column_list(value: str) -> list[str]:
 
 
 @router.get("/function-jars/{filename}", include_in_schema=False)
-async def download_sm4_function_jar(filename: str):
+async def download_sm4_function_jar(filename: str, request: Request):
     try:
+        client_ip = request.client.host if request.client else ""
+        if not ip_allowed(client_ip, get_settings().doris_sm4_udf_jar_allowed_ips):
+            raise HTTPException(status_code=403, detail="当前来源地址不允许下载 SM4 UDF JAR。")
         path = sm4_jar_path(filename)
         return FileResponse(path, media_type="application/java-archive", filename=path.name)
+    except HTTPException:
+        raise
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -832,10 +838,12 @@ async def refresh_doris_sm4_functions(
             profile,
             sm4_key=sm4_key,
             key_mode=body.key_mode,
+            key_id=body.key_id,
             public_base_url=public_base_url,
             function_name=body.function_name,
             include_system_databases=body.include_system_databases,
             databases=body.databases,
+            database_capabilities=[item.model_dump() for item in body.database_capabilities],
             actor=actor,
         )
     except HTTPException:

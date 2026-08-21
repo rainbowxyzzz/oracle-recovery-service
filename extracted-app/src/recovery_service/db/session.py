@@ -82,6 +82,7 @@ async def init_db() -> None:
         await _ensure_doris_sm3_job_columns(conn)
         await _ensure_doris_sm3_audit_columns(conn)
         await _ensure_doris_sm4_key_and_batch_columns(conn)
+        await _ensure_doris_sm4_function_deployment_columns(conn)
         await _ensure_doris_sm4_auto_snapshot_columns(conn)
         await _ensure_doris_sm4_schedule_columns(conn)
         await _ensure_doris_sm4_task_definition_columns(conn)
@@ -91,6 +92,7 @@ async def init_db() -> None:
         await _ensure_resource_permission_columns(conn)
         await _ensure_doris_csv_task_columns(conn)
         await _ensure_data_platform_folder_columns(conn)
+        await _ensure_data_platform_workflow_metadata_columns(conn)
         await _ensure_data_platform_node_columns(conn)
         await _ensure_data_platform_version_columns(conn)
         await _ensure_data_platform_indexes(conn)
@@ -239,6 +241,16 @@ async def _ensure_data_platform_folder_columns(conn) -> None:
         await conn.execute(text("CREATE INDEX ix_data_platform_workflows_folder_id ON data_platform_workflows (folder_id)"))
 
 
+async def _ensure_data_platform_workflow_metadata_columns(conn) -> None:
+    if conn.dialect.name not in {"mysql", "mariadb"}:
+        return
+    workflow_columns = await _table_columns(conn, "data_platform_workflows")
+    if workflow_columns and "business_metadata" not in workflow_columns:
+        await conn.execute(
+            text("ALTER TABLE data_platform_workflows ADD COLUMN business_metadata JSON NULL AFTER description")
+        )
+
+
 async def _ensure_data_platform_node_columns(conn) -> None:
     dialect = conn.dialect.name
     if dialect not in {"mysql", "mariadb"}:
@@ -257,6 +269,7 @@ async def _ensure_data_platform_version_columns(conn) -> None:
         return
     version_columns = await _table_columns(conn, "data_platform_workflow_versions")
     version_migrations = {
+        "business_metadata": "ALTER TABLE data_platform_workflow_versions ADD COLUMN business_metadata JSON NULL AFTER edges",
         "release_snapshot": "ALTER TABLE data_platform_workflow_versions ADD COLUMN release_snapshot JSON NULL AFTER edges",
         "execution_content_hash": "ALTER TABLE data_platform_workflow_versions ADD COLUMN execution_content_hash VARCHAR(64) NULL AFTER release_snapshot",
     }
@@ -560,6 +573,24 @@ async def _ensure_doris_sm4_key_and_batch_columns(conn) -> None:
     }
     for column, sql in batch_migrations.items():
         if batch_columns and column not in batch_columns:
+            await conn.execute(text(sql))
+
+
+async def _ensure_doris_sm4_function_deployment_columns(conn) -> None:
+    dialect = conn.dialect.name
+    if dialect not in {"mysql", "mariadb"}:
+        return
+    result = await conn.execute(text("""
+        SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'doris_sm4_function_deployments'
+    """))
+    columns = {str(row[0]) for row in result.fetchall()}
+    migrations = {
+        "encrypt_enabled": "ALTER TABLE doris_sm4_function_deployments ADD COLUMN encrypt_enabled BOOL NOT NULL DEFAULT 1 AFTER jar_filename",
+        "decrypt_enabled": "ALTER TABLE doris_sm4_function_deployments ADD COLUMN decrypt_enabled BOOL NOT NULL DEFAULT 1 AFTER encrypt_enabled",
+    }
+    for column, sql in migrations.items():
+        if columns and column not in columns:
             await conn.execute(text(sql))
 
 

@@ -93,6 +93,152 @@ class TaskEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
+class DataAutomationPipeline(Base):
+    __tablename__ = "data_automation_pipelines"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    auto_watch_enabled: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    watch_interval_minutes: Mapped[int] = mapped_column(Integer, default=5)
+    stable_wait_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    file_pattern: Mapped[str] = mapped_column(String(255), default="*.dmp")
+    restore_template_task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    data_sync_node_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    standard_workflow_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    sm4_task_definition_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    business_domain: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    standard_target: Mapped[dict] = mapped_column(JSON, default=dict)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_scan_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    next_scan_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
+
+
+class DataAutomationBlueprint(Base):
+    __tablename__ = "data_automation_blueprints"
+    __table_args__ = (UniqueConstraint("pipeline_id", "version_no", name="uq_data_automation_blueprint_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    version_no: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    source_rule: Mapped[dict] = mapped_column(JSON, default=dict)
+    schema_signature: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    schema_contract: Mapped[dict] = mapped_column(JSON, default=dict)
+    execution_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    auto_execute: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class DataAutomationBatch(Base):
+    __tablename__ = "data_automation_batches"
+    __table_args__ = (UniqueConstraint("pipeline_id", "source_fingerprint", name="uq_data_automation_source"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    blueprint_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    blueprint_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    state: Mapped[str] = mapped_column(String(48), default="discovered", index=True)
+    resume_from_stage: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    source_path: Mapped[str] = mapped_column(String(1024))
+    source_files: Mapped[list] = mapped_column(JSON, default=list)
+    source_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    source_observed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    source_stable_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    restore_task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    sync_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    standard_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    encryption_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    restored_target: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw_target: Mapped[dict] = mapped_column(JSON, default=dict)
+    standard_target: Mapped[dict] = mapped_column(JSON, default=dict)
+    schema_signature: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    match_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    match_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class DataAutomationEvent(Base):
+    __tablename__ = "data_automation_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    stage: Mapped[str] = mapped_column(String(48), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="info", index=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class DataAsset(Base):
+    __tablename__ = "data_assets"
+    __table_args__ = (UniqueConstraint("connection_id", "catalog", "database", "table_name", "layer", name="uq_data_asset_identity"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    connection_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    engine: Mapped[str] = mapped_column(String(32), index=True)
+    catalog: Mapped[str] = mapped_column(String(128), default="")
+    database: Mapped[str] = mapped_column(String(128), index=True)
+    table_name: Mapped[str] = mapped_column(String(255), index=True)
+    layer: Mapped[str] = mapped_column(String(32), default="raw", index=True)
+    business_domain: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    schema_signature: Mapped[str] = mapped_column(String(64), index=True)
+    schema_contract: Mapped[dict] = mapped_column(JSON, default=dict)
+    classification_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    first_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    last_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
+
+
+class DataLineageEdge(Base):
+    __tablename__ = "data_lineage_edges"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    source_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    source_field: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    target_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    target_field: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    transformation_type: Mapped[str] = mapped_column(String(32), default="direct", index=True)
+    expression: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
+    workflow_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    node_key: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    review_required: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class DataClassificationRule(Base):
+    __tablename__ = "data_classification_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=100, index=True)
+    match_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    classification: Mapped[str] = mapped_column(String(32), default="internal", index=True)
+    protection_action: Mapped[str] = mapped_column(String(32), default="review", index=True)
+    auto_apply: Mapped[bool] = mapped_column(Boolean, default=False)
+    version_no: Mapped[int] = mapped_column(Integer, default=1)
+    created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
 class BatchJob(Base):
     __tablename__ = "batch_jobs"
 
@@ -255,6 +401,7 @@ class DataPlatformWorkflow(Base):
     folder_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(128), index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    business_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
     created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -272,6 +419,7 @@ class DataPlatformWorkflowVersion(Base):
     status: Mapped[str] = mapped_column(String(32), default="draft", index=True)
     nodes: Mapped[list] = mapped_column(JSON, default=list)
     edges: Mapped[list] = mapped_column(JSON, default=list)
+    business_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     release_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     execution_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     schedule_enabled: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
@@ -785,6 +933,8 @@ class DorisSm4FunctionDeployment(Base):
     key_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
     key_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     jar_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    encrypt_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    decrypt_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     state: Mapped[str] = mapped_column(String(32), index=True)
     message: Mapped[str] = mapped_column(LONG_TEXT, default="")
     verification_state: Mapped[str | None] = mapped_column(String(32), nullable=True)

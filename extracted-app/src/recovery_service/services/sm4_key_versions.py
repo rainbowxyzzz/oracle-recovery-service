@@ -99,6 +99,19 @@ def get_sm4_key_seed(key_id: uuid.UUID) -> str:
         session.close()
 
 
+def get_sm4_key_seed_for_connection(key_id: uuid.UUID, connection_id: uuid.UUID) -> str:
+    session = get_sync_session_factory()()
+    try:
+        row = session.get(DorisSm4KeyVersion, key_id)
+        if not row or row.status != "active":
+            raise KeyError("SM4 key version does not exist or is not active.")
+        if row.connection_id != connection_id:
+            raise ValueError("所选 SM4 密钥版本不属于当前 Doris 连接。")
+        return decrypt_secret(row.key_seed_enc, get_settings().credential_encryption_key)
+    finally:
+        session.close()
+
+
 def get_active_sm4_key_seed_for_jar(jar_filename: str) -> tuple[str, uuid.UUID, str]:
     clean_filename = (jar_filename or "").strip()
     if not clean_filename:
@@ -149,7 +162,12 @@ def resolve_sm4_key_version_for_batch(
                     .order_by(desc(DorisSm4FunctionDeployment.attempted_at))
                     .limit(1)
                 ).scalar_one_or_none()
-                if not deployment or deployment.state != "success" or not deployment.key_version_id:
+                if (
+                    not deployment
+                    or deployment.state != "success"
+                    or not deployment.key_version_id
+                    or not deployment.encrypt_enabled
+                ):
                     raise KeyError(
                         f"数据库 {database} 没有可用的 SM4 函数部署记录，请先在密钥函数页面重新创建并验证。"
                     )

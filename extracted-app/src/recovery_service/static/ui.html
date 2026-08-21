@@ -1463,7 +1463,7 @@
     }
     .sm4-function-tree-row {
       display: grid;
-      grid-template-columns: 24px minmax(160px, 1fr) 88px minmax(170px, 220px);
+      grid-template-columns: minmax(150px, 1fr) 72px 72px 88px minmax(150px, 220px);
       align-items: center;
       min-height: 38px;
       padding: 0 10px;
@@ -2080,7 +2080,7 @@
       .sql-workbench { min-height: auto; }
       .sql-workbench-sidebar { max-height: 320px; }
       .data-platform-log-sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: 260px; }
-      .sm4-function-tree-row { grid-template-columns: 24px minmax(120px, 1fr) 76px; }
+      .sm4-function-tree-row { grid-template-columns: minmax(120px, 1fr) 66px 66px 76px minmax(120px, 1fr); }
       .sm4-function-tree-row.child { padding-left: 12px; }
       .sm4-function-db-detail { display: none; }
       .modal.doris-csv-progress-modal {
@@ -3094,6 +3094,107 @@
       .workflow-node-pane { min-height: 360px; }
       .workflow-node-pane + .workflow-node-pane { border-left: 0; border-top: 1px solid var(--line); }
     }
+    .help-center-shell { display: grid; gap: 12px; }
+    .help-center-tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+    .help-center-tabs button.active { color: var(--primary); border-color: #b8d2ff; background: var(--primary-soft); font-weight: 650; }
+    .help-metrics { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; }
+    .help-metric, .help-card { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }
+    .help-metric strong { display: block; margin-top: 6px; font-size: 24px; }
+    .help-architecture-flow { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 20px; align-items: stretch; }
+    .help-architecture-node { position: relative; border: 1px solid #bfd4ee; border-radius: 8px; padding: 12px; background: #f8fbff; }
+    .help-architecture-node:not(:last-child)::after { content: "→"; position: absolute; right: -17px; top: 40%; color: #6684a6; font-size: 20px; }
+    .help-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 220px 140px auto; gap: 8px; }
+    .help-manual-grid { display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 10px; }
+    .help-card h3 { margin: 0 0 7px; }
+    .help-card-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .help-pill { display: inline-flex; padding: 2px 7px; border-radius: 999px; background: #eef4fa; color: #365675; font-size: 11px; }
+    .help-pill.high { background: #fff1ef; color: #a33a30; }
+    .help-card dl { display: grid; grid-template-columns: 78px 1fr; gap: 5px 8px; margin: 8px 0 0; font-size: 12px; }
+    .help-card dt { color: var(--muted); font-weight: 650; }
+    .help-card dd { margin: 0; overflow-wrap: anywhere; }
+    .help-api-layout { display: grid; grid-template-columns: minmax(330px, .9fr) minmax(380px, 1.1fr); gap: 10px; min-height: 520px; }
+    .help-api-list { max-height: calc(100vh - 310px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+    .help-api-item { width: 100%; display: grid; grid-template-columns: 58px 1fr; gap: 8px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; text-align: left; padding: 9px; }
+    .help-api-item.active { background: var(--primary-soft); border-left: 3px solid var(--primary); }
+    .help-method { font: 700 11px Consolas, monospace; color: #166534; }
+    .help-api-path { font: 12px Consolas, monospace; overflow-wrap: anywhere; }
+    .help-api-detail { min-width: 0; max-height: calc(100vh - 310px); overflow: auto; }
+    .help-schema { margin: 7px 0 0; padding: 9px; border-radius: 6px; background: #f6f8fa; font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .help-coupling-grid { display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr)); gap: 10px; }
+    @media (max-width: 1050px) {
+      .help-metrics, .help-architecture-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .help-architecture-node::after { display: none; }
+      .help-api-layout { grid-template-columns: 1fr; }
+      .help-api-list, .help-api-detail { max-height: 430px; }
+      .help-coupling-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .help-toolbar, .help-manual-grid, .help-coupling-grid, .help-metrics, .help-architecture-flow { grid-template-columns: 1fr; }
+    }
+    .lineage-shell { display: grid; gap: 12px; }
+    .lineage-filters { display: grid; grid-template-columns: minmax(220px, 1fr) 150px minmax(220px, .8fr) 130px 110px auto; gap: 8px; align-items: end; }
+    .lineage-filter-action { display: flex; gap: 7px; }
+    .lineage-metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 9px; }
+    .lineage-metric { min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(180deg, #fff, #f8fbff); }
+    .lineage-metric span { display: block; color: var(--muted); font-size: 12px; }
+    .lineage-metric strong { display: block; margin-top: 3px; font-size: 21px; }
+    .lineage-layout { display: grid; grid-template-columns: 270px minmax(440px, 1fr) 300px; gap: 10px; min-height: 620px; }
+    .lineage-panel { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
+    .lineage-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: #f8fafc; }
+    .lineage-panel-head h3 { margin: 0; }
+    .lineage-asset-list { max-height: 680px; overflow: auto; padding: 7px; }
+    .lineage-asset-item { width: 100%; display: block; padding: 9px; margin-bottom: 6px; border-color: transparent; background: transparent; text-align: left; box-shadow: none; }
+    .lineage-asset-item:hover, .lineage-asset-item.active { border-color: #b8d4ff; background: var(--primary-soft); }
+    .lineage-asset-item strong, .lineage-node strong { display: block; overflow-wrap: anywhere; }
+    .lineage-asset-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .lineage-layer-pill { display: inline-flex; padding: 1px 6px; border-radius: 999px; background: #edf2f7; color: #40536a; }
+    .lineage-layer-pill.restored { background: #fff4dc; color: #805600; }
+    .lineage-layer-pill.raw { background: #eaf2ff; color: #24599a; }
+    .lineage-layer-pill.standard { background: #e9f7ef; color: #196b3b; }
+    .lineage-layer-pill.secured { background: #f4edff; color: #6941a5; }
+    .lineage-main { display: grid; grid-template-rows: auto minmax(250px, auto) auto; min-width: 0; }
+    .lineage-board { display: grid; grid-template-columns: repeat(4, minmax(165px, 1fr)); gap: 18px; padding: 12px; overflow: auto; background: #f8fafc; }
+    .lineage-lane { position: relative; min-width: 165px; }
+    .lineage-lane:not(:last-child)::after { content: "→"; position: absolute; right: -15px; top: 8px; color: #7890aa; font-size: 18px; }
+    .lineage-lane-title { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .lineage-node { width: 100%; min-height: 74px; display: block; margin-bottom: 8px; padding: 9px; border: 1px solid #d6e1ed; border-left: 4px solid #8095ad; border-radius: 7px; background: #fff; text-align: left; box-shadow: 0 3px 10px rgba(15,23,42,.04); }
+    .lineage-node.root { border-color: #79aef7; border-left-color: var(--primary); box-shadow: 0 0 0 2px rgba(31,111,235,.10); }
+    .lineage-node.secured { border-left-color: #7c3bb8; }
+    .lineage-edge-section { min-width: 0; padding: 0 12px 12px; }
+    .lineage-edge-table { max-height: 285px; overflow: auto; border: 1px solid var(--line); border-radius: 7px; }
+    .lineage-edge-table table { min-width: 760px; }
+    .lineage-edge-table tr { cursor: pointer; }
+    .lineage-edge-table tr:hover td { background: #f5f9ff; }
+    .lineage-sm4 { color: #6f2da8; font-weight: 700; }
+    .lineage-detail { max-height: 680px; overflow: auto; padding: 12px; }
+    .lineage-detail dl { display: grid; grid-template-columns: 72px 1fr; gap: 7px; margin: 0; }
+    .lineage-detail dt { color: var(--muted); }
+    .lineage-detail dd { margin: 0; overflow-wrap: anywhere; }
+    .lineage-field-list { display: grid; gap: 5px; margin-top: 10px; }
+    .lineage-field-row { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 8px; padding: 7px; border: 1px solid #edf1f5; border-radius: 6px; }
+    .lineage-evidence-modal { width: min(920px, calc(100vw - 36px)); max-height: calc(100vh - 36px); display: flex; flex-direction: column; }
+    .lineage-evidence-body { min-height: 0; overflow: auto; white-space: normal; color: var(--text); }
+    .lineage-evidence-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+    .lineage-evidence-grid > div:nth-child(odd) { color: var(--muted); }
+    .lineage-code { margin-top: 10px; padding: 10px; border-radius: 6px; background: #f6f8fa; font: 12px/1.55 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    @media (max-width: 1280px) {
+      .lineage-filters { grid-template-columns: minmax(220px, 1fr) 140px minmax(200px, 1fr) 120px 100px; }
+      .lineage-filter-action { grid-column: 1 / -1; }
+      .lineage-layout { grid-template-columns: 230px minmax(420px, 1fr); }
+      .lineage-layout > .lineage-panel:last-child { grid-column: 1 / -1; }
+      .lineage-detail { max-height: 360px; }
+    }
+    @media (max-width: 900px) {
+      .lineage-filters, .lineage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .lineage-layout { grid-template-columns: 1fr; }
+      .lineage-layout > .lineage-panel:last-child { grid-column: auto; }
+      .lineage-asset-list, .lineage-detail { max-height: 360px; }
+      .lineage-board { grid-template-columns: repeat(4, minmax(190px, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .lineage-filters, .lineage-metrics { grid-template-columns: 1fr; }
+      .lineage-filter-action { grid-column: auto; }
+    }
   </style>
 </head>
 <body class="auth-checking">
@@ -3146,7 +3247,10 @@
         <button type="button" data-nav-module="dorisSm3">Doris SM3 映射脱敏</button>
         <button type="button" data-nav-module="dorisSm3Logs">SM3 日志审计</button>
         <button type="button" data-nav-module="dataPlatform">离线开发</button>
+        <button type="button" data-nav-module="dataAutomation">数据自动化流水线</button>
+        <button type="button" data-nav-module="dataLineage">数据血缘中心</button>
         <button type="button" data-nav-module="cleanup">数据库清理</button>
+        <button type="button" data-nav-module="helpArchitecture">帮助与架构中心</button>
       </nav>
     </aside>
 
@@ -4772,10 +4876,13 @@
             <select id="dorisEncryptKeyMode">
               <option value="random">自动生成随机密钥种子</option>
               <option value="manual">手动输入密钥种子</option>
+              <option value="existing">使用已有密钥版本</option>
             </select>
             <label for="dorisEncryptManualKey">手动密钥种子</label>
             <input id="dorisEncryptManualKey" type="password" placeholder="例如：cqaudit@@@2026">
-            <div class="hint">函数名固定为 CQ_SM4_ENCRYPT，并同步创建 CQ_SM4_DECRYPT。执行后会生成新版本 UDF jar，重新绑定固定函数名，并立即执行加密/解密 SQL 验证；验证通过后才视为生效。系统不默认重启 Doris 集群。</div>
+            <label for="dorisEncryptExistingKeyId">已有密钥版本</label>
+            <select id="dorisEncryptExistingKeyId" disabled><option value="">请选择已有密钥版本</option></select>
+            <div class="hint">新密钥会生成新版本；已有密钥只调整数据库函数覆盖范围。取消能力会删除该库对应函数，不删除密钥、任务、批次、调度或业务数据。</div>
             <div class="sm4-function-tree-toolbar">
               <strong>目标业务库</strong>
               <div class="actions">
@@ -4783,11 +4890,19 @@
                 <button id="dorisEncryptReloadFunctionDatabasesBtn" type="button">刷新库列表</button>
               </div>
             </div>
+            <div class="actions" style="margin-top: 8px">
+              <button type="button" data-sm4-capability-batch="encrypt-on">加密全选</button>
+              <button type="button" data-sm4-capability-batch="encrypt-off">取消加密</button>
+              <button type="button" data-sm4-capability-batch="decrypt-on">解密全选</button>
+              <button type="button" data-sm4-capability-batch="decrypt-off">取消解密</button>
+              <button type="button" data-sm4-capability-batch="both-on">全部能力</button>
+              <button type="button" data-sm4-capability-batch="both-off">全部清空</button>
+            </div>
             <div id="dorisEncryptFunctionDatabaseTree" class="sm4-function-tree">
               <div class="muted" style="padding: 12px">请选择 Doris 连接。</div>
             </div>
             <div class="actions" style="margin-top: 10px">
-              <button id="dorisEncryptRefreshFunctionBtn" class="danger" type="button">生成密钥并在选中库创建函数</button>
+              <button id="dorisEncryptRefreshFunctionBtn" class="danger" type="button">应用密钥函数部署</button>
             </div>
           </div>
 
@@ -5578,6 +5693,73 @@
       </div>
     </section>
 
+    <section class="module-panel" data-module="dataAutomation">
+      <div class="toolbar"><div><h2 style="margin:0">数据自动化流水线</h2><div class="hint">DMP 发现、恢复、Doris 同步、标准化、血缘、分级与受控加密的统一运行面板</div></div><div class="actions"><button id="dataAutomationRefreshBtn" type="button">刷新</button></div></div>
+      <div class="grid">
+        <div><label for="dataAutomationName">流水线名称</label><input id="dataAutomationName" placeholder="例如：客户数据月度自动处理"></div>
+        <div><label for="dataAutomationRestoreTemplate">Oracle 恢复模板任务 ID</label><input id="dataAutomationRestoreTemplate" placeholder="UUID"></div>
+        <div><label for="dataAutomationSyncNode">数据同步组件 ID</label><input id="dataAutomationSyncNode" placeholder="可选 UUID"></div>
+        <div><label for="dataAutomationWorkflowVersion">标准化工作流版本 ID</label><input id="dataAutomationWorkflowVersion" placeholder="可选 UUID"></div>
+        <div><label for="dataAutomationPattern">DMP 文件规则</label><input id="dataAutomationPattern" value="*.dmp"></div>
+        <div><label for="dataAutomationInterval">监听间隔（分钟）</label><input id="dataAutomationInterval" type="number" min="1" max="1440" value="5"></div>
+        <div><label for="dataAutomationStable">文件稳定等待（秒）</label><input id="dataAutomationStable" type="number" min="10" value="60"></div>
+        <div><label><input id="dataAutomationWatch" type="checkbox"> 保存后启用持续监听</label><button id="dataAutomationCreateBtn" class="primary" type="button" style="margin-left:12px">创建流水线</button></div>
+      </div>
+      <div id="dataAutomationMessage" class="message"></div>
+      <h3>流水线与监听状态</h3><div class="table-wrap"><table><thead><tr><th>名称</th><th>监听</th><th>间隔</th><th>最近/下次扫描</th><th>绑定能力</th><th>操作</th></tr></thead><tbody id="dataAutomationPipelines"><tr><td colspan="6" class="muted">暂无流水线。</td></tr></tbody></table></div>
+      <h3>批次运行链路</h3><div class="table-wrap"><table><thead><tr><th>发现时间</th><th>文件</th><th>当前阶段</th><th>恢复/同步/标准化/加密</th><th>说明</th><th>操作</th></tr></thead><tbody id="dataAutomationBatches"><tr><td colspan="6" class="muted">暂无批次。</td></tr></tbody></table></div>
+      <h3>数据资产</h3><div class="table-wrap"><table><thead><tr><th>层级</th><th>引擎</th><th>库.表</th><th>Schema 指纹</th><th>分级摘要</th><th>最近批次</th><th>操作</th></tr></thead><tbody id="dataAutomationAssets"><tr><td colspan="7" class="muted">暂无资产。</td></tr></tbody></table></div>
+    </section>
+
+    <section class="module-panel" data-module="dataLineage">
+      <div class="lineage-shell">
+        <div class="toolbar"><div><h2 style="margin:0">数据血缘中心</h2><div class="hint">独立查看数据从恢复层、原始层、标准层到安全层的表级与字段级流向</div></div><div class="actions"><button id="dataLineageRefreshBtn" type="button">刷新</button></div></div>
+        <div class="lineage-filters">
+          <div><label for="dataLineageSearch">资产或字段</label><input id="dataLineageSearch" placeholder="搜索库、表、字段、业务域或指纹"></div>
+          <div><label for="dataLineageLayer">业务层级</label><select id="dataLineageLayer"><option value="">全部层级</option><option value="restored">恢复层</option><option value="raw">原始层</option><option value="standard">标准层</option><option value="secured">安全层</option></select></div>
+          <div><label for="dataLineageBatch">数据批次</label><select id="dataLineageBatch"><option value="">全部批次</option></select></div>
+          <div><label for="dataLineageDirection">追踪方向</label><select id="dataLineageDirection"><option value="upstream">查看上游</option><option value="downstream">查看下游</option></select></div>
+          <div><label for="dataLineageDepth">追踪深度</label><input id="dataLineageDepth" type="number" min="1" max="20" value="8"></div>
+          <div class="lineage-filter-action"><button id="dataLineageQueryBtn" class="primary" type="button">查询</button><button id="dataLineageResetBtn" type="button">重置</button></div>
+        </div>
+        <div id="dataLineageMessage" class="message"></div>
+        <div class="lineage-metrics">
+          <div class="lineage-metric"><span>当前资产</span><strong id="dataLineageAssetCount">0</strong></div>
+          <div class="lineage-metric"><span>血缘关系</span><strong id="dataLineageEdgeCount">0</strong></div>
+          <div class="lineage-metric"><span>字段级关系</span><strong id="dataLineageFieldEdgeCount">0</strong></div>
+          <div class="lineage-metric"><span>待人工确认</span><strong id="dataLineageReviewCount">0</strong></div>
+          <div class="lineage-metric"><span>SM4 传播关系</span><strong id="dataLineageSm4Count">0</strong></div>
+        </div>
+        <div class="lineage-layout">
+          <div class="lineage-panel"><div class="lineage-panel-head"><h3>资产目录</h3><span id="dataLineageAssetListHint" class="muted">0 项</span></div><div id="dataLineageAssetList" class="lineage-asset-list"><div class="muted" style="padding:10px">暂无资产。</div></div></div>
+          <div class="lineage-panel lineage-main"><div class="lineage-panel-head"><div><h3>上下游图谱</h3><span id="dataLineageTraceHint" class="muted">请选择左侧资产</span></div></div><div id="dataLineageBoard" class="lineage-board"></div><div class="lineage-edge-section"><h3>字段与表关系</h3><div class="lineage-edge-table"><table><thead><tr><th>来源</th><th>目标</th><th>转换</th><th>可信度</th><th>证据</th></tr></thead><tbody id="dataLineageEdges"><tr><td colspan="5" class="muted">请选择资产查看关系。</td></tr></tbody></table></div></div></div>
+          <div class="lineage-panel"><div class="lineage-panel-head"><h3>资产详情</h3><button id="dataLineageFieldsBtn" type="button" disabled>完整字段合同</button></div><div id="dataLineageAssetDetail" class="lineage-detail"><div class="muted">选择资产后显示引擎、位置、字段分级及上下游摘要。</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="module-panel" data-module="helpArchitecture">
+      <div class="toolbar">
+        <div><h2 style="margin:0">帮助与架构中心</h2><div class="hint">功能说明、接口契约、影响范围和模块耦合的统一只读入口</div></div>
+        <div class="actions"><a href="/docs" target="_blank">打开原始 Swagger</a><button id="helpCenterRefreshBtn" type="button">刷新接口目录</button></div>
+      </div>
+      <div class="help-center-shell">
+        <div id="helpCenterTabs" class="help-center-tabs">
+          <button class="active" type="button" data-help-tab="overview">系统总览</button>
+          <button type="button" data-help-tab="manual">功能手册</button>
+          <button type="button" data-help-tab="apis">接口字典</button>
+          <button type="button" data-help-tab="coupling">耦合关系</button>
+        </div>
+        <div class="help-toolbar">
+          <input id="helpCenterSearch" placeholder="搜索模块、接口路径、中文含义或影响范围">
+          <select id="helpCenterModuleFilter"><option value="">全部模块</option></select>
+          <select id="helpCenterMethodFilter"><option value="">全部方法</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
+          <span id="helpCenterStatus" class="hint">等待加载</span>
+        </div>
+        <div id="helpCenterContent"></div>
+      </div>
+    </section>
+
     <section class="module-panel" data-module="cleanup">
       <div class="toolbar">
         <h2>数据库清理</h2>
@@ -5652,6 +5834,13 @@
       <div class="actions">
         <button id="noticeCloseBtn" class="primary" type="button">知道了</button>
       </div>
+    </div>
+  </div>
+
+  <div id="dataLineageEvidenceModal" class="modal-backdrop" hidden>
+    <div class="modal lineage-evidence-modal" role="dialog" aria-modal="true" aria-labelledby="dataLineageEvidenceTitle">
+      <div class="toolbar"><div><h2 id="dataLineageEvidenceTitle" style="margin:0">血缘证据详情</h2><div class="hint">完整字段合同、转换表达式和可审计证据</div></div><button id="dataLineageEvidenceCloseBtn" type="button">关闭</button></div>
+      <div id="dataLineageEvidenceBody" class="modal-body lineage-evidence-body"></div>
     </div>
   </div>
 
@@ -5808,7 +5997,7 @@
       let dorisEncryptLogs = [];
       let dorisEncryptSm4Keys = [];
       let dorisEncryptFunctionDatabases = [];
-      let dorisEncryptFunctionSelections = new Set();
+      let dorisEncryptFunctionCapabilities = new Map();
       let dorisEncryptFunctionDeployments = new Map();
       let dorisEncryptFunctionConnectionId = "";
       let dorisEncryptFileDecryptColumns = [];
@@ -5913,6 +6102,10 @@
       let apiOrchestrationNodeSamples = {};
       let apiOrchestrationNodeTestStates = {};
       let apiOrchestrationDataPickerTarget = null;
+      let dataLineageCatalog = {assets:[], edges:[], summary:{}};
+      let dataLineageTrace = {assets:[], edges:[]};
+      let dataLineageSelectedAssetId = "";
+      let dataLineageBatchesLoaded = false;
 
       const engineLabels = { oracle: "Oracle", mysql: "MySQL", sqlserver: "SQL Server", doris: "Doris", ftp: "FTP" };
       const defaultDorisEncryptKeywords = ["证件号", "住址", "地址", "电话", "手机号", "姓名"];
@@ -6246,13 +6439,13 @@
       }
 
       function hasModule(moduleId) {
-        if (moduleId === "system") return Boolean(currentAuth?.user);
+        if (moduleId === "system" || moduleId === "helpArchitecture") return Boolean(currentAuth?.user);
         if (!currentAuth?.user) return false;
         if (currentAuth?.is_admin) return true;
         if (moduleId === "dorisEncryptSchedule" || moduleId === "dorisEncryptKey" || moduleId === "dorisEncryptDispatch") {
           return (currentPermissions().modules || []).includes("dorisEncrypt");
         }
-        if (moduleId === "dataSyncCenter" || moduleId === "dataChangeTriggerCenter") {
+        if (moduleId === "dataSyncCenter" || moduleId === "dataChangeTriggerCenter" || moduleId === "dataAutomation" || moduleId === "dataLineage") {
           return (currentPermissions().modules || []).includes("dataPlatform");
         }
         if (moduleId === "approvalAuthorization") {
@@ -6888,6 +7081,103 @@
         }
       }
 
+      const HELP_MODULES = [
+        { id:"connections", name:"数据连接", prefix:["/database-connections"], risk:"中", purpose:"统一保存和测试 Oracle、MySQL、SQL Server、Doris、FTP 等连接。", steps:"新建连接 → 填写地址与凭据 → 测试 → 保存 → 供任务选择", permission:"connections:read/manage/test/catalog", impact:"修改连接会影响后续新运行；已发布快照仍按保存语义执行。", upstream:"网络、数据库账号", downstream:"恢复、CSV、同步、SM4、SM3、离线开发" },
+        { id:"restore", name:"数据导入 / 恢复", prefix:["/tasks","/batches"], risk:"高", purpose:"创建 Oracle DMP 等恢复任务并跟踪批次。", steps:"选择连接与文件 → 配置恢复策略 → 提交 → 查看日志和结果", permission:"restore:read/submit", impact:"可能创建、覆盖或写入目标业务库对象。", upstream:"数据连接、备份文件", downstream:"目标数据库、恢复日志" },
+        { id:"dorisCsv", name:"Doris CSV 导入", prefix:["/doris-csv"], risk:"高", purpose:"解析多编码 CSV、映射字段并通过 Stream Load 导入 Doris。", steps:"选择文件 → 解析 → 核对表和字段 → 确认影响 → 导入", permission:"dorisCsv:read/import", impact:"按覆盖策略创建或写入 Doris 表。", upstream:"CSV/FTP、Doris 连接", downstream:"Doris 表、导入任务日志" },
+        { id:"dorisSqlEtl", name:"Doris SQL 开发工作台", prefix:["/doris-sql-etl"], risk:"高", purpose:"查询元数据、开发 SQL 和保存可复用组件。", steps:"选择连接 → 浏览目录 → 编写/预览 SQL → 保存组件或执行", permission:"dorisSqlEtl:read/execute/manage", impact:"执行类 SQL 可改变业务库数据和结构。", upstream:"Doris/Oracle 连接", downstream:"组件任务、离线开发" },
+        { id:"dataSyncCenter", name:"数据同步", prefix:["/data-platform/nodes","/data-platform/metadata"], risk:"高", purpose:"定义跨库表级同步组件和写入策略。", steps:"配置源目标 → 识别结构 → 映射字段 → 保存 → 运行或编排", permission:"dataPlatform:read/design/execute", impact:"append 或 truncate_insert 会写入目标表。", upstream:"源/目标连接", downstream:"离线开发、组件运行日志" },
+        { id:"dataChangeTriggerCenter", name:"数据变化触发器", prefix:["/data-platform/data-change"], risk:"中", purpose:"按水位探测数据变化并触发受控子流程。", steps:"定义探测 → 校验 → 发布 → 开启 → 观察水位和触发记录", permission:"dataPlatform:design/publish/execute", impact:"本身读取探测数据，下游流程可能产生写入。", upstream:"数据连接、水位", downstream:"数据同步、离线流程" },
+        { id:"batchAuthorization", name:"批量授权中心", prefix:["/batch-authorization"], risk:"高", purpose:"批量发现对象、建立部门关系并授予 Doris 权限。", steps:"初始化 → 发现 → 校验映射 → 预览授权 → 执行", permission:"batchAuthorization:read/import/manage/execute", impact:"创建关系记录并修改 Doris 用户/库表权限。", upstream:"Doris、组织数据", downstream:"审批授权、权限审计" },
+        { id:"approvalAuthorization", name:"审批流自动授权", prefix:["/approval-authorization"], risk:"高", purpose:"监听待办审批并串联 Doris 与外部数据平台授权。", steps:"配置接口与映射 → 单步测试 → 保存 → 启用监听 → 查看分级日志", permission:"batchAuthorization:read/manage/execute", impact:"可创建用户、授权、外部连接并回写审批状态。", upstream:"审批系统、批量授权、外部数据平台", downstream:"Doris 权限、审批状态" },
+        { id:"resourceProvisioning", name:"数据空间批量开通", prefix:["/resource-provisioning"], risk:"高", purpose:"按申请批量创建数据空间、角色及资源权限。", steps:"读取申请 → 预览资源 → 执行开通 → 核对日志", permission:"resourceProvisioning:read/execute", impact:"创建或修改外部平台资源与权限。", upstream:"申请数据、连接配置", downstream:"外部数据空间、角色" },
+        { id:"apiOrchestration", name:"接口编排中心", prefix:["/api-orchestration"], risk:"高", purpose:"管理 HTTP 连接器、SQL API 和可视化流程。", steps:"配置连接器/SQL API → 设计流程 → 测试 → 发布 → 运行", permission:"apiOrchestration:read/design/test/publish/execute", impact:"取决于节点，可能调用外部写接口或执行授权 SQL。", upstream:"HTTP 服务、数据连接", downstream:"发布流程、运行记录" },
+        { id:"dorisEncrypt", name:"Doris SM4 加密中心", prefix:["/doris-encryption"], risk:"高", purpose:"管理密钥版本、函数能力、加密任务和文件解密。", steps:"生成/复用密钥函数 → 定义任务 → 运行或交给调度", permission:"dorisEncrypt:read/execute", impact:"函数调整影响后续运行；加密任务写入目标表。", upstream:"Doris 连接、密钥版本", downstream:"SM4 调度、离线开发" },
+        { id:"dorisEncryptDispatch", name:"SM4 调度中心", prefix:["/doris-encryption/schedules","/doris-encryption/batches"], risk:"高", purpose:"管理 SM4 任务的定时计划、批次和运行状态。", steps:"选择任务 → 设置计划 → 启用 → 查看批次和日志", permission:"dorisEncrypt:read/execute", impact:"到期运行使用任务/快照绑定的密钥版本和函数。", upstream:"SM4 任务、密钥函数", downstream:"Worker、Doris 加密表" },
+        { id:"dorisSm3", name:"Doris SM3 映射脱敏", prefix:["/doris-sm3"], risk:"高", purpose:"使用 SM3 映射规则对 Doris 字段进行不可逆脱敏。", steps:"选择表列 → 配置映射 → 保存任务 → 执行或编排", permission:"dorisSm3:read/execute", impact:"不可逆处理，必须确认目标表和保留策略。", upstream:"Doris 表", downstream:"脱敏表、SM3 审计" },
+        { id:"dorisSm3Logs", name:"SM3 日志审计", prefix:["/doris-sm3-decrypt"], risk:"中", purpose:"查询 SM3 任务与映射处理审计记录。", steps:"设置条件 → 查询 → 查看摘要和详情", permission:"dorisSm3Logs:read", impact:"只读审计；展示仍受权限和脱敏约束。", upstream:"SM3 运行", downstream:"审计核查" },
+        { id:"dataPlatform", name:"离线开发", prefix:["/data-platform"], risk:"高", purpose:"将组件编排为版本化流程并配置生产调度。", steps:"创建流程 → 绑定组件 → 保存开发版 → 提交/发布 → 调度或运行", permission:"dataPlatform:read/design/publish/execute/monitor", impact:"发布快照隔离后续编辑；运行影响由各节点决定。", upstream:"同步、触发器、SM4/SM3、SQL 组件", downstream:"调度、Worker、运行日志" },
+        { id:"dataAutomation", name:"数据自动化流水线", prefix:["/data-automation/pipelines","/data-automation/batches","/data-automation/blueprints","/data-automation/assets"], risk:"高", purpose:"持续发现 DMP 并串联恢复、同步、标准化、血缘、分级和加密。", steps:"绑定已验证模板与组件 → 保存 → 启用监听 → 查看批次状态 → 处理阻断项", permission:"dataPlatform:read/design/execute + dorisEncrypt", impact:"自动恢复和同步会写入业务库；复杂血缘和加密默认阻断并要求确认。", upstream:"DMP 目录、恢复模板、同步组件、离线发布版本", downstream:"Oracle 隔离库、Doris 原始/标准/加密表、血缘资产" },
+        { id:"dataLineage", name:"数据血缘中心", prefix:["/data-automation/lineage"], risk:"低", purpose:"只读检索四层数据资产，并追踪表级、字段级及 SM4 传播关系。", steps:"筛选资产或批次 → 选择根资产 → 切换上下游与深度 → 查看资产或关系证据", permission:"dataPlatform:read", impact:"只读取资产、字段合同和血缘证据，不修改任务、调度、业务表或密钥。", upstream:"自动化批次、同步映射、离线工作流、SM4 运行", downstream:"影响分析、审计核查、问题定位" },
+        { id:"cleanup", name:"数据库清理", prefix:["/database-cleanup"], risk:"高", purpose:"生成和执行数据库对象清理计划。", steps:"选择连接 → 读取目录 → 生成计划 → 二次确认 → 执行", permission:"cleanup:read/execute", impact:"可能删除数据库对象或数据，属于破坏性操作。", upstream:"数据库连接、对象目录", downstream:"目标业务库" }
+      ];
+      let helpCenterOpenApi = null;
+      let helpCenterApis = [];
+      let helpCenterTab = "overview";
+      let helpCenterSelectedApi = "";
+
+      function helpModuleForPath(path) {
+        const relativePath = path.replace(/^\/api\/v1(?=\/|$)/, "");
+        const matches = HELP_MODULES.flatMap((module) => module.prefix.filter((prefix) => relativePath.startsWith(prefix)).map((prefix) => ({ module, length:prefix.length })));
+        matches.sort((a, b) => b.length - a.length);
+        return matches[0]?.module || { id:"system", name:"系统管理", risk:"中", purpose:"系统鉴权、用户、API Key、健康与初始化接口。", impact:"按接口权限可能修改系统元数据。" };
+      }
+      function helpOperationName(method, path, operation, module) {
+        if (operation.summary && !/^[A-Za-z0-9 _-]+$/.test(operation.summary)) return operation.summary;
+        const action = {GET:"查询",POST:"创建/执行",PUT:"整体更新",PATCH:"更新",DELETE:"删除"}[method] || method;
+        return `${action}${module.name}资源`;
+      }
+      async function loadHelpCenter(force = false) {
+        if (helpCenterOpenApi && !force) return renderHelpCenter();
+        $("helpCenterStatus").textContent = "正在读取运行接口...";
+        helpCenterOpenApi = await api("/openapi.json");
+        helpCenterApis = [];
+        Object.entries(helpCenterOpenApi.paths || {}).forEach(([path, methods]) => {
+          Object.entries(methods || {}).forEach(([method, operation]) => {
+            const upper = method.toUpperCase();
+            if (!["GET","POST","PUT","PATCH","DELETE"].includes(upper)) return;
+            const module = helpModuleForPath(path);
+            helpCenterApis.push({ key:`${upper} ${path}`, method:upper, path, operation, module, name:helpOperationName(upper,path,operation,module) });
+          });
+        });
+        helpCenterApis.sort((a,b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+        const filter = $("helpCenterModuleFilter");
+        filter.innerHTML = '<option value="">全部模块</option>' + HELP_MODULES.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+        $("helpCenterStatus").textContent = `${HELP_MODULES.length} 个功能 / ${helpCenterApis.length} 个接口`;
+        renderHelpCenter();
+      }
+      function filteredHelpApis() {
+        const keyword = ($("helpCenterSearch")?.value || "").trim().toLowerCase();
+        const moduleId = $("helpCenterModuleFilter")?.value || "";
+        const method = $("helpCenterMethodFilter")?.value || "";
+        return helpCenterApis.filter((item) => (!moduleId || item.module.id === moduleId) && (!method || item.method === method) && (!keyword || [item.path,item.name,item.module.name,item.operation.summary,item.operation.description,item.module.impact].filter(Boolean).join(" ").toLowerCase().includes(keyword)));
+      }
+      function renderHelpCenter() {
+        if (!$("helpCenterContent")) return;
+        document.querySelectorAll("[data-help-tab]").forEach((button) => button.classList.toggle("active", button.dataset.helpTab === helpCenterTab));
+        if (helpCenterTab === "overview") return renderHelpOverview();
+        if (helpCenterTab === "manual") return renderHelpManual();
+        if (helpCenterTab === "coupling") return renderHelpCoupling();
+        renderHelpApis();
+      }
+      function renderHelpOverview() {
+        const high = HELP_MODULES.filter((item) => item.risk === "高").length;
+        $("helpCenterContent").innerHTML = `<div class="help-metrics"><div class="help-metric">业务功能<strong>${HELP_MODULES.length}</strong></div><div class="help-metric">运行接口<strong>${helpCenterApis.length}</strong></div><div class="help-metric">高风险模块<strong>${high}</strong></div><div class="help-metric">文档来源<strong style="font-size:16px">业务目录 + OpenAPI</strong></div></div><div class="help-card"><h3>运行架构</h3><div class="help-architecture-flow"><div class="help-architecture-node"><strong>浏览器控制台</strong><div class="hint">登录、权限和操作入口</div></div><div class="help-architecture-node"><strong>API 服务</strong><div class="hint">校验、事务与任务登记</div></div><div class="help-architecture-node"><strong>MySQL / Redis</strong><div class="hint">系统元数据、队列和运行状态</div></div><div class="help-architecture-node"><strong>独立 Worker</strong><div class="hint">恢复、同步、加密和编排执行</div></div><div class="help-architecture-node"><strong>业务系统</strong><div class="hint">Oracle / Doris / 外部 API</div></div></div><div class="hint" style="margin-top:10px">依赖关系不等于单一数据库事务。发布快照、密钥绑定、运行屏障和目标库事务分别提供不同层次的隔离。</div></div>`;
+      }
+      function renderHelpManual() {
+        const keyword = ($("helpCenterSearch")?.value || "").trim().toLowerCase();
+        const selected = $("helpCenterModuleFilter")?.value || "";
+        const modules = HELP_MODULES.filter((item) => (!selected || item.id === selected) && (!keyword || Object.values(item).join(" ").toLowerCase().includes(keyword)));
+        $("helpCenterContent").innerHTML = `<div class="help-manual-grid">${modules.map((item) => `<article class="help-card"><h3>${escapeHtml(item.name)}</h3><div class="help-card-meta"><span class="help-pill ${item.risk === "高" ? "high" : ""}">${item.risk}风险</span><span class="help-pill">${helpCenterApis.filter((apiItem) => apiItem.module.id === item.id).length} 个接口</span></div><div>${escapeHtml(item.purpose)}</div><dl><dt>操作步骤</dt><dd>${escapeHtml(item.steps)}</dd><dt>权限</dt><dd>${escapeHtml(item.permission)}</dd><dt>影响范围</dt><dd>${escapeHtml(item.impact)}</dd><dt>上游依赖</dt><dd>${escapeHtml(item.upstream)}</dd><dt>下游影响</dt><dd>${escapeHtml(item.downstream)}</dd></dl></article>`).join("") || '<div class="help-card muted">没有匹配的功能。</div>'}</div>`;
+      }
+      function renderHelpApis() {
+        const items = filteredHelpApis();
+        if (!items.some((item) => item.key === helpCenterSelectedApi)) helpCenterSelectedApi = items[0]?.key || "";
+        const selected = items.find((item) => item.key === helpCenterSelectedApi);
+        $("helpCenterContent").innerHTML = `<div class="help-api-layout"><div class="help-api-list">${items.map((item) => `<button class="help-api-item ${item.key === helpCenterSelectedApi ? "active" : ""}" type="button" data-help-api="${escapeHtml(item.key)}"><span class="help-method">${item.method}</span><span><strong>${escapeHtml(item.name)}</strong><div class="help-api-path">${escapeHtml(item.path)}</div></span></button>`).join("") || '<div class="muted" style="padding:12px">没有匹配接口。</div>'}</div><div class="help-api-detail">${selected ? helpApiDetailHtml(selected) : '<div class="help-card muted">请选择接口。</div>'}</div></div>`;
+      }
+      function helpApiDetailHtml(item) {
+        const op = item.operation || {};
+        const params = (op.parameters || []).map((p) => `${p.name}（${p.in}${p.required ? "，必填" : ""}）`).join("、") || "无路径或查询参数";
+        const bodySchema = op.requestBody?.content?.["application/json"]?.schema || op.requestBody?.content?.["multipart/form-data"]?.schema;
+        const body = bodySchema?.$ref?.split("/").pop() || bodySchema?.type || (op.requestBody ? "非 JSON 请求体" : "无请求体");
+        const responses = Object.keys(op.responses || {}).join("、") || "未声明";
+        return `<article class="help-card"><div class="help-card-meta"><span class="help-pill">${item.method}</span><span class="help-pill">${escapeHtml(item.module.name)}</span><span class="help-pill ${item.module.risk === "高" ? "high" : ""}">${item.module.risk}风险</span></div><h3>${escapeHtml(item.name)}</h3><div class="help-api-path">${escapeHtml(item.path)}</div><dl><dt>接口摘要</dt><dd>${escapeHtml(op.summary || op.description || "OpenAPI 未提供人工摘要，当前使用模块语义兜底。")}</dd><dt>业务含义</dt><dd>${escapeHtml(item.module.purpose)}</dd><dt>请求参数</dt><dd>${escapeHtml(params)}</dd><dt>请求模型</dt><dd>${escapeHtml(body)}</dd><dt>响应状态</dt><dd>${escapeHtml(responses)}</dd><dt>权限范围</dt><dd>${escapeHtml(item.module.permission || "按系统接口鉴权")}</dd><dt>影响范围</dt><dd>${escapeHtml(item.module.impact || "按接口实际操作确定")}</dd></dl><div class="help-schema">${escapeHtml(JSON.stringify({parameters:op.parameters || [],requestBody:op.requestBody || null,responses:op.responses || {}}, null, 2))}</div></article>`;
+      }
+      function renderHelpCoupling() {
+        $("helpCenterContent").innerHTML = `<div class="help-card"><h3>关键运行链路</h3><div class="help-architecture-flow"><div class="help-architecture-node">数据连接</div><div class="help-architecture-node">组件 / 任务定义</div><div class="help-architecture-node">发布快照 / 密钥绑定</div><div class="help-architecture-node">调度与队列</div><div class="help-architecture-node">Worker 与业务库</div></div></div><div class="help-coupling-grid">${HELP_MODULES.map((item) => `<article class="help-card"><h3>${escapeHtml(item.name)}</h3><dl><dt>依赖</dt><dd>${escapeHtml(item.upstream)}</dd><dt>影响</dt><dd>${escapeHtml(item.downstream)}</dd><dt>数据边界</dt><dd>${escapeHtml(item.impact)}</dd></dl></article>`).join("")}</div>`;
+      }
+
       function showModule(moduleName) {
         const next = moduleName || "system";
         document.querySelectorAll("[data-nav-module]").forEach((button) => {
@@ -6931,6 +7221,15 @@
           refreshDorisSqlEtlAll().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
           refreshDataPlatformComponentTasks().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
         }
+        if (next === "helpArchitecture") {
+          loadHelpCenter().catch((e) => { $("helpCenterStatus").textContent = "加载失败"; setMessage("systemMessage", e.message, "error"); });
+        }
+        if (next === "dataAutomation" && hasAction("dataPlatform:read")) {
+          refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error"));
+        }
+        if (next === "dataLineage" && hasAction("dataPlatform:read")) {
+          refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error"));
+        }
         if (next === "dataSyncCenter" && hasAction("dataPlatform:read")) {
           refreshDataPlatformComponentTasks().catch((e) => setMessage("dataSyncTaskMessage", e.message, "error"));
         }
@@ -6971,6 +7270,20 @@
             showModule(nextModule);
             closeSystemUserMenu();
           });
+        });
+        $("helpCenterTabs")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-help-tab]");
+          if (!button) return;
+          helpCenterTab = button.dataset.helpTab || "overview";
+          renderHelpCenter();
+        });
+        ["helpCenterSearch","helpCenterModuleFilter","helpCenterMethodFilter"].forEach((id) => $(id)?.addEventListener(id === "helpCenterSearch" ? "input" : "change", renderHelpCenter));
+        $("helpCenterRefreshBtn")?.addEventListener("click", () => loadHelpCenter(true).catch((e) => { $("helpCenterStatus").textContent = "加载失败"; setMessage("systemMessage", e.message, "error"); }));
+        $("helpCenterContent")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-help-api]");
+          if (!button) return;
+          helpCenterSelectedApi = button.dataset.helpApi || "";
+          renderHelpApis();
         });
         document.addEventListener("click", (event) => {
           if (!$("systemAdminNavMenu")?.contains(event.target)) closeSystemUserMenu();
@@ -7074,6 +7387,19 @@
         const data = await api("/api/v1/doris-encryption/sm4-keys");
         dorisEncryptSm4Keys = Array.isArray(data.keys) ? data.keys : [];
         renderDorisEncryptFileDecryptKeySelector();
+        renderDorisEncryptExistingKeySelector();
+      }
+
+      function renderDorisEncryptExistingKeySelector() {
+        const select = $("dorisEncryptExistingKeyId");
+        if (!select) return;
+        const current = select.value;
+        const profileId = selectedProfile("dorisEncryptKeyConnection")?.id || "";
+        const keys = dorisEncryptSm4Keys.filter((item) => !profileId || item.connection_id === profileId);
+        select.innerHTML = '<option value="">请选择已有密钥版本</option>' + keys.map((item) =>
+          `<option value="${escapeHtml(item.key_id)}">${escapeHtml(`${item.name} / 指纹 ${item.key_fingerprint} / ${formatDateTime(item.created_at)}`)}</option>`
+        ).join("");
+        if (keys.some((item) => item.key_id === current)) select.value = current;
       }
 
       function renderDorisEncryptFileDecryptKeySelector() {
@@ -12465,9 +12791,11 @@
       }
 
       function updateDorisEncryptKeyModeView() {
-        const manual = $("dorisEncryptKeyMode").value === "manual";
+        const mode = $("dorisEncryptKeyMode").value;
+        const manual = mode === "manual";
         $("dorisEncryptManualKey").disabled = !manual;
         if (!manual) $("dorisEncryptManualKey").value = "";
+        $("dorisEncryptExistingKeyId").disabled = mode !== "existing";
       }
 
       async function loadDorisEncryptFunctionDatabases(preserveSelection = false) {
@@ -12476,7 +12804,7 @@
         if (!profile) {
           dorisEncryptFunctionConnectionId = "";
           dorisEncryptFunctionDatabases = [];
-          dorisEncryptFunctionSelections = new Set();
+          dorisEncryptFunctionCapabilities = new Map();
           dorisEncryptFunctionDeployments = new Map();
           tree.innerHTML = '<div class="muted" style="padding: 12px">请选择 Doris 连接。</div>';
           updateDorisEncryptFunctionSelectionSummary();
@@ -12490,18 +12818,21 @@
         ]);
         if ((selectedProfile("dorisEncryptKeyConnection")?.id || "") !== requestedConnectionId) return;
         const databases = Array.isArray(databaseData.databases) ? databaseData.databases : [];
-        const previousDatabases = new Set(dorisEncryptFunctionDatabases);
-        const previousSelections = preserveSelection && dorisEncryptFunctionConnectionId === requestedConnectionId
-          ? new Set(dorisEncryptFunctionSelections)
-          : null;
+        const previousCapabilities = preserveSelection && dorisEncryptFunctionConnectionId === requestedConnectionId
+          ? new Map(dorisEncryptFunctionCapabilities) : null;
         dorisEncryptFunctionConnectionId = requestedConnectionId;
         dorisEncryptFunctionDatabases = databases;
-        dorisEncryptFunctionSelections = previousSelections
-          ? new Set(databases.filter((database) => previousSelections.has(database) || !previousDatabases.has(database)))
-          : new Set(databases);
         dorisEncryptFunctionDeployments = new Map(
           (Array.isArray(deploymentData.deployments) ? deploymentData.deployments : []).map((item) => [item.database, item])
         );
+        dorisEncryptFunctionCapabilities = new Map(databases.map((database) => {
+          const deployment = dorisEncryptFunctionDeployments.get(database);
+          const previous = previousCapabilities?.get(database);
+          return [database, previous || {
+            encrypt: deployment ? deployment.encrypt_enabled !== false : true,
+            decrypt: deployment ? deployment.decrypt_enabled !== false : false
+          }];
+        }));
         renderDorisEncryptFunctionDatabaseTree();
       }
 
@@ -12524,60 +12855,81 @@
             ? [statusText, deployment.message || "", deployment.verification_message || "", detail].filter(Boolean).join("；")
             : "尚无函数创建记录";
           return `<label class="sm4-function-tree-row child" title="${escapeHtml(title)}">
-            <input type="checkbox" data-doris-encrypt-function-database="${escapeHtml(database)}" ${dorisEncryptFunctionSelections.has(database) ? "checked" : ""}>
             <span class="sm4-function-db-name">${escapeHtml(database)}</span>
+            <span><label><input type="checkbox" data-sm4-capability="encrypt" data-database="${escapeHtml(database)}" ${dorisEncryptFunctionCapabilities.get(database)?.encrypt ? "checked" : ""}>加密</label></span>
+            <span><label><input type="checkbox" data-sm4-capability="decrypt" data-database="${escapeHtml(database)}" ${dorisEncryptFunctionCapabilities.get(database)?.decrypt ? "checked" : ""}>解密</label></span>
             <span class="sm4-function-db-status ${state}">${statusText}</span>
             <span class="sm4-function-db-detail">${escapeHtml(detail)}</span>
           </label>`;
         }).join("");
         tree.innerHTML = `<label class="sm4-function-tree-row root">
-          <input id="dorisEncryptFunctionSelectAll" type="checkbox" data-doris-encrypt-function-select-all>
           <span class="sm4-function-db-name">全部业务库</span>
-          <span class="muted">全选/取消</span>
+          <span class="muted">加密能力</span><span class="muted">解密能力</span>
           <span class="sm4-function-db-detail">最近一次创建结果</span>
         </label>${rows}`;
         updateDorisEncryptFunctionSelectionSummary();
       }
 
       function updateDorisEncryptFunctionSelectionSummary() {
-        const selectedCount = dorisEncryptFunctionDatabases.filter((item) => dorisEncryptFunctionSelections.has(item)).length;
+        const selectedCount = dorisEncryptFunctionDatabases.filter((item) => {
+          const capability = dorisEncryptFunctionCapabilities.get(item);
+          return capability?.encrypt || capability?.decrypt;
+        }).length;
         const count = $("dorisEncryptFunctionDatabaseCount");
         if (count) count.textContent = `已选 ${selectedCount} / ${dorisEncryptFunctionDatabases.length}`;
-        const selectAll = $("dorisEncryptFunctionSelectAll");
-        if (selectAll) {
-          selectAll.checked = dorisEncryptFunctionDatabases.length > 0 && selectedCount === dorisEncryptFunctionDatabases.length;
-          selectAll.indeterminate = selectedCount > 0 && selectedCount < dorisEncryptFunctionDatabases.length;
-        }
       }
 
       async function dorisEncryptRefreshFunction() {
         const profile = selectedProfile("dorisEncryptKeyConnection") || selectedProfile("dorisEncryptConnection");
         if (!profile) throw new Error("请先选择 Doris 数据连接。");
-        const keyMode = $("dorisEncryptKeyMode").value === "manual" ? "manual" : "random";
+        const keyMode = ["manual", "existing"].includes($("dorisEncryptKeyMode").value) ? $("dorisEncryptKeyMode").value : "random";
         const manualKey = $("dorisEncryptManualKey").value.trim();
+        const existingKeyId = $("dorisEncryptExistingKeyId").value;
         const functionName = $("dorisEncryptFunctionName").value.trim() || "CQ_SM4_ENCRYPT";
-        const selectedDatabases = dorisEncryptFunctionDatabases.filter((database) => dorisEncryptFunctionSelections.has(database));
+        const databaseCapabilities = dorisEncryptFunctionDatabases.map((database) => ({
+          database,
+          encrypt_enabled: !!dorisEncryptFunctionCapabilities.get(database)?.encrypt,
+          decrypt_enabled: !!dorisEncryptFunctionCapabilities.get(database)?.decrypt
+        }));
+        const selectedDatabases = databaseCapabilities.filter((item) => item.encrypt_enabled || item.decrypt_enabled);
         if (keyMode === "manual" && !manualKey) throw new Error("请输入手动 SM4 密钥种子。");
-        if (!selectedDatabases.length) throw new Error("请至少勾选一个需要创建函数的业务库。");
+        if (keyMode === "existing" && !existingKeyId) throw new Error("请选择已有密钥版本。");
+        if (keyMode !== "existing" && !databaseCapabilities.some((item) => item.encrypt_enabled)) throw new Error("生成新密钥时至少需要在一个数据库启用加密函数。");
+        const changes = databaseCapabilities.filter((item) => {
+          const old = dorisEncryptFunctionDeployments.get(item.database);
+          return !old || old.encrypt_enabled !== item.encrypt_enabled || old.decrypt_enabled !== item.decrypt_enabled || (existingKeyId && old.key_version_id !== existingKeyId);
+        });
+        const capabilityText = (encrypt, decrypt) => [encrypt ? "加密" : "", decrypt ? "解密" : ""].filter(Boolean).join("+") || "无函数";
+        const changeDetails = changes.map((item) => {
+          const old = dorisEncryptFunctionDeployments.get(item.database);
+          const before = old ? capabilityText(old.encrypt_enabled !== false, old.decrypt_enabled !== false) : "未部署";
+          const after = capabilityText(item.encrypt_enabled, item.decrypt_enabled);
+          const keyChanged = existingKeyId && old?.key_version_id !== existingKeyId ? "（切换密钥）" : "";
+          return `- ${item.database}：${before} → ${after}${keyChanged}`;
+        });
         const confirmed = window.confirm([
-          `本操作会生成新的 SM4 UDF jar，并在选中的 ${selectedDatabases.length} 个业务库中重建同名函数。`,
+          `${keyMode === "existing" ? "本操作复用已有密钥，不生成新密钥。" : "本操作会生成新的 SM4 密钥版本。"}`,
           "",
           `函数名：${functionName}`,
-          `密钥来源：${keyMode === "manual" ? "手动输入密钥种子" : "自动生成随机密钥种子"}`,
+          `密钥来源：${keyMode === "manual" ? "手动输入" : (keyMode === "existing" ? "已有密钥版本" : "自动随机")}`,
+          `涉及变更：${changes.length} 个库；保留能力：${selectedDatabases.length} 个库；清除全部能力：${databaseCapabilities.length - selectedDatabases.length} 个库`,
+          ...(changeDetails.length ? ["", "逐库变更：", ...changeDetails] : ["", "逐库变更：无"]),
           "",
-          "创建后系统会立即用固定函数名执行验证，验证通过后才视为生效。"
+          "取消勾选会删除对应函数，但不会删除密钥、任务、批次、调度或业务数据。"
         ].join("\n"));
         if (!confirmed) return false;
-        setMessage("dorisEncryptKeyMessage", `正在生成 SM4 UDF jar，并在选中的 ${selectedDatabases.length} 个库创建和验证函数...`, "");
+        setMessage("dorisEncryptKeyMessage", `正在应用 ${databaseCapabilities.length} 个业务库的函数能力矩阵...`, "");
         const result = await api("/api/v1/doris-encryption/functions/refresh", {
           method: "POST",
           body: JSON.stringify({
             connection_id: profile.id,
             key_mode: keyMode,
+            key_id: keyMode === "existing" ? existingKeyId : null,
             sm4_key: keyMode === "manual" ? manualKey : null,
             function_name: functionName,
             include_system_databases: false,
-            databases: selectedDatabases
+            databases: databaseCapabilities.map((item) => item.database),
+            database_capabilities: databaseCapabilities
           })
         });
         const ok = result.state === "success";
@@ -19825,26 +20177,35 @@
         });
         $("dorisEncryptKeyMode").addEventListener("change", updateDorisEncryptKeyModeView);
         $("dorisEncryptKeyConnection").addEventListener("change", () => {
+          renderDorisEncryptExistingKeySelector();
           loadDorisEncryptFunctionDatabases(false).catch((e) => setMessage("dorisEncryptKeyMessage", e.message, "error"));
         });
         $("dorisEncryptReloadFunctionDatabasesBtn").addEventListener("click", () => {
           loadDorisEncryptFunctionDatabases(true).catch((e) => setMessage("dorisEncryptKeyMessage", e.message, "error"));
         });
         $("dorisEncryptFunctionDatabaseTree").addEventListener("change", (event) => {
-          const selectAll = event.target.closest("[data-doris-encrypt-function-select-all]");
-          if (selectAll) {
-            dorisEncryptFunctionSelections = selectAll.checked
-              ? new Set(dorisEncryptFunctionDatabases)
-              : new Set();
-            renderDorisEncryptFunctionDatabaseTree();
-            return;
-          }
-          const databaseCheckbox = event.target.closest("[data-doris-encrypt-function-database]");
-          if (!databaseCheckbox) return;
-          const database = databaseCheckbox.getAttribute("data-doris-encrypt-function-database") || "";
-          if (databaseCheckbox.checked) dorisEncryptFunctionSelections.add(database);
-          else dorisEncryptFunctionSelections.delete(database);
+          const checkbox = event.target.closest("[data-sm4-capability]");
+          if (!checkbox) return;
+          const database = checkbox.getAttribute("data-database") || "";
+          const capability = checkbox.getAttribute("data-sm4-capability") || "";
+          const current = dorisEncryptFunctionCapabilities.get(database) || { encrypt: false, decrypt: false };
+          current[capability] = checkbox.checked;
+          dorisEncryptFunctionCapabilities.set(database, current);
           updateDorisEncryptFunctionSelectionSummary();
+        });
+        $("dorisEncryptKeyBlock").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-sm4-capability-batch]");
+          if (!button) return;
+          const action = button.getAttribute("data-sm4-capability-batch") || "";
+          dorisEncryptFunctionDatabases.forEach((database) => {
+            const current = dorisEncryptFunctionCapabilities.get(database) || { encrypt: false, decrypt: false };
+            if (action === "encrypt-on" || action === "both-on") current.encrypt = true;
+            if (action === "encrypt-off" || action === "both-off") current.encrypt = false;
+            if (action === "decrypt-on" || action === "both-on") current.decrypt = true;
+            if (action === "decrypt-off" || action === "both-off") current.decrypt = false;
+            dorisEncryptFunctionCapabilities.set(database, current);
+          });
+          renderDorisEncryptFunctionDatabaseTree();
         });
         $("dorisEncryptConnection").addEventListener("change", () => {
           dorisEncryptCatalog = null;
@@ -20657,8 +21018,204 @@
         });
       }
 
+      const dataLineageLayerLabels = {restored:"恢复层", raw:"原始层", standard:"标准层", secured:"安全层"};
+      const dataLineageTransformLabels = {direct:"直接", rename:"重命名", cast:"类型转换", expression:"表达式", join:"关联", aggregate:"聚合", constant:"常量"};
+
+      function dataLineageAssetName(asset) {
+        if (!asset) return "未知资产";
+        return [asset.catalog, asset.database, asset.table_name].filter(Boolean).join(".") || asset.asset_id;
+      }
+
+      function dataLineageIsSm4(edge) {
+        return String(edge?.expression || "").toUpperCase().includes("SM4");
+      }
+
+      function renderDataLineageCatalog() {
+        const assets = dataLineageCatalog.assets || [];
+        const summary = dataLineageCatalog.summary || {};
+        $("dataLineageAssetCount").textContent = summary.asset_count || 0;
+        $("dataLineageEdgeCount").textContent = summary.edge_count || 0;
+        $("dataLineageFieldEdgeCount").textContent = summary.field_edge_count || 0;
+        $("dataLineageReviewCount").textContent = summary.review_count || 0;
+        $("dataLineageSm4Count").textContent = summary.sm4_edge_count || 0;
+        $("dataLineageAssetListHint").textContent = `${assets.length} 项`;
+        $("dataLineageAssetList").innerHTML = assets.length ? assets.map((asset) => `<button type="button" class="lineage-asset-item ${asset.asset_id === dataLineageSelectedAssetId ? "active" : ""}" data-lineage-asset="${escapeHtml(asset.asset_id)}"><strong>${escapeHtml(dataLineageAssetName(asset))}</strong><div class="lineage-asset-meta"><span class="lineage-layer-pill ${escapeHtml(asset.layer)}">${escapeHtml(dataLineageLayerLabels[asset.layer] || asset.layer)}</span><span>${escapeHtml(asset.engine)}</span><span>${((asset.schema_contract || {}).columns || []).length} 字段</span></div></button>`).join("") : '<div class="muted" style="padding:10px">没有符合条件的数据资产。</div>';
+      }
+
+      function renderDataLineageTrace() {
+        const assets = dataLineageTrace.assets || [];
+        const edges = dataLineageTrace.edges || [];
+        const assetMap = new Map(assets.map((asset) => [asset.asset_id, asset]));
+        const root = assetMap.get(dataLineageSelectedAssetId) || (dataLineageCatalog.assets || []).find((asset) => asset.asset_id === dataLineageSelectedAssetId);
+        const directionLabel = $("dataLineageDirection").value === "downstream" ? "下游" : "上游";
+        $("dataLineageTraceHint").textContent = root ? `${dataLineageAssetName(root)} · ${directionLabel} ${assets.length} 个资产 / ${edges.length} 条关系` : "请选择左侧资产";
+        const layers = ["restored", "raw", "standard", "secured"];
+        $("dataLineageBoard").innerHTML = layers.map((layer) => {
+          const rows = assets.filter((asset) => asset.layer === layer);
+          return `<div class="lineage-lane"><div class="lineage-lane-title">${escapeHtml(dataLineageLayerLabels[layer])} · ${rows.length}</div>${rows.length ? rows.map((asset) => `<button type="button" class="lineage-node ${escapeHtml(layer)} ${asset.asset_id === dataLineageSelectedAssetId ? "root" : ""}" data-lineage-asset="${escapeHtml(asset.asset_id)}"><strong>${escapeHtml(asset.database)}.${escapeHtml(asset.table_name)}</strong><div class="lineage-asset-meta"><span>${escapeHtml(asset.engine)}</span><span>${((asset.schema_contract || {}).columns || []).length} 字段</span>${asset.asset_id === dataLineageSelectedAssetId ? "<span>追踪根节点</span>" : ""}</div></button>`).join("") : '<div class="muted">本次追踪无资产</div>'}</div>`;
+        }).join("");
+        $("dataLineageEdges").innerHTML = edges.length ? edges.map((edge) => {
+          const source = assetMap.get(edge.source_asset_id);
+          const target = assetMap.get(edge.target_asset_id);
+          const sourceLabel = `${dataLineageAssetName(source)}${edge.source_field ? ` / ${edge.source_field}` : " / 表级"}`;
+          const targetLabel = `${dataLineageAssetName(target)}${edge.target_field ? ` / ${edge.target_field}` : " / 表级"}`;
+          const evidence = dataLineageIsSm4(edge) ? '<span class="lineage-sm4">SM4 传播</span>' : (edge.review_required ? '<span class="status warning">待确认</span>' : '<span class="status success">已证明</span>');
+          return `<tr data-lineage-edge="${escapeHtml(edge.edge_id)}"><td>${escapeHtml(sourceLabel)}</td><td>${escapeHtml(targetLabel)}</td><td>${escapeHtml(dataLineageTransformLabels[edge.transformation_type] || edge.transformation_type)}</td><td>${Math.round(Number(edge.confidence || 0) * 100)}%</td><td>${evidence}</td></tr>`;
+        }).join("") : '<tr><td colspan="5" class="muted">当前方向与深度下没有血缘关系。</td></tr>';
+        renderDataLineageAssetDetail(root, edges);
+      }
+
+      function renderDataLineageAssetDetail(asset, edges) {
+        $("dataLineageFieldsBtn").disabled = !asset;
+        if (!asset) {
+          $("dataLineageAssetDetail").innerHTML = '<div class="muted">选择资产后显示引擎、位置、字段分级及上下游摘要。</div>';
+          return;
+        }
+        const columns = (asset.schema_contract || {}).columns || [];
+        const classifications = new Map(((asset.classification_summary || {}).fields || []).map((item) => [String(item.field || "").toUpperCase(), item]));
+        const related = edges.filter((edge) => edge.source_asset_id === asset.asset_id || edge.target_asset_id === asset.asset_id);
+        const preview = columns.slice(0, 12).map((column) => {
+          const name = column.name || column.column_name || "未命名字段";
+          const classified = classifications.get(String(name).toUpperCase()) || {};
+          return `<div class="lineage-field-row"><span><strong>${escapeHtml(name)}</strong><br><span class="muted">${escapeHtml(column.type || column.data_type || "未知类型")}</span></span><span>${classified.protection_action && classified.protection_action !== "none" ? `<span class="lineage-layer-pill secured">${escapeHtml(classified.protection_action)}</span>` : "-"}</span></div>`;
+        }).join("");
+        $("dataLineageAssetDetail").innerHTML = `<dl><dt>层级</dt><dd><span class="lineage-layer-pill ${escapeHtml(asset.layer)}">${escapeHtml(dataLineageLayerLabels[asset.layer] || asset.layer)}</span></dd><dt>资产位置</dt><dd>${escapeHtml(dataLineageAssetName(asset))}</dd><dt>引擎</dt><dd>${escapeHtml(asset.engine)}</dd><dt>业务域</dt><dd>${escapeHtml(asset.business_domain || "未登记")}</dd><dt>Schema</dt><dd title="${escapeHtml(asset.schema_signature || "")}">${escapeHtml((asset.schema_signature || "-").slice(0, 20))}</dd><dt>最近批次</dt><dd>${escapeHtml(asset.last_batch_id || "-")}</dd><dt>当前关系</dt><dd>${related.length} 条</dd></dl><h3>字段预览（${columns.length}）</h3><div class="lineage-field-list">${preview || '<div class="muted">未登记字段合同。</div>'}${columns.length > 12 ? `<div class="muted">另有 ${columns.length - 12} 个字段，请点击“完整字段合同”。</div>` : ""}</div>`;
+      }
+
+      function openDataLineageEvidence(title, content) {
+        $("dataLineageEvidenceTitle").textContent = title;
+        $("dataLineageEvidenceBody").innerHTML = content;
+        $("dataLineageEvidenceModal").hidden = false;
+      }
+
+      function closeDataLineageEvidence() {
+        $("dataLineageEvidenceModal").hidden = true;
+      }
+
+      function showDataLineageFields() {
+        const asset = (dataLineageTrace.assets || []).find((item) => item.asset_id === dataLineageSelectedAssetId) || (dataLineageCatalog.assets || []).find((item) => item.asset_id === dataLineageSelectedAssetId);
+        if (!asset) return;
+        const columns = (asset.schema_contract || {}).columns || [];
+        const classifications = new Map(((asset.classification_summary || {}).fields || []).map((item) => [String(item.field || "").toUpperCase(), item]));
+        const rows = columns.map((column, index) => {
+          const name = column.name || column.column_name || `字段 ${index + 1}`;
+          const classified = classifications.get(String(name).toUpperCase()) || {};
+          return `<tr><td>${index + 1}</td><td><strong>${escapeHtml(name)}</strong></td><td>${escapeHtml(column.type || column.data_type || "-")}</td><td>${column.nullable === false ? "否" : "是"}</td><td>${escapeHtml(classified.classification || "未分级")}</td><td>${escapeHtml(classified.protection_action || "none")}</td></tr>`;
+        }).join("");
+        openDataLineageEvidence(`字段合同 · ${dataLineageAssetName(asset)}`, `<div class="table-wrap"><table><thead><tr><th>序号</th><th>字段</th><th>类型</th><th>可空</th><th>分级</th><th>保护动作</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="muted">未登记字段合同。</td></tr>'}</tbody></table></div><div class="lineage-code">Schema 指纹：${escapeHtml(asset.schema_signature || "-")}</div>`);
+      }
+
+      function showDataLineageEdge(edgeId) {
+        const edge = (dataLineageTrace.edges || []).find((item) => item.edge_id === edgeId);
+        if (!edge) return;
+        const assetMap = new Map((dataLineageTrace.assets || []).map((asset) => [asset.asset_id, asset]));
+        const source = assetMap.get(edge.source_asset_id);
+        const target = assetMap.get(edge.target_asset_id);
+        openDataLineageEvidence("血缘关系证据", `<div class="lineage-evidence-grid"><div>来源</div><div>${escapeHtml(dataLineageAssetName(source))} / ${escapeHtml(edge.source_field || "表级")}</div><div>目标</div><div>${escapeHtml(dataLineageAssetName(target))} / ${escapeHtml(edge.target_field || "表级")}</div><div>转换类型</div><div>${escapeHtml(dataLineageTransformLabels[edge.transformation_type] || edge.transformation_type)}</div><div>可信度</div><div>${Math.round(Number(edge.confidence || 0) * 100)}%</div><div>确认状态</div><div>${edge.review_required ? "需要人工确认" : "已证明"}</div><div>数据批次</div><div>${escapeHtml(edge.batch_id || "-")}</div><div>工作流版本</div><div>${escapeHtml(edge.workflow_version_id || "-")}</div><div>节点</div><div>${escapeHtml(edge.node_key || "-")}</div></div><h3>转换表达式</h3><div class="lineage-code ${dataLineageIsSm4(edge) ? "lineage-sm4" : ""}">${escapeHtml(edge.expression || "无显式表达式")}</div><h3>可审计证据</h3><div class="lineage-code">${escapeHtml(JSON.stringify(edge.evidence || {}, null, 2))}</div>`);
+      }
+
+      async function selectDataLineageAsset(assetId) {
+        dataLineageSelectedAssetId = assetId || "";
+        renderDataLineageCatalog();
+        if (!dataLineageSelectedAssetId) {
+          dataLineageTrace = {assets:[], edges:[]}; renderDataLineageTrace(); return;
+        }
+        const params = new URLSearchParams({direction:$("dataLineageDirection").value, max_depth:String(Math.max(1, Math.min(20, Number($("dataLineageDepth").value) || 8)))});
+        if ($("dataLineageBatch").value) params.set("batch_id", $("dataLineageBatch").value);
+        dataLineageTrace = await api(`/api/v1/data-automation/lineage/${encodeURIComponent(dataLineageSelectedAssetId)}?${params.toString()}`);
+        renderDataLineageTrace();
+      }
+
+      async function refreshDataLineage() {
+        const params = new URLSearchParams({limit:"500"});
+        const search = $("dataLineageSearch").value.trim();
+        if (search) params.set("search", search);
+        if ($("dataLineageLayer").value) params.set("layer", $("dataLineageLayer").value);
+        if ($("dataLineageBatch").value) params.set("batch_id", $("dataLineageBatch").value);
+        const requests = [api(`/api/v1/data-automation/lineage?${params.toString()}`)];
+        if (!dataLineageBatchesLoaded) requests.push(api("/api/v1/data-automation/batches?limit=200"));
+        const [catalog, batchData] = await Promise.all(requests);
+        dataLineageCatalog = catalog;
+        if (batchData) {
+          const selectedBatch = $("dataLineageBatch").value;
+          $("dataLineageBatch").innerHTML = '<option value="">全部批次</option>' + (batchData.batches || []).map((batch) => `<option value="${escapeHtml(batch.batch_id)}">${escapeHtml((batch.source_files || []).map((file) => file.relative_path).join(", ") || batch.source_path || batch.batch_id)} · ${escapeHtml(batch.state)}</option>`).join("");
+          $("dataLineageBatch").value = selectedBatch;
+          dataLineageBatchesLoaded = true;
+        }
+        const visibleIds = new Set((catalog.assets || []).map((asset) => asset.asset_id));
+        if (!dataLineageSelectedAssetId || !visibleIds.has(dataLineageSelectedAssetId)) dataLineageSelectedAssetId = catalog.assets?.[0]?.asset_id || "";
+        renderDataLineageCatalog();
+        await selectDataLineageAsset(dataLineageSelectedAssetId);
+        setMessage("dataLineageMessage", catalog.truncated ? "结果已达到安全展示上限，请缩小筛选范围。" : `已加载 ${catalog.summary?.asset_count || 0} 个资产和 ${catalog.summary?.edge_count || 0} 条关系。`, catalog.truncated ? "warning" : "ok");
+      }
+
+      function bindDataLineageEvents() {
+        $("dataLineageRefreshBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
+        $("dataLineageQueryBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
+        $("dataLineageResetBtn")?.addEventListener("click", () => { $("dataLineageSearch").value = ""; $("dataLineageLayer").value = ""; $("dataLineageBatch").value = ""; $("dataLineageDirection").value = "upstream"; $("dataLineageDepth").value = "8"; dataLineageSelectedAssetId = ""; refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); });
+        $("dataLineageSearch")?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); } });
+        $("dataLineageDirection")?.addEventListener("change", () => selectDataLineageAsset(dataLineageSelectedAssetId).catch((e) => setMessage("dataLineageMessage", e.message, "error")));
+        $("dataLineageDepth")?.addEventListener("change", () => selectDataLineageAsset(dataLineageSelectedAssetId).catch((e) => setMessage("dataLineageMessage", e.message, "error")));
+        [$("dataLineageAssetList"), $("dataLineageBoard")].forEach((container) => container?.addEventListener("click", (event) => { const button = event.target.closest("[data-lineage-asset]"); if (button) selectDataLineageAsset(button.dataset.lineageAsset).catch((e) => setMessage("dataLineageMessage", e.message, "error")); }));
+        $("dataLineageEdges")?.addEventListener("click", (event) => { const row = event.target.closest("[data-lineage-edge]"); if (row) showDataLineageEdge(row.dataset.lineageEdge); });
+        $("dataLineageFieldsBtn")?.addEventListener("click", showDataLineageFields);
+        $("dataLineageEvidenceCloseBtn")?.addEventListener("click", closeDataLineageEvidence);
+        $("dataLineageEvidenceModal")?.addEventListener("click", (event) => { if (event.target === $("dataLineageEvidenceModal")) closeDataLineageEvidence(); });
+      }
+
+      async function refreshDataAutomation() {
+        const [pipelineData, batchData, assetData] = await Promise.all([
+          api("/api/v1/data-automation/pipelines"),
+          api("/api/v1/data-automation/batches?limit=100"),
+          api("/api/v1/data-automation/assets?limit=200")
+        ]);
+        const pipelines = pipelineData.pipelines || [];
+        $("dataAutomationPipelines").innerHTML = pipelines.length ? pipelines.map((item) => `<tr><td><strong>${escapeHtml(item.name)}</strong><br><span class="muted">${escapeHtml(item.pipeline_id)}</span></td><td>${item.auto_watch_enabled ? '<span class="status success">监听中</span>' : '<span class="status muted">已关闭</span>'}</td><td>${item.watch_interval_minutes} 分钟<br><span class="muted">稳定 ${item.stable_wait_seconds} 秒</span></td><td>${formatTime(item.last_scan_at) || "尚未扫描"}<br><span class="muted">${formatTime(item.next_scan_at) || "-"}</span></td><td>${item.restore_template_task_id ? "恢复" : "-"} / ${item.data_sync_node_id ? "同步" : "-"} / ${item.standard_workflow_version_id ? "标准化" : "-"} / ${item.sm4_task_definition_id ? "SM4" : "-"}</td><td><button type="button" data-data-auto-scan="${item.pipeline_id}">立即扫描</button><button type="button" data-data-auto-toggle="${item.pipeline_id}" data-enabled="${item.auto_watch_enabled}">${item.auto_watch_enabled ? "关闭监听" : "开启监听"}</button></td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无流水线。</td></tr>';
+        const batches = batchData.batches || [];
+        $("dataAutomationBatches").innerHTML = batches.length ? batches.map((item) => `<tr><td>${formatTime(item.created_at)}</td><td>${escapeHtml((item.source_files || []).map((file) => file.relative_path).join(", ") || item.source_path)}</td><td><strong>${escapeHtml(item.state)}</strong></td><td>${item.restore_task_id ? "✓" : "-"} / ${item.sync_run_id ? "✓" : "-"} / ${item.standard_run_id ? "✓" : "-"} / ${item.encryption_batch_id ? "✓" : "-"}</td><td>${escapeHtml(item.error_message || item.message || "-")}</td><td><button type="button" data-data-auto-detail="${item.batch_id}">查看阶段日志</button>${["failed","blocked","discovered"].includes(item.state) ? `<button type="button" data-data-auto-resume="${item.batch_id}">继续</button>` : ""}</td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无批次。</td></tr>';
+        const assets = assetData.assets || [];
+        $("dataAutomationAssets").innerHTML = assets.length ? assets.map((item) => `<tr><td>${escapeHtml(item.layer)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.database)}.${escapeHtml(item.table_name)}</td><td><span class="muted">${escapeHtml((item.schema_signature || "-").slice(0, 16))}</span></td><td>${((item.classification_summary || {}).fields || []).filter((field) => field.protection_action !== "none").length} 个保护字段</td><td>${escapeHtml(item.last_batch_id || "-")}</td><td><button type="button" data-data-auto-lineage="${escapeHtml(item.asset_id)}">查看血缘</button></td></tr>`).join("") : '<tr><td colspan="7" class="muted">暂无资产。</td></tr>';
+      }
+
+      function bindDataAutomationEvents() {
+        $("dataAutomationRefreshBtn")?.addEventListener("click", () => refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error")));
+        $("dataAutomationCreateBtn")?.addEventListener("click", async () => {
+          try {
+            const optionalId = (id) => $(id).value.trim() || null;
+            await api("/api/v1/data-automation/pipelines", {method:"POST", body:JSON.stringify({name:$("dataAutomationName").value.trim(), restore_template_task_id:optionalId("dataAutomationRestoreTemplate"), data_sync_node_id:optionalId("dataAutomationSyncNode"), standard_workflow_version_id:optionalId("dataAutomationWorkflowVersion"), file_pattern:$("dataAutomationPattern").value.trim(), watch_interval_minutes:Number($("dataAutomationInterval").value), stable_wait_seconds:Number($("dataAutomationStable").value), auto_watch_enabled:$("dataAutomationWatch").checked})});
+            setMessage("dataAutomationMessage", "流水线已保存；勾选监听时系统会按间隔持续扫描。", "ok"); await refreshDataAutomation();
+          } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
+        });
+        $("dataAutomationPipelines")?.addEventListener("click", async (event) => {
+          const scan = event.target.closest("[data-data-auto-scan]"); const toggle = event.target.closest("[data-data-auto-toggle]");
+          try {
+            if (scan) await api(`/api/v1/data-automation/pipelines/${scan.dataset.dataAutoScan}/scan`, {method:"POST"});
+            if (toggle) await api(`/api/v1/data-automation/pipelines/${toggle.dataset.dataAutoToggle}`, {method:"PATCH", body:JSON.stringify({auto_watch_enabled:toggle.dataset.enabled !== "true"})});
+            if (scan || toggle) await refreshDataAutomation();
+          } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
+        });
+        $("dataAutomationBatches")?.addEventListener("click", async (event) => {
+          const resume = event.target.closest("[data-data-auto-resume]"); const detail = event.target.closest("[data-data-auto-detail]");
+          try {
+            if (resume) await api(`/api/v1/data-automation/batches/${resume.dataset.dataAutoResume}/resume`, {method:"POST"});
+            if (detail) { const data = await api(`/api/v1/data-automation/batches/${detail.dataset.dataAutoDetail}`); showNotice("流水线阶段日志", (data.events || []).map((item) => `${formatTime(item.created_at)} [${item.stage}] ${item.message || item.event_type}`).join("\n") || "暂无日志"); }
+            if (resume) await refreshDataAutomation();
+          } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
+        });
+        $("dataAutomationAssets")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-data-auto-lineage]");
+          if (!button) return;
+          dataLineageSelectedAssetId = button.dataset.dataAutoLineage || "";
+          $("dataLineageSearch").value = "";
+          $("dataLineageLayer").value = "";
+          showModule("dataLineage");
+        });
+      }
+
       async function init() {
         initNavigation();
+        bindDataAutomationEvents();
+        bindDataLineageEvents();
         bindApiOrchestrationEvents();
         initDorisEncryptKeywords();
         setDorisEncryptTableMode("drop_recreate");

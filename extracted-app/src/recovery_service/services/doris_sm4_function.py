@@ -8,6 +8,7 @@ import subprocess
 import textwrap
 import base64
 import threading
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,8 +28,10 @@ from recovery_service.services.auth import AuthContext
 from recovery_service.services.sm4_key_versions import (
     get_active_sm4_key_seed_for_jar,
     get_sm4_key_seed,
+    get_sm4_key_seed_for_connection,
     register_sm4_key_version,
 )
+from recovery_service.services.sm4_runtime_guard import assert_sm4_key_rotation_allowed, sm4_database_guard
 from recovery_service.settings import get_settings
 
 _SYSTEM_DATABASES = {
@@ -127,14 +130,47 @@ def build_sm4_udf_jar(*, sm4_key: str | None, public_base_url: str) -> BuiltSm4J
 
 def refresh_sm4_functions(
     profile: DatabaseConnectionProfile,
+    **kwargs: Any,
+) -> DorisSm4FunctionRefreshResponse:
+    capabilities = kwargs.get("database_capabilities") or []
+    selected_databases = [
+        _clean_identifier(item, "数据库名")
+        for item in ([entry.get("database") for entry in capabilities] if capabilities else kwargs.get("databases") or [])
+        if str(item or "").strip()
+    ]
+    if selected_databases:
+        target_databases = selected_databases
+    else:
+        with _doris_conn(profile, None) as db:
+            with db.cursor() as cur:
+                target_databases = _list_databases(
+                    cur,
+                    bool(kwargs.get("include_system_databases", False)),
+                )
+    unique_databases = list(dict.fromkeys(target_databases))
+    with ExitStack() as locks:
+        for database in sorted(unique_databases, key=str.casefold):
+            locks.enter_context(sm4_database_guard(profile.id, database))
+        for database in unique_databases:
+            assert_sm4_key_rotation_allowed(profile.id, database)
+        return _refresh_sm4_functions_locked(
+            profile,
+            **{**kwargs, "databases": unique_databases},
+        )
+
+
+def _refresh_sm4_functions_locked(
+    profile: DatabaseConnectionProfile,
     *,
     sm4_key: str | None,
     key_mode: str = "random",
+    key_id=None,
     public_base_url: str,
     function_name: str = "CQ_SM4_ENCRYPT",
     decrypt_function_name: str | None = None,
     include_system_databases: bool = False,
     databases: list[str] | None = None,
+    database_capabilities: list[dict[str, Any]] | None = None,
     actor: AuthContext | None = None,
 ) -> DorisSm4FunctionRefreshResponse:
     clean_function = _clean_identifier(function_name, "函数名")
@@ -142,14 +178,37 @@ def refresh_sm4_functions(
         decrypt_function_name or _derive_decrypt_function_name(clean_function),
         "解密函数名",
     )
+    if key_mode == "existing":
+        if not key_id:
+            raise ValueError("使用已有密钥版本时必须选择密钥版本。")
+        sm4_key = get_sm4_key_seed_for_connection(key_id, profile.id)
     jar = build_sm4_udf_jar(sm4_key=sm4_key, public_base_url=public_base_url)
     selected_databases = [_clean_identifier(item, "数据库名") for item in databases or [] if item.strip()]
+    capability_map = {
+        _clean_identifier(str(item.get("database") or ""), "数据库名"): (
+            bool(item.get("encrypt_enabled")), bool(item.get("decrypt_enabled"))
+        )
+        for item in database_capabilities or []
+        if str(item.get("database") or "").strip()
+    }
+    if key_mode != "existing" and capability_map and not any(encrypt for encrypt, _decrypt in capability_map.values()):
+        raise ValueError("生成新密钥时至少需要在一个数据库启用加密函数。")
+    previous = {item.database: item for item in list_sm4_function_deployments(connection_id=profile.id)}
     with _doris_conn(profile, None) as db:
         with db.cursor() as cur:
             target_databases = selected_databases or _list_databases(cur, include_system_databases)
             results: list[DorisSm4FunctionDatabaseResult] = []
             for database in target_databases:
-                result = _refresh_function_in_database(cur, database, clean_function, clean_decrypt_function, jar)
+                encrypt_enabled, decrypt_enabled = capability_map.get(database, (True, True))
+                prior = previous.get(database)
+                result = _refresh_function_in_database(
+                    cur, database, clean_function, clean_decrypt_function, jar,
+                    encrypt_enabled=encrypt_enabled,
+                    decrypt_enabled=decrypt_enabled,
+                    previous_fingerprint=prior.key_fingerprint if prior else None,
+                )
+                result.encrypt_enabled = encrypt_enabled
+                result.decrypt_enabled = decrypt_enabled
                 result.attempted_at = app_now()
                 results.append(result)
 
@@ -165,7 +224,7 @@ def refresh_sm4_functions(
         state = "failed"
         message = "未能成功创建 Doris SM4 函数。"
     key_version = None
-    if success_count > 0:
+    if success_count > 0 and key_mode != "existing":
         key_version = register_sm4_key_version(
             key_seed=jar.key_seed,
             key_mode=key_mode,
@@ -176,12 +235,13 @@ def refresh_sm4_functions(
             jar_filename=jar.filename,
             actor=actor,
         )
+    effective_key_id = key_id if key_mode == "existing" else (key_version.key_id if key_version else None)
     _record_sm4_function_deployments(
         profile=profile,
         function_name=clean_function,
         decrypt_function_name=clean_decrypt_function,
         jar=jar,
-        key_version_id=key_version.key_id if key_version else None,
+        key_version_id=effective_key_id,
         results=results,
     )
     return DorisSm4FunctionRefreshResponse(
@@ -189,7 +249,7 @@ def refresh_sm4_functions(
         message=message,
         function_name=clean_function,
         decrypt_function_name=clean_decrypt_function,
-        key_id=key_version.key_id if key_version else None,
+        key_id=effective_key_id,
         key_fingerprint=jar.key_fingerprint,
         jar_filename=jar.filename,
         jar_url=jar.url,
@@ -248,6 +308,8 @@ def _record_sm4_function_deployments(
             row.key_version_id = key_version_id
             row.key_fingerprint = jar.key_fingerprint
             row.jar_filename = jar.filename
+            row.encrypt_enabled = result.encrypt_enabled
+            row.decrypt_enabled = result.decrypt_enabled
             row.state = result.state
             row.message = result.message
             row.verification_state = result.verification_state
@@ -271,6 +333,8 @@ def _deployment_response(row: DorisSm4FunctionDeployment) -> DorisSm4FunctionDep
         key_version_id=row.key_version_id,
         key_fingerprint=row.key_fingerprint,
         jar_filename=row.jar_filename,
+        encrypt_enabled=row.encrypt_enabled,
+        decrypt_enabled=row.decrypt_enabled,
         state=row.state,  # type: ignore[arg-type]
         message=row.message or "",
         verification_state=row.verification_state,  # type: ignore[arg-type]
@@ -360,23 +424,19 @@ def _refresh_function_in_database(
     function_name: str,
     decrypt_function_name: str,
     jar: BuiltSm4Jar,
+    *,
+    encrypt_enabled: bool = True,
+    decrypt_enabled: bool = True,
+    previous_fingerprint: str | None = None,
 ) -> DorisSm4FunctionDatabaseResult:
     impl_function = _implementation_function_name(function_name, jar.key_fingerprint)
     decrypt_impl_function = _implementation_function_name(decrypt_function_name, jar.key_fingerprint)
-    drop_sql = (
-        f"DROP FUNCTION IF EXISTS {function_name}(text); "
-        f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR); "
-        f"DROP FUNCTION IF EXISTS {function_name}(STRING); "
-        f"DROP FUNCTION IF EXISTS {impl_function}(text); "
-        f"DROP FUNCTION IF EXISTS {impl_function}(VARCHAR); "
-        f"DROP FUNCTION IF EXISTS {impl_function}(STRING); "
-        f"DROP FUNCTION IF EXISTS {decrypt_function_name}(text); "
-        f"DROP FUNCTION IF EXISTS {decrypt_function_name}(VARCHAR); "
-        f"DROP FUNCTION IF EXISTS {decrypt_function_name}(STRING); "
-        f"DROP FUNCTION IF EXISTS {decrypt_impl_function}(text); "
-        f"DROP FUNCTION IF EXISTS {decrypt_impl_function}(VARCHAR); "
-        f"DROP FUNCTION IF EXISTS {decrypt_impl_function}(STRING)"
-    )
+    old_encrypt_impl = _implementation_function_name(function_name, previous_fingerprint) if previous_fingerprint else None
+    old_decrypt_impl = _implementation_function_name(decrypt_function_name, previous_fingerprint) if previous_fingerprint else None
+    encrypt_drop_names = [function_name, impl_function] + ([old_encrypt_impl] if old_encrypt_impl and old_encrypt_impl != impl_function else [])
+    decrypt_drop_names = [decrypt_function_name, decrypt_impl_function] + ([old_decrypt_impl] if old_decrypt_impl and old_decrypt_impl != decrypt_impl_function else [])
+    drop_names = list(dict.fromkeys(encrypt_drop_names + decrypt_drop_names))
+    drop_sql = "; ".join(f"DROP FUNCTION IF EXISTS {name}(STRING)" for name in drop_names)
     verify_sql = f"SELECT {function_name}('{_sql_string(jar.verification_plaintext)}')"
     decrypt_verify_sql = f"SELECT {decrypt_function_name}('{_sql_string(jar.verification_ciphertext)}')"
     create_impl_sql = textwrap.dedent(
@@ -401,28 +461,25 @@ def _refresh_function_in_database(
     ).strip()
     create_alias_sql = f"CREATE ALIAS FUNCTION {function_name}(STRING) WITH PARAMETER(x) AS {impl_function}(x)"
     create_decrypt_alias_sql = f"CREATE ALIAS FUNCTION {decrypt_function_name}(STRING) WITH PARAMETER(x) AS {decrypt_impl_function}(x)"
-    create_sql = f"{create_impl_sql};\n{create_alias_sql};\n{create_decrypt_impl_sql};\n{create_decrypt_alias_sql}"
+    create_parts = []
+    if encrypt_enabled:
+        create_parts.extend([create_impl_sql, create_alias_sql])
+    if decrypt_enabled:
+        create_parts.extend([create_decrypt_impl_sql, create_decrypt_alias_sql])
+    create_sql = ";\n".join(create_parts)
     try:
         cur.execute(f"USE `{database.replace('`', '``')}`")
-        cur.execute(f"DROP FUNCTION IF EXISTS {function_name}(text)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {function_name}(STRING)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {impl_function}(text)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {impl_function}(VARCHAR)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {impl_function}(STRING)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {decrypt_function_name}(text)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {decrypt_function_name}(VARCHAR)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {decrypt_function_name}(STRING)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {decrypt_impl_function}(text)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {decrypt_impl_function}(VARCHAR)")
-        cur.execute(f"DROP FUNCTION IF EXISTS {decrypt_impl_function}(STRING)")
-        cur.execute(create_impl_sql)
-        cur.execute(create_alias_sql)
-        cur.execute(create_decrypt_impl_sql)
-        cur.execute(create_decrypt_alias_sql)
-        cur.execute(verify_sql)
-        actual = _first_value(cur.fetchone()).strip()
-        if actual != jar.verification_ciphertext:
+        for name in drop_names:
+            for arg_type in ("text", "VARCHAR", "STRING"):
+                cur.execute(f"DROP FUNCTION IF EXISTS {name}({arg_type})")
+        actual = None
+        decrypted = None
+        if encrypt_enabled:
+            cur.execute(create_impl_sql)
+            cur.execute(create_alias_sql)
+            cur.execute(verify_sql)
+            actual = _first_value(cur.fetchone()).strip()
+        if encrypt_enabled and actual != jar.verification_ciphertext:
             return DorisSm4FunctionDatabaseResult(
                 database=database,
                 state="failed",
@@ -433,9 +490,12 @@ def _refresh_function_in_database(
                 verification_message=f"expected={jar.verification_ciphertext}, actual={actual or '-'}",
                 verification_sql=verify_sql,
             )
-        cur.execute(decrypt_verify_sql)
-        decrypted = _first_value(cur.fetchone())
-        if decrypted != jar.verification_plaintext:
+        if decrypt_enabled:
+            cur.execute(create_decrypt_impl_sql)
+            cur.execute(create_decrypt_alias_sql)
+            cur.execute(decrypt_verify_sql)
+            decrypted = _first_value(cur.fetchone())
+        if decrypt_enabled and decrypted != jar.verification_plaintext:
             return DorisSm4FunctionDatabaseResult(
                 database=database,
                 state="failed",
@@ -446,15 +506,16 @@ def _refresh_function_in_database(
                 verification_message=f"encrypt={actual or '-'}, decrypt_expected={jar.verification_plaintext}, decrypt_actual={decrypted or '-'}",
                 verification_sql=f"{verify_sql}; {decrypt_verify_sql}",
             )
+        enabled_text = "、".join(name for name, enabled in (("加密", encrypt_enabled), ("解密", decrypt_enabled)) if enabled) or "无"
         return DorisSm4FunctionDatabaseResult(
             database=database,
             state="success",
-            message="加密/解密函数已创建并通过固定函数名验证。",
+            message=f"函数能力已应用：{enabled_text}。",
             drop_sql=drop_sql,
             create_sql=create_sql,
             verification_state="success",
-            verification_message="固定加密函数和固定解密函数均与当前密钥预期一致。",
-            verification_sql=f"{verify_sql}; {decrypt_verify_sql}",
+            verification_message="已启用函数均通过验证；未启用函数已删除。",
+            verification_sql="; ".join(sql for sql, enabled in ((verify_sql, encrypt_enabled), (decrypt_verify_sql, decrypt_enabled)) if enabled),
         )
     except Exception as exc:
         return DorisSm4FunctionDatabaseResult(

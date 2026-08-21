@@ -12,7 +12,7 @@ from typing import Any
 
 import pymysql
 from pymysql.cursors import DictCursor
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, update
 from sqlalchemy.orm import Session
 
 from recovery_service.api.schemas.doris_encryption import (
@@ -256,6 +256,19 @@ def get_encryption_task(task_id: uuid.UUID) -> DorisEncryptionTaskStatus:
 
 
 def create_sm4_batch_task(
+    profile: DatabaseConnectionProfile,
+    **kwargs: Any,
+) -> DorisSm4BatchStatus:
+    from recovery_service.services.sm4_runtime_guard import sm4_database_guard
+
+    database = str(kwargs.get("database") or "").strip()
+    if not database:
+        raise ValueError("请填写 Doris 数据库。")
+    with sm4_database_guard(profile.id, database):
+        return _create_sm4_batch_task(profile, **kwargs)
+
+
+def _create_sm4_batch_task(
     profile: DatabaseConnectionProfile,
     *,
     database: str,
@@ -1487,6 +1500,22 @@ def _run_encryption_task(
 
 
 def _run_sm4_batch_task(batch_id: uuid.UUID, profile: DatabaseConnectionProfile) -> None:
+    from recovery_service.services.sm4_runtime_guard import sm4_database_guard
+
+    lookup_session = get_sync_session_factory()()
+    try:
+        job = lookup_session.get(DorisSm4BatchJob, batch_id)
+        if not job:
+            return
+        database = job.database
+        connection_id = job.connection_id
+    finally:
+        lookup_session.close()
+    with sm4_database_guard(connection_id, database, timeout_seconds=30):
+        _run_sm4_batch_task_locked(batch_id, profile)
+
+
+def _run_sm4_batch_task_locked(batch_id: uuid.UUID, profile: DatabaseConnectionProfile) -> None:
     session = get_sync_session_factory()()
     try:
         job = session.get(DorisSm4BatchJob, batch_id)
@@ -1823,6 +1852,16 @@ def run_sm4_task_snapshot(snapshot: dict[str, Any], actor: AuthContext | None = 
 
 
 def _dispatch_queued_sm4_jobs() -> None:
+    from recovery_service.services.sm4_runtime_guard import sm4_dispatch_guard
+
+    try:
+        with sm4_dispatch_guard():
+            _dispatch_queued_sm4_jobs_locked()
+    except TimeoutError:
+        return
+
+
+def _dispatch_queued_sm4_jobs_locked() -> None:
     settings = get_settings()
     max_global = max(1, settings.sm4_worker_concurrency)
     max_connection = max(1, settings.sm4_connection_concurrency)
@@ -1872,10 +1911,23 @@ def _dispatch_queued_sm4_jobs() -> None:
                     job.message = blocked_reason
                     job.updated_at = app_now()
                 continue
+            reserved_at = app_now()
+            claimed = session.execute(
+                update(DorisSm4BatchJob)
+                .where(DorisSm4BatchJob.id == job.id)
+                .where(DorisSm4BatchJob.state == "queued")
+                .values(
+                    state="reserved",
+                    message="SM4 batch job reserved by scheduler and waiting for worker.",
+                    updated_at=reserved_at,
+                )
+            )
+            session.commit()
+            if claimed.rowcount != 1:
+                continue
             job.state = "reserved"
             job.message = "SM4 batch job reserved by scheduler and waiting for worker."
-            job.updated_at = app_now()
-            session.commit()
+            job.updated_at = reserved_at
             try:
                 celery_task_id = _enqueue_sm4_worker(job.id)
                 _add_sm4_log(

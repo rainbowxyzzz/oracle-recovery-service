@@ -17,6 +17,7 @@ from recovery_service.services.data_sync import (
     _build_table_mapping,
     _list_mysql_columns,
     _list_mysql_tables,
+    _list_oracle_columns,
     _mapping_select_items,
     _normalize_config,
     _q,
@@ -230,6 +231,7 @@ class DataSyncTests(unittest.TestCase):
         self.assertEqual(_resolve_sync_method("auto", "hive_catalog"), "insert_select")
         self.assertEqual(_resolve_sync_method("auto", "internal"), "insert_select")
         self.assertEqual(_resolve_sync_method("auto", "local_mysql", "mysql"), "stream_load")
+        self.assertEqual(_resolve_sync_method("auto", "local_oracle", "oracle"), "stream_load")
         self.assertEqual(_resolve_sync_method("stream_load", "hive_catalog"), "stream_load")
 
     def test_mysql_source_forces_stream_load_and_rejects_insert_select(self) -> None:
@@ -302,6 +304,19 @@ class DataSyncTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in columns], ["ID", "NAME"])
         self.assertFalse(columns[0]["nullable"])
         self.assertEqual(_source_column_to_doris_type(columns[1]), "VARCHAR(100)")
+
+    def test_oracle_metadata_columns_are_normalized_for_doris(self) -> None:
+        db = _FakeRowsDb(
+            [
+                {"COLUMN_NAME": "ID", "DATA_TYPE": "NUMBER", "DATA_LENGTH": 22, "DATA_PRECISION": 18, "DATA_SCALE": 0, "NULLABLE": "N", "COLUMN_ID": 1},
+                {"COLUMN_NAME": "PHONE", "DATA_TYPE": "VARCHAR2", "DATA_LENGTH": 32, "DATA_PRECISION": None, "DATA_SCALE": None, "NULLABLE": "Y", "COLUMN_ID": 2},
+            ]
+        )
+
+        columns = _list_oracle_columns(db, "RESTORED_SCHEMA", "CUSTOMER_SOURCE")
+
+        self.assertEqual(columns[0], {"name": "ID", "type": "NUMBER(18,0)", "nullable": False, "ordinal": 1})
+        self.assertEqual(columns[1], {"name": "PHONE", "type": "VARCHAR2(32)", "nullable": True, "ordinal": 2})
 
     def test_mysql_stream_load_source_query_does_not_switch_catalog(self) -> None:
         source = SimpleNamespace(engine="mysql")

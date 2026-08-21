@@ -19,6 +19,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse, urlunparse
 
 import pymysql
+import oracledb
 from pymysql.cursors import DictCursor
 
 from recovery_service.common.security import decrypt_secret
@@ -36,7 +37,7 @@ _DEFAULT_CONNECTION_RECOVERY_ATTEMPTS = 30
 _DEFAULT_CONNECTION_RECOVERY_INTERVAL_SECONDS = 10.0
 _RETRYABLE_CONNECTION_ERROR_CODES = {0, 2006, 2013, 2014, 2055}
 _SYNC_METHODS = {"auto", "insert_select", "stream_load"}
-_SOURCE_ENGINES = {"doris", "mysql"}
+_SOURCE_ENGINES = {"doris", "mysql", "oracle"}
 _SCHEMA_POLICIES = {"source", "target"}
 _DORIS_MAX_VARCHAR_LENGTH = 65533
 _DORIS_MAX_CHAR_LENGTH = 255
@@ -625,11 +626,11 @@ def _execute_one_table(
         "同步方式：Catalog 联邦查询（INSERT SELECT）。" if sync_method == "insert_select" else "同步方式：Stream Load。",
         {"sync_method": sync_method, "configured_sync_method": config.get("sync_method") or "auto"},
     )
-    if source_profile.engine == "mysql":
+    if source_profile.engine in {"mysql", "oracle"}:
         add_log(
             "INFO",
-            "local_mysql_push",
-            "同步方式：本地 MySQL 推送 Stream Load。源库由当前 Worker 读取，Doris 不通过 Catalog 反向访问源库。",
+            "local_source_push",
+            f"同步方式：本地 {source_profile.engine.upper()} 推送 Stream Load。源库由当前 Worker 读取，Doris 不通过 Catalog 反向访问源库。",
             {"sync_method": sync_method, "source_engine": source_profile.engine, "local_push": True},
         )
     mapping["_runtime_stage"] = "target_metadata"
@@ -740,6 +741,8 @@ def _execute_one_table(
         + ", ".join(select_items)
         + f" FROM {_q(source_schema)}.{_q(source_table)}"
     )
+    if source_profile.engine == "oracle":
+        sql = re.sub(r"`([^`]*)`", lambda match: '"' + match.group(1).replace('"', '""') + '"', sql)
     _mark_runtime_sql(mapping, "query_source", sql)
     add_log("INFO", "query_source", f"读取源表 SQL：{sql}", {"batch_size": batch_size, "target_columns": target_columns})
     loaded_rows = 0
@@ -976,6 +979,11 @@ def list_data_sync_source_catalogs(profile: DatabaseConnectionProfile) -> dict[s
             "items": [{"name": "local_mysql", "type": "mysql", "extra": {"local_push": True}}],
             "message": "MySQL 源连接使用本地推送模式，Catalog 固定为 local_mysql。",
         }
+    if profile.engine == "oracle":
+        return {
+            "items": [{"name": "local_oracle", "type": "oracle", "extra": {"local_push": True}}],
+            "message": "Oracle 源连接使用本地推送模式，Catalog 固定为 local_oracle。",
+        }
     with _doris_conn(profile, None) as db:
         catalogs = []
         with db.cursor() as cur:
@@ -986,6 +994,17 @@ def list_data_sync_source_catalogs(profile: DatabaseConnectionProfile) -> dict[s
             if name:
                 catalogs.append({"name": str(name), "type": "catalog", "extra": _jsonable_row(row)})
     return {"items": catalogs, "message": f"已读取 {len(catalogs)} 个 Catalog。"}
+
+
+def refresh_data_sync_source_catalog(profile: DatabaseConnectionProfile, catalog: str) -> None:
+    """Refresh a Doris external catalog after an upstream restore creates a new schema."""
+    _ensure_supported_source_profile(profile)
+    clean_catalog = _clean_source_catalog(profile, catalog)
+    if profile.engine != "doris" or clean_catalog == "internal":
+        return
+    with _doris_conn(profile, None) as db:
+        with db.cursor() as cur:
+            cur.execute(f"REFRESH CATALOG {_q(clean_catalog)}")
 
 
 def list_data_sync_source_databases(profile: DatabaseConnectionProfile, *, catalog: str | None = None) -> dict[str, Any]:
@@ -1007,6 +1026,8 @@ def _list_source_tables(
 ) -> list[dict[str, Any]]:
     if profile.engine == "mysql":
         return _list_mysql_tables(db, database)
+    if profile.engine == "oracle":
+        return _list_oracle_tables(db, database)
     return _list_tables(db, catalog, database)
 
 
@@ -1019,6 +1040,8 @@ def _list_source_columns(
 ) -> list[dict[str, Any]]:
     if profile.engine == "mysql":
         return _list_mysql_columns(db, database, table)
+    if profile.engine == "oracle":
+        return _list_oracle_columns(db, database, table)
     return _list_columns(db, catalog, database, table)
 
 
@@ -1035,6 +1058,8 @@ def _list_source_databases(db, profile: DatabaseConnectionProfile, catalog: str)
             )
             rows = cur.fetchall()
         return [{"name": str(row.get("SCHEMA_NAME")), "type": "database", "extra": _jsonable_row(row)} for row in rows]
+    if profile.engine == "oracle":
+        return [{"name": str(profile.username).upper(), "type": "schema", "extra": {"local_push": True}}]
     return _list_doris_databases(db, catalog)
 
 
@@ -1090,6 +1115,44 @@ def _list_mysql_columns(db, database: str, table: str) -> list[dict[str, Any]]:
                 "extra": _jsonable_row(row),
             }
         )
+    return result
+
+
+def _list_oracle_tables(db, database: str) -> list[dict[str, Any]]:
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT TABLE_NAME, 'BASE TABLE' AS TABLE_TYPE FROM ALL_TABLES WHERE OWNER = :owner ORDER BY TABLE_NAME",
+            {"owner": database.upper()},
+        )
+        rows = cur.fetchall()
+    return [{"name": str(row.get("TABLE_NAME")), "type": str(row.get("TABLE_TYPE")), "extra": {}} for row in rows]
+
+
+def _list_oracle_columns(db, database: str, table: str) -> list[dict[str, Any]]:
+    with db.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, COLUMN_ID
+            FROM ALL_TAB_COLUMNS
+            WHERE OWNER = :owner AND TABLE_NAME = :table_name
+            ORDER BY COLUMN_ID
+            """,
+            {"owner": database.upper(), "table_name": table.upper()},
+        )
+        rows = cur.fetchall()
+    result = []
+    for row in rows:
+        data_type = str(row.get("DATA_TYPE") or "VARCHAR2").upper()
+        if data_type == "NUMBER" and row.get("DATA_PRECISION") is not None:
+            data_type = f"NUMBER({int(row['DATA_PRECISION'])},{int(row.get('DATA_SCALE') or 0)})"
+        elif data_type in {"VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR"}:
+            data_type = f"{data_type}({int(row.get('DATA_LENGTH') or 1)})"
+        result.append({
+            "name": str(row.get("COLUMN_NAME")),
+            "type": data_type,
+            "nullable": str(row.get("NULLABLE") or "Y").upper() == "Y",
+            "ordinal": int(row.get("COLUMN_ID") or len(result) + 1),
+        })
     return result
 
 
@@ -1530,7 +1593,66 @@ def _mysql_conn(profile: DatabaseConnectionProfile, database: str | None):
 def _source_conn(profile: DatabaseConnectionProfile, database: str | None):
     if profile.engine == "mysql":
         return _mysql_conn(profile, database)
+    if profile.engine == "oracle":
+        return _oracle_conn(profile)
     return _doris_conn(profile, database)
+
+
+class _OracleCursorAdapter:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._cursor.close()
+        return False
+
+    def execute(self, sql, params=None):
+        result = self._cursor.execute(sql, params or {})
+        if self._cursor.description:
+            names = [str(item[0]) for item in self._cursor.description]
+            self._cursor.rowfactory = lambda *values: dict(zip(names, values))
+        return result
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchmany(self, size):
+        return self._cursor.fetchmany(size)
+
+
+class _OracleConnectionAdapter:
+    def __init__(self, profile: DatabaseConnectionProfile):
+        service = str(getattr(profile, "service_name", None) or getattr(profile, "database", None) or "").strip()
+        dsn = str(getattr(profile, "dsn", None) or "").strip() or oracledb.makedsn(
+            profile.host,
+            int(profile.port or 1521),
+            service_name=service,
+        )
+        self._connection = oracledb.connect(
+            user=profile.username,
+            password=decrypt_secret(profile.password_enc, get_settings().credential_encryption_key),
+            dsn=dsn,
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._connection.close()
+        return False
+
+    def cursor(self):
+        return _OracleCursorAdapter(self._connection.cursor())
+
+
+def _oracle_conn(profile: DatabaseConnectionProfile):
+    return _OracleConnectionAdapter(profile)
 
 
 def _probe_data_sync_connections(
@@ -1547,7 +1669,7 @@ def _probe_data_sync_connections(
                 _switch_catalog(cur, source_catalog)
                 cur.execute(f"USE {_q(source_schema)}")
                 cur.execute("SHOW TABLES")
-            else:
+            elif source_profile.engine == "mysql":
                 cur.execute(
                     """
                     SELECT TABLE_NAME
@@ -1557,6 +1679,8 @@ def _probe_data_sync_connections(
                     """,
                     (source_schema,),
                 )
+            else:
+                cur.execute("SELECT 1 AS VALUE FROM DUAL")
             cur.fetchone()
     with _doris_conn(target_profile, None) as target_db:
         with target_db.cursor() as cur:
@@ -1567,7 +1691,7 @@ def _probe_data_sync_connections(
 
 def _ensure_supported_source_profile(profile: DatabaseConnectionProfile) -> None:
     if profile.engine not in _SOURCE_ENGINES:
-        raise ValueError("数据同步源连接目前只支持 Doris 或 MySQL。")
+        raise ValueError("数据同步源连接目前只支持 Doris、MySQL 或 Oracle。")
 
 
 def _ensure_doris_profile(profile: DatabaseConnectionProfile) -> None:
@@ -1580,6 +1704,11 @@ def _clean_source_catalog(profile: DatabaseConnectionProfile, value: Any) -> str
         clean = str(value or "local_mysql").strip() or "local_mysql"
         if clean != "local_mysql":
             raise ValueError("MySQL 源连接的 Catalog 固定为 local_mysql。")
+        return clean
+    if profile.engine == "oracle":
+        clean = str(value or "local_oracle").strip() or "local_oracle"
+        if clean != "local_oracle":
+            raise ValueError("Oracle 直连源的 Catalog 固定为 local_oracle。")
         return clean
     return _clean_identifier(value, "源 Catalog")
 

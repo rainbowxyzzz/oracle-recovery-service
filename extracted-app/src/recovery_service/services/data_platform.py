@@ -8,6 +8,7 @@ import json
 from calendar import monthrange
 from copy import deepcopy
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import desc, func, select
@@ -29,6 +30,7 @@ from recovery_service.api.schemas.data_platform import (
 )
 from recovery_service.common.time import app_now
 from recovery_service.core.models.task import (
+    DataAutomationBatch,
     DataPlatformFolder,
     DataPlatformChangeTriggerState,
     DataPlatformComponentRunLog,
@@ -40,6 +42,7 @@ from recovery_service.core.models.task import (
     DataPlatformWorkflowRun,
     DataPlatformWorkflowVersion,
     DatabaseConnectionProfile,
+    RecoveryTask,
 )
 from recovery_service.db.session import get_sync_session_factory
 from recovery_service.services.auth import AuthContext
@@ -78,7 +81,7 @@ _VERSION_SCHEDULE_FIELDS = {
     "day_of_week",
     "interval_minutes",
 }
-_VERSION_DESIGN_FIELDS = {"nodes", "edges"}
+_VERSION_DESIGN_FIELDS = {"nodes", "edges", "business_metadata"}
 _COMPONENT_TASK_TYPES = {"doris_sql", "data_sync", "change_trigger"}
 _CHANGE_TRIGGER_OPERATORS = {
     "row_count": {"changed", "increased", "increase_by", "increase_percent", "greater_than", "equals"},
@@ -586,6 +589,10 @@ def submit_component_task_run(
                 "status": "queued",
                 "message": "Data sync task has been queued.",
                 "selected_tables": selected_items,
+                "runtime_overrides": {
+                    "pipeline_batch_id": str(overrides.get("pipeline_batch_id")) if isinstance(overrides, dict) and overrides.get("pipeline_batch_id") else None,
+                    "restored_target": dict(overrides.get("restored_target") or {}) if isinstance(overrides, dict) else {},
+                },
                 "logs": [
                     {
                         "level": "INFO",
@@ -681,12 +688,48 @@ def run_queued_component_task(component_run_id: uuid.UUID) -> dict[str, Any]:
 
         try:
             config = _normalize_component_task_config(node.node_type, node.config or {})
+            runtime_overrides = dict((component_run.result or {}).get("runtime_overrides") or {})
+            restored_target = dict(runtime_overrides.get("restored_target") or {})
+            restored_schema = str(restored_target.get("schema") or "").strip()
+            if restored_schema:
+                config["source_schema"] = restored_schema
+                config["table_mappings"] = [
+                    {**dict(item), "source_schema": restored_schema}
+                    for item in config.get("table_mappings") or []
+                ]
             if component_run.selected_items is not None:
                 config["selected_tables"] = list(component_run.selected_items or [])
             source = session.get(DatabaseConnectionProfile, uuid.UUID(str(config["source_connection_id"])))
             target = session.get(DatabaseConnectionProfile, uuid.UUID(str(config["target_connection_id"])))
             if not source or not target:
                 raise ValueError("Data sync source or target connection does not exist.")
+            if restored_schema:
+                pipeline_batch_id = runtime_overrides.get("pipeline_batch_id")
+                batch = session.get(DataAutomationBatch, uuid.UUID(str(pipeline_batch_id))) if pipeline_batch_id else None
+                restore_task = session.get(RecoveryTask, batch.restore_task_id) if batch and batch.restore_task_id else None
+                target_options = dict(((restore_task.options or {}).get("professional_flow") or {}).get("target") or {}) if restore_task else {}
+                oracle_profile_ref = (restore_task.options or {}).get("target_connection_profile") if restore_task else None
+                oracle_profile = session.get(DatabaseConnectionProfile, uuid.UUID(str(oracle_profile_ref))) if oracle_profile_ref else None
+                encrypted_password = str(target_options.get("generated_user_password") or "")
+                if oracle_profile and encrypted_password:
+                    source = SimpleNamespace(
+                        engine="oracle",
+                        host=oracle_profile.host,
+                        port=oracle_profile.port,
+                        username=restored_schema,
+                        password_enc=encrypted_password,
+                        database=oracle_profile.database,
+                        service_name=oracle_profile.service_name,
+                        dsn=oracle_profile.dsn,
+                    )
+                    config["source_catalog"] = "local_oracle"
+                    config["sync_method"] = "stream_load"
+                    config["table_mappings"] = [
+                        {**dict(item), "source_catalog": "local_oracle"}
+                        for item in config.get("table_mappings") or []
+                    ]
+                else:
+                    raise ValueError("恢复任务缺少 Oracle 目标连接快照或生成用户口令，无法直连同步。")
         except Exception as exc:
             _mark_component_run_failed(session, component_run, str(exc))
             raise
@@ -1202,7 +1245,7 @@ def archive_folder(folder_id: uuid.UUID, actor: AuthContext | None) -> DataPlatf
         session.close()
 
 
-def create_workflow(*, name: str, description: str | None, folder_id: uuid.UUID | None, actor: AuthContext | None) -> DataPlatformWorkflowResponse:
+def create_workflow(*, name: str, description: str | None, folder_id: uuid.UUID | None, business_metadata: dict | None = None, actor: AuthContext | None) -> DataPlatformWorkflowResponse:
     now = app_now()
     clean_name = name.strip()
     if not clean_name:
@@ -1212,6 +1255,7 @@ def create_workflow(*, name: str, description: str | None, folder_id: uuid.UUID 
         folder_id=folder_id,
         name=clean_name,
         description=(description or "").strip() or None,
+        business_metadata=deepcopy(business_metadata or {}),
         status="active",
         created_by_user_id=_actor_uuid(actor),
         created_by_username=actor.username if actor else None,
@@ -1268,6 +1312,8 @@ def update_workflow(workflow_id: uuid.UUID, updates: dict[str, Any], actor: Auth
             workflow.folder_id = folder_id
         if "status" in updates and updates["status"] is not None:
             workflow.status = updates["status"]
+        if "business_metadata" in updates and updates["business_metadata"] is not None:
+            workflow.business_metadata = deepcopy(updates["business_metadata"])
         workflow.updated_at = app_now()
         session.commit()
         session.refresh(workflow)
@@ -1301,6 +1347,7 @@ def copy_workflow(
             folder_id=folder_id,
             name=clean_name,
             description=source.description,
+            business_metadata=deepcopy(source.business_metadata or {}),
             status="active",
             created_by_user_id=_actor_uuid(actor),
             created_by_username=actor.username if actor else None,
@@ -1331,7 +1378,8 @@ def copy_workflow(
                 tolerate_missing=True,
             )
             copied_edges = deepcopy(source_version.edges or [])
-            copied_release = _build_release_snapshot(copied_nodes, copied_edges, _version_schedule_payload(source_version))
+            copied_metadata = deepcopy(source_version.business_metadata or source.business_metadata or {})
+            copied_release = _build_release_snapshot(copied_nodes, copied_edges, {**_version_schedule_payload(source_version), "business_metadata": copied_metadata})
             session.add(
                 DataPlatformWorkflowVersion(
                     id=uuid.uuid4(),
@@ -1341,6 +1389,7 @@ def copy_workflow(
                     status="draft",
                     nodes=copied_nodes,
                     edges=copied_edges,
+                    business_metadata=copied_metadata,
                     release_snapshot=copied_release,
                     execution_content_hash=_execution_content_hash(copied_release),
                     schedule_enabled=False,
@@ -1401,7 +1450,8 @@ def create_version(workflow_id: uuid.UUID, body: dict[str, Any], actor: AuthCont
         version_no = _next_version_no(session, workflow_id, channel)
         nodes = _freeze_component_task_nodes(session, _normalize_nodes(body.get("nodes") or []), preserve_existing=True)
         edges = _normalize_edges(body.get("edges") or [])
-        release_snapshot = _build_release_snapshot(nodes, edges, body)
+        business_metadata = deepcopy(body.get("business_metadata") if body.get("business_metadata") is not None else (workflow.business_metadata or {}))
+        release_snapshot = _build_release_snapshot(nodes, edges, {**body, "business_metadata": business_metadata})
         version = DataPlatformWorkflowVersion(
             id=uuid.uuid4(),
             workflow_id=workflow_id,
@@ -1410,6 +1460,7 @@ def create_version(workflow_id: uuid.UUID, body: dict[str, Any], actor: AuthCont
             status="draft" if channel == "dev" else "submitted",
             nodes=nodes,
             edges=edges,
+            business_metadata=business_metadata,
             release_snapshot=release_snapshot,
             execution_content_hash=_execution_content_hash(release_snapshot),
             schedule_enabled=bool(body.get("schedule_enabled") or False),
@@ -1470,7 +1521,9 @@ def update_version(version_id: uuid.UUID, updates: dict[str, Any], actor: AuthCo
             version.nodes = _freeze_component_task_nodes(session, _normalize_nodes(updates["nodes"]), preserve_existing=True)
         if "edges" in updates and updates["edges"] is not None:
             version.edges = _normalize_edges(updates["edges"])
-        version.release_snapshot = _build_release_snapshot(version.nodes or [], version.edges or [], _version_schedule_payload(version))
+        if "business_metadata" in updates and updates["business_metadata"] is not None:
+            version.business_metadata = deepcopy(updates["business_metadata"])
+        version.release_snapshot = _build_release_snapshot(version.nodes or [], version.edges or [], {**_version_schedule_payload(version), "business_metadata": version.business_metadata or {}})
         version.execution_content_hash = _execution_content_hash(version.release_snapshot)
         version.updated_by_username = actor.username if actor else None
         version.updated_at = app_now()
@@ -1489,7 +1542,7 @@ def submit_version(version_id: uuid.UUID, actor: AuthContext | None) -> DataPlat
             raise KeyError("Workflow version does not exist.")
         frozen_nodes = _freeze_component_task_nodes(session, source.nodes or [], preserve_existing=True)
         _validate_component_task_bindings(frozen_nodes)
-        release_snapshot = _build_release_snapshot(frozen_nodes, source.edges or [], _version_schedule_payload(source))
+        release_snapshot = _build_release_snapshot(frozen_nodes, source.edges or [], {**_version_schedule_payload(source), "business_metadata": source.business_metadata or {}})
         content_hash = _execution_content_hash(release_snapshot)
         existing = session.execute(
             select(DataPlatformWorkflowVersion)
@@ -1511,6 +1564,7 @@ def submit_version(version_id: uuid.UUID, actor: AuthContext | None) -> DataPlat
             status="submitted",
             nodes=frozen_nodes,
             edges=source.edges or [],
+            business_metadata=deepcopy(source.business_metadata or {}),
             release_snapshot=release_snapshot,
             execution_content_hash=content_hash,
             schedule_enabled=source.schedule_enabled,
@@ -2667,6 +2721,7 @@ def _build_release_snapshot(nodes: list[dict[str, Any]], edges: list[dict[str, A
     return {
         "nodes": deepcopy(nodes or []),
         "edges": deepcopy(edges or []),
+        "business_metadata": deepcopy(schedule.get("business_metadata") or {}),
         "schedule": {
             "schedule_type": schedule.get("schedule_type") or "daily",
             "run_time": schedule.get("run_time") or "02:00",
@@ -3097,6 +3152,7 @@ def _workflow_to_response(session, workflow: DataPlatformWorkflow) -> DataPlatfo
         name=workflow.name,
         description=workflow.description,
         status=workflow.status,
+        business_metadata=workflow.business_metadata or {},
         latest_dev_version_id=latest_dev.id if latest_dev else None,
         latest_prod_version_id=latest_prod.id if latest_prod else None,
         online_version_id=online.id if online else None,
@@ -3115,6 +3171,7 @@ def _version_to_response(version: DataPlatformWorkflowVersion) -> DataPlatformVe
         status=version.status,  # type: ignore[arg-type]
         nodes=version.nodes or [],
         edges=version.edges or [],
+        business_metadata=version.business_metadata or {},
         release_snapshot=version.release_snapshot,
         execution_content_hash=version.execution_content_hash,
         schedule_enabled=version.schedule_enabled,

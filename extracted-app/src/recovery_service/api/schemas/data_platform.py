@@ -81,6 +81,7 @@ class DataPlatformWorkflowCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = None
     folder_id: UUID | None = None
+    business_metadata: dict = Field(default_factory=dict)
 
 
 class DataPlatformWorkflowUpdateRequest(BaseModel):
@@ -88,6 +89,7 @@ class DataPlatformWorkflowUpdateRequest(BaseModel):
     description: str | None = None
     folder_id: UUID | None = None
     status: Literal["active", "archived"] | None = None
+    business_metadata: dict | None = None
 
 
 class DataPlatformWorkflowCopyRequest(BaseModel):
@@ -101,6 +103,7 @@ class DataPlatformWorkflowResponse(BaseModel):
     name: str
     description: str | None = None
     status: str
+    business_metadata: dict = Field(default_factory=dict)
     latest_dev_version_id: UUID | None = None
     latest_prod_version_id: UUID | None = None
     online_version_id: UUID | None = None
@@ -134,6 +137,7 @@ class DataPlatformVersionCreateRequest(BaseModel):
     day_of_month: int | None = Field(default=1, ge=1, le=31)
     day_of_week: int | None = Field(default=1, ge=1, le=7)
     interval_minutes: int | None = Field(default=None, ge=1, le=525600)
+    business_metadata: dict | None = None
 
 
 class DataPlatformVersionUpdateRequest(BaseModel):
@@ -145,6 +149,7 @@ class DataPlatformVersionUpdateRequest(BaseModel):
     day_of_month: int | None = Field(default=None, ge=1, le=31)
     day_of_week: int | None = Field(default=None, ge=1, le=7)
     interval_minutes: int | None = Field(default=None, ge=1, le=525600)
+    business_metadata: dict | None = None
 
 
 class DataPlatformVersionResponse(BaseModel):
@@ -155,6 +160,7 @@ class DataPlatformVersionResponse(BaseModel):
     status: DataPlatformVersionStatus
     nodes: list[DataPlatformWorkflowNodeSpec] = Field(default_factory=list)
     edges: list[DataPlatformWorkflowEdgeSpec] = Field(default_factory=list)
+    business_metadata: dict = Field(default_factory=dict)
     release_snapshot: dict | None = None
     execution_content_hash: str | None = None
     schedule_enabled: bool = False

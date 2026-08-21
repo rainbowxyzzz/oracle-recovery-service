@@ -149,6 +149,7 @@ class Settings(BaseSettings):
     credential_encryption_key: str = ""
     doris_sm4_udf_jar_dir: str = "/app/data/sm4-jars"
     doris_sm4_udf_public_base_url: str = ""
+    doris_sm4_udf_jar_allowed_ips: str = ""
     doris_sm4_javac_bin: str = ""
     doris_sm4_jar_bin: str = ""
     doris_encryption_replication_allocation: str = "tag.location.default: 1"

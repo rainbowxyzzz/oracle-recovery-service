@@ -17,6 +17,7 @@ from recovery_service.services.approval_authorization import (
     stop_approval_authorization_scheduler,
 )
 from recovery_service.services.data_platform import start_data_platform_scheduler, stop_data_platform_scheduler
+from recovery_service.services.data_automation import start_data_automation_scheduler, stop_data_automation_scheduler
 from recovery_service.services.doris_encryption import start_sm4_scheduler, stop_sm4_scheduler
 from recovery_service.settings import PROJECT_ROOT, get_settings
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     sm4_scheduler_started = False
     data_platform_scheduler_started = False
+    data_automation_scheduler_started = False
     batch_authorization_scheduler_started = False
     approval_authorization_scheduler_started = False
     if _service_enabled("sm4"):
@@ -48,6 +50,8 @@ async def lifespan(app: FastAPI):
     if _data_platform_scheduler_enabled():
         start_data_platform_scheduler()
         data_platform_scheduler_started = True
+        start_data_automation_scheduler()
+        data_automation_scheduler_started = True
     if _service_enabled("batch-auth"):
         start_batch_authorization_scheduler()
         batch_authorization_scheduler_started = True
@@ -56,6 +60,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if data_automation_scheduler_started:
+            stop_data_automation_scheduler()
         if approval_authorization_scheduler_started:
             stop_approval_authorization_scheduler()
         if batch_authorization_scheduler_started:

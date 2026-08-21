@@ -1,6 +1,6 @@
 import unittest
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -166,7 +166,7 @@ class Sm4FunctionDeploymentKeyResolutionTests(unittest.TestCase):
         def fake_doris_conn(_profile, _database):
             yield Connection()
 
-        def fake_refresh(_cursor, database, *_args):
+        def fake_refresh(_cursor, database, *_args, **_kwargs):
             processed.append(database)
             return DorisSm4FunctionDatabaseResult(database=database, state="success", message="ok")
 
@@ -174,11 +174,14 @@ class Sm4FunctionDeploymentKeyResolutionTests(unittest.TestCase):
             patch("recovery_service.services.doris_sm4_function.build_sm4_udf_jar", return_value=jar),
             patch("recovery_service.services.doris_sm4_function._doris_conn", side_effect=fake_doris_conn),
             patch("recovery_service.services.doris_sm4_function._refresh_function_in_database", side_effect=fake_refresh),
+            patch("recovery_service.services.doris_sm4_function.list_sm4_function_deployments", return_value=[]),
             patch(
                 "recovery_service.services.doris_sm4_function.register_sm4_key_version",
                 return_value=SimpleNamespace(key_id=uuid.uuid4()),
             ),
             patch("recovery_service.services.doris_sm4_function._record_sm4_function_deployments") as record,
+            patch("recovery_service.services.doris_sm4_function.sm4_database_guard", side_effect=lambda *_args, **_kwargs: nullcontext()),
+            patch("recovery_service.services.doris_sm4_function.assert_sm4_key_rotation_allowed"),
         ):
             result = refresh_sm4_functions(
                 SimpleNamespace(id=self.connection_id, name="Doris"),
@@ -191,6 +194,111 @@ class Sm4FunctionDeploymentKeyResolutionTests(unittest.TestCase):
         self.assertEqual(result.total_databases, 2)
         self.assertEqual(result.success_count, 2)
         record.assert_called_once()
+
+    def test_database_without_encrypt_capability_is_blocked_for_batches(self) -> None:
+        key = self._key("decrypt-only", self.now)
+        with self.session_factory() as session:
+            session.add(key)
+            session.add(
+                DorisSm4FunctionDeployment(
+                    connection_id=self.connection_id,
+                    connection_name="Doris",
+                    database="DWD_DECRYPT_ONLY",
+                    function_name="CQ_SM4_ENCRYPT",
+                    decrypt_function_name="CQ_SM4_DECRYPT",
+                    key_version_id=key.id,
+                    key_fingerprint=key.key_fingerprint,
+                    jar_filename=key.jar_filename,
+                    encrypt_enabled=False,
+                    decrypt_enabled=True,
+                    state="success",
+                    message="ok",
+                    verification_state="success",
+                    attempted_at=self.now,
+                    created_at=self.now,
+                    updated_at=self.now,
+                )
+            )
+            session.commit()
+
+        with patch(
+            "recovery_service.services.sm4_key_versions.get_sync_session_factory",
+            return_value=self.session_factory,
+        ):
+            with self.assertRaisesRegex(KeyError, "重新创建并验证"):
+                resolve_sm4_key_version_for_batch(
+                    key_id=None,
+                    connection_id=self.connection_id,
+                    database="DWD_DECRYPT_ONLY",
+                )
+
+    def test_existing_key_reuse_does_not_register_a_new_version(self) -> None:
+        key_id = uuid.uuid4()
+        jar = BuiltSm4Jar(
+            filename="cq-sm4-encrypt-existing-v6.jar",
+            path=Path("/tmp/cq-sm4-encrypt-existing-v6.jar"),
+            url="http://api/function.jar",
+            symbol="Encrypt",
+            decrypt_symbol="Decrypt",
+            key_seed="existing-seed",
+            key_fingerprint="existing",
+            verification_plaintext="plain",
+            verification_ciphertext="cipher",
+        )
+
+        class Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        class Connection:
+            def cursor(self):
+                return Cursor()
+
+        @contextmanager
+        def fake_doris_conn(_profile, _database):
+            yield Connection()
+
+        def fake_refresh(_cursor, database, *_args, **kwargs):
+            return DorisSm4FunctionDatabaseResult(
+                database=database,
+                state="success",
+                message="ok",
+                encrypt_enabled=kwargs["encrypt_enabled"],
+                decrypt_enabled=kwargs["decrypt_enabled"],
+            )
+
+        with (
+            patch("recovery_service.services.doris_sm4_function.get_sm4_key_seed_for_connection", return_value="existing-seed") as seed,
+            patch("recovery_service.services.doris_sm4_function.build_sm4_udf_jar", return_value=jar),
+            patch("recovery_service.services.doris_sm4_function._doris_conn", side_effect=fake_doris_conn),
+            patch("recovery_service.services.doris_sm4_function._refresh_function_in_database", side_effect=fake_refresh),
+            patch("recovery_service.services.doris_sm4_function.list_sm4_function_deployments", return_value=[]),
+            patch("recovery_service.services.doris_sm4_function.register_sm4_key_version") as register,
+            patch("recovery_service.services.doris_sm4_function._record_sm4_function_deployments"),
+            patch("recovery_service.services.doris_sm4_function.sm4_database_guard", side_effect=lambda *_args, **_kwargs: nullcontext()),
+            patch("recovery_service.services.doris_sm4_function.assert_sm4_key_rotation_allowed"),
+        ):
+            result = refresh_sm4_functions(
+                SimpleNamespace(id=self.connection_id, name="Doris"),
+                sm4_key=None,
+                key_mode="existing",
+                key_id=key_id,
+                public_base_url="http://api",
+                database_capabilities=[{
+                    "database": "DWD_SOCIAL_SECURITY",
+                    "encrypt_enabled": True,
+                    "decrypt_enabled": False,
+                }],
+            )
+
+        seed.assert_called_once_with(key_id, self.connection_id)
+        register.assert_not_called()
+        self.assertEqual(result.key_id, key_id)
+        self.assertTrue(result.results[0].encrypt_enabled)
+        self.assertFalse(result.results[0].decrypt_enabled)
 
 
 if __name__ == "__main__":

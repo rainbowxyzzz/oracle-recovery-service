@@ -582,7 +582,7 @@ async def create_data_platform_workflow(
     actor: AuthContext = Depends(require_permission("dataPlatform:design")),
 ):
     try:
-        result = await asyncio.to_thread(create_workflow, name=body.name, description=body.description, folder_id=body.folder_id, actor=actor)
+        result = await asyncio.to_thread(create_workflow, name=body.name, description=body.description, folder_id=body.folder_id, business_metadata=body.business_metadata, actor=actor)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await record_audit(
