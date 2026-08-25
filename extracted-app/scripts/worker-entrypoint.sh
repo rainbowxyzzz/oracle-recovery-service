@@ -37,6 +37,10 @@ if [ -z "$WORKER_QUEUES" ]; then
     doris-sql|sql)
       WORKER_QUEUES="${CELERY_SQL_QUEUE:-doris_sql}"
       ;;
+    data-export|export)
+      WORKER_QUEUES="${CELERY_DATA_EXPORT_QUEUE:-data_export}"
+      WORKER_CONCURRENCY="${QUERY_EXPORT_WORKER_CONCURRENCY:-1}"
+      ;;
     data-sync)
       WORKER_QUEUES="${CELERY_DATA_SYNC_QUEUE:-data_sync}"
       ;;
@@ -50,7 +54,7 @@ if [ -z "$WORKER_QUEUES" ]; then
       WORKER_QUEUES="${CELERY_API_ORCHESTRATION_QUEUE:-api_orchestration}"
       ;;
     monolith|all|*)
-      WORKER_QUEUES="${CELERY_DEFAULT_QUEUE:-celery},${CELERY_ORACLE_QUEUE:-oracle_restore},${CELERY_SM3_QUEUE:-doris_sm3},${CELERY_SM4_QUEUE:-doris_sm4},${CELERY_SQL_QUEUE:-doris_sql},${CELERY_DATA_SYNC_QUEUE:-data_sync},${CELERY_DATA_PLATFORM_QUEUE:-data_platform},${CELERY_RESOURCE_PROVISIONING_QUEUE:-resource_provisioning},${CELERY_API_ORCHESTRATION_QUEUE:-api_orchestration}"
+      WORKER_QUEUES="${CELERY_DEFAULT_QUEUE:-celery},${CELERY_ORACLE_QUEUE:-oracle_restore},${CELERY_SM3_QUEUE:-doris_sm3},${CELERY_SM4_QUEUE:-doris_sm4},${CELERY_SQL_QUEUE:-doris_sql},${CELERY_DATA_EXPORT_QUEUE:-data_export},${CELERY_DATA_SYNC_QUEUE:-data_sync},${CELERY_DATA_PLATFORM_QUEUE:-data_platform},${CELERY_RESOURCE_PROVISIONING_QUEUE:-resource_provisioning},${CELERY_API_ORCHESTRATION_QUEUE:-api_orchestration}"
       ;;
   esac
 fi

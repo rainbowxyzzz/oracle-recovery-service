@@ -1,10 +1,14 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-08-25 新增“查询导出中心”需求：Doris SQL 查询结果以独立异步任务、流式分批写文件和受控下载方式导出，支持 CSV、TSV、JSONL、XLSX、Parquet 及受限的 Doris 原生卸出；导出 Worker 按 CPU、cgroup 内存预算、磁盘空间和 90% 内存预警受控，完整结果不得进入 API 内存。详见 `docs/QUERY_EXPORT_CENTER_PRD.md`。
+
 2026-08-25 审批流自动授权的 Doris 用户名及有数 `apiAdd.name` 日期后缀改为逐申请读取 `getMyTodoList.createTime`，以 `YYYY-MM-DD HH:MM:SS` 格式化为 `MMDD`；不再使用配置保存时固化的日期。缺失或格式不合法的 `createTime` 将阻断当前申请并记录错误。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
 
-2026-08-25 审批流自动授权将有数 `apiAdd.paths` 提升为页面独立的“apiAdd 授权目录”配置项，支持一行一个目录；保存时同步到兼容的 `api_add_defaults.paths` JSON，并作为数组提交给接口。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
+2026-08-25 审批流自动授权将有数 `apiAdd.paths` 提升为页面独立的单行“apiAdd 授权目录”配置项；多个目录用英文逗号分隔，保存时同步到兼容的 `api_add_defaults.paths` JSON，并作为数组提交给接口。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
 
 2026-08-25 审批流自动授权将单位与数据库映射表、授权信息表的所属库提升为独立配置项；新建配置默认 `ai_recovery`，既有配置保留其已保存值。新建配置的 `apiAdd.paths` 默认目录为 `API自动授权`。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
+
+2026-08-25 审批流自动授权的 `importDataPermissions.roleName` 复用 `apiAdd.name`，同步采用申请 `createTime` 的 `MMDD` 后缀；其 `path` 提升为页面独立单行配置项，只允许一个目录名称，默认 `API授权`，并保存至 `import_permissions_defaults.path`。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
 
 2026-08-25 上述审批流 `createTime` 命名规则与独立配置项已热更新到 `192.168.150.128`：API 健康、MySQL 连接、8 个独立 Worker及审批授权无在途任务均通过；浏览器配置保存/回读闭环受本机浏览器连接信任路径故障阻塞，尚待补验。详见 `docs/RELEASE_VALIDATION_20260825_APPROVAL_AUTH_CREATE_TIME_CONFIG.md`。
 

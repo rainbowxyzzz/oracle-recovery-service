@@ -13,7 +13,7 @@ from recovery_service.core.models.task import (
     Base,
     DatabaseConnectionProfile,
 )
-from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _normalized_config, _run_full_sync
+from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _normalized_config, _run_full_sync, _validate_import_permission_path
 
 
 class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
@@ -167,6 +167,11 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
         self.assertEqual(config["mapping_database"], "ai_recovery")
         self.assertEqual(config["auth_info_database"], "ai_recovery")
         self.assertEqual(config["api_add_defaults"]["paths"], ["API自动授权"])
+        self.assertEqual(config["import_permissions_defaults"]["path"], ["API授权"])
+
+    def test_import_permission_path_rejects_multiple_directories(self):
+        with self.assertRaises(ValueError):
+            _validate_import_permission_path(["目录A", "目录B"])
 
     def test_detail_uses_todo_create_time_for_generated_username_suffix(self):
         self.session.get(ApprovalAuthorizationConfig, self.config_id).config = {"date_suffix": "0817"}

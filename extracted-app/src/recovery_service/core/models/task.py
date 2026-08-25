@@ -897,6 +897,43 @@ class DorisSqlEtlRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class QueryExportJob(Base):
+    __tablename__ = "query_export_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    connection_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    connection_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    database: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sql_text: Mapped[str] = mapped_column(LONG_TEXT)
+    sql_summary: Mapped[str] = mapped_column(String(512), default="")
+    export_format: Mapped[str] = mapped_column(String(16), default="csv", index=True)
+    encoding: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    resource_profile: Mapped[str] = mapped_column(String(32), default="streaming")
+    state: Mapped[str] = mapped_column(String(32), default="queued", index=True)
+    message: Mapped[str] = mapped_column(Text, default="")
+    row_count: Mapped[int] = mapped_column(Integer, default=0)
+    byte_size: Mapped[int] = mapped_column(Integer, default=0)
+    processed_rows: Mapped[int] = mapped_column(Integer, default=0)
+    progress_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    current_stage: Mapped[str] = mapped_column(String(64), default="queued")
+    throughput_rows_per_second: Mapped[float | None] = mapped_column(nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_by_auth_type: Mapped[str] = mapped_column(String(32), default="api-key", index=True)
+    downloaded_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    download_count: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class DorisSm4KeyVersion(Base):
     __tablename__ = "doris_sm4_key_versions"
 

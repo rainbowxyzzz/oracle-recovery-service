@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     celery_sm3_queue: str = "doris_sm3"
     celery_sm4_queue: str = "doris_sm4"
     celery_sql_queue: str = "doris_sql"
+    celery_data_export_queue: str = "data_export"
     celery_data_sync_queue: str = "data_sync"
     celery_data_platform_queue: str = "data_platform"
     celery_resource_provisioning_queue: str = "resource_provisioning"
@@ -64,6 +65,11 @@ class Settings(BaseSettings):
     sm4_recover_active_jobs_on_startup: bool = True
     data_sync_max_table_parallelism: int = 8
     resource_provisioning_max_parallelism: int = 10
+    query_export_dir: str = "/app/data/query-exports"
+    query_export_expire_hours: int = 24
+    query_export_batch_size: int = 5000
+    query_export_memory_budget_mb: int = 512
+    query_export_max_threads: int = 1
 
     oracle_client_lib_dir: str = ""
     oracle_target_mode: str = "auto"

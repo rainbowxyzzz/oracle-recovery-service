@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field
 
 DorisSqlEtlWriteMode = Literal["append", "truncate_insert", "drop_create_insert", "create_if_not_exists_insert"]
 DorisSqlEtlRunState = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+QueryExportFormat = Literal["csv", "tsv", "jsonl", "xlsx", "parquet"]
+QueryExportState = Literal["queued", "running", "succeeded", "failed", "cancelled", "expired"]
+QueryExportProfile = Literal["streaming", "columnar"]
 
 
 class SqlPreviewRequest(BaseModel):
@@ -142,3 +145,44 @@ class DorisSqlEtlRunStatus(BaseModel):
 
 class DorisSqlEtlRunListResponse(BaseModel):
     runs: list[DorisSqlEtlRunStatus] = Field(default_factory=list)
+
+
+class QueryExportCreateRequest(BaseModel):
+    connection_id: UUID
+    database: str | None = Field(default=None, max_length=255)
+    sql: str = Field(min_length=1)
+    export_format: QueryExportFormat = "csv"
+    encoding: Literal["utf-8", "utf-8-sig", "gbk"] = "utf-8-sig"
+    resource_profile: QueryExportProfile = "streaming"
+
+
+class QueryExportStatus(BaseModel):
+    job_id: UUID
+    connection_name: str | None = None
+    database: str | None = None
+    sql_summary: str = ""
+    export_format: QueryExportFormat
+    encoding: str | None = None
+    resource_profile: QueryExportProfile = "streaming"
+    state: QueryExportState
+    message: str = ""
+    row_count: int = 0
+    byte_size: int = 0
+    processed_rows: int = 0
+    progress_percent: int | None = None
+    current_stage: str = "queued"
+    throughput_rows_per_second: float | None = None
+    sha256: str | None = None
+    file_name: str | None = None
+    error_message: str | None = None
+    created_by_username: str | None = None
+    download_count: int = 0
+    expires_at: datetime | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    updated_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class QueryExportListResponse(BaseModel):
+    jobs: list[QueryExportStatus] = Field(default_factory=list)

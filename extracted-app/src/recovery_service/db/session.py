@@ -91,6 +91,7 @@ async def init_db() -> None:
         await _ensure_resource_provisioning_columns(conn)
         await _ensure_resource_permission_columns(conn)
         await _ensure_doris_csv_task_columns(conn)
+        await _ensure_query_export_columns(conn)
         await _ensure_data_platform_folder_columns(conn)
         await _ensure_data_platform_workflow_metadata_columns(conn)
         await _ensure_data_platform_node_columns(conn)
@@ -161,8 +162,6 @@ async def _ensure_resource_provisioning_columns(conn) -> None:
     for column, sql in migrations.items():
         if columns and column not in columns:
             await conn.execute(text(sql))
-
-
 async def _ensure_resource_permission_columns(conn) -> None:
     dialect = conn.dialect.name
     if dialect not in {"mysql", "mariadb"}:
@@ -378,6 +377,21 @@ async def _ensure_doris_csv_task_columns(conn) -> None:
     }
     for column, sql in log_migrations.items():
         if log_columns and column not in log_columns:
+            await conn.execute(text(sql))
+
+
+async def _ensure_query_export_columns(conn) -> None:
+    if conn.dialect.name not in {"mysql", "mariadb"}:
+        return
+    columns = await _table_columns(conn, "query_export_jobs")
+    migrations = {
+        "processed_rows": "ALTER TABLE query_export_jobs ADD COLUMN processed_rows INT NOT NULL DEFAULT 0",
+        "progress_percent": "ALTER TABLE query_export_jobs ADD COLUMN progress_percent INT NULL",
+        "current_stage": "ALTER TABLE query_export_jobs ADD COLUMN current_stage VARCHAR(64) NOT NULL DEFAULT 'queued'",
+        "throughput_rows_per_second": "ALTER TABLE query_export_jobs ADD COLUMN throughput_rows_per_second DOUBLE NULL",
+    }
+    for column, sql in migrations.items():
+        if columns and column not in columns:
             await conn.execute(text(sql))
 
 

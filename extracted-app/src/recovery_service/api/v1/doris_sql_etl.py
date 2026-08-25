@@ -2,6 +2,7 @@ import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recovery_service.api.deps import get_db, require_permission
@@ -16,6 +17,9 @@ from recovery_service.api.schemas.doris_sql_etl import (
     DorisSqlExecuteResponse,
     DorisSqlObjectListResponse,
     DorisSqlObjectRequest,
+    QueryExportCreateRequest,
+    QueryExportListResponse,
+    QueryExportStatus,
     SqlPreviewRequest,
     SqlPreviewResponse,
 )
@@ -37,6 +41,7 @@ from recovery_service.services.doris_sql_etl import (
     preview_doris_table,
     submit_doris_sql_etl_run,
 )
+from recovery_service.services.query_export import cancel_query_export_job, create_query_export_job, list_query_export_jobs, record_query_export_download
 
 router = APIRouter(prefix="/doris-sql-etl", tags=["doris-sql-etl"])
 
@@ -176,6 +181,63 @@ async def run_doris_sql(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Doris SQL 执行失败：{exc}") from exc
+
+
+@router.post("/exports", response_model=QueryExportStatus)
+async def create_query_export(
+    body: QueryExportCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    actor: AuthContext = Depends(require_permission("queryExport:execute")),
+):
+    try:
+        profile = await get_profile(db, body.connection_id)
+        return await asyncio.to_thread(
+            create_query_export_job, profile=profile, database=body.database, sql=body.sql,
+            export_format=body.export_format, encoding=body.encoding, resource_profile=body.resource_profile, actor=actor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"查询导出任务提交失败：{exc}") from exc
+
+
+@router.get("/exports", response_model=QueryExportListResponse)
+async def list_query_exports(
+    limit: int = Query(default=100, ge=1, le=200),
+    actor: AuthContext = Depends(require_permission("queryExport:read")),
+):
+    return QueryExportListResponse(jobs=await asyncio.to_thread(list_query_export_jobs, actor=actor, limit=limit))
+
+
+@router.post("/exports/{job_id}/cancel", response_model=QueryExportStatus)
+async def cancel_query_export(
+    job_id: uuid.UUID,
+    actor: AuthContext = Depends(require_permission("queryExport:execute")),
+):
+    try:
+        return await asyncio.to_thread(cancel_query_export_job, job_id, actor=actor)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/exports/{job_id}/download")
+async def download_query_export(
+    job_id: uuid.UUID,
+    actor: AuthContext = Depends(require_permission("queryExport:download")),
+):
+    try:
+        job = await asyncio.to_thread(record_query_export_download, job_id, actor=actor)
+        return FileResponse(path=job.file_path, filename=job.file_name, media_type="application/octet-stream")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/tasks", response_model=DorisSqlEtlTaskListResponse)

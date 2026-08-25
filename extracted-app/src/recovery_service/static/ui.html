@@ -3925,6 +3925,8 @@
             <div class="sql-workbench-toolbar">
               <input id="dorisSqlEtlDorisDatabase" placeholder="默认数据库，可为空">
               <button id="dorisSqlEtlRunDorisSqlBtn" class="primary" type="button">执行</button>
+              <select id="queryExportFormat" title="导出格式"><option value="csv">CSV（UTF-8 BOM）</option><option value="tsv">TSV</option><option value="jsonl">JSONL</option><option value="xlsx">XLSX</option><option value="parquet">Parquet</option></select>
+              <button id="queryExportSubmitBtn" type="button">异步导出</button>
               <button id="dorisSqlWorkbenchRunSelectedBtn" type="button">执行选中</button>
               <button id="dorisSqlWorkbenchFormatBtn" type="button">整理</button>
               <button id="dorisSqlWorkbenchClearBtn" type="button">清空</button>
@@ -3955,7 +3957,7 @@
       </div>
 
       <details class="sql-legacy-etl">
-        <summary>历史 Oracle -> Doris ETL 任务</summary>
+        <summary>导出任务与历史 Oracle -> Doris ETL 任务</summary>
         <div class="grid-2" style="margin-top: 12px">
           <div class="detail">
             <div class="toolbar">
@@ -3972,6 +3974,10 @@
             <div id="dorisSqlEtlRunList" class="step-list">
               <div class="muted" style="padding: 10px">暂无运行记录。</div>
             </div>
+          </div>
+          <div class="detail">
+            <div class="toolbar"><h3>查询导出任务</h3><button id="queryExportRefreshBtn" type="button">刷新</button></div>
+            <div id="queryExportList" class="step-list"><div class="muted" style="padding: 10px">暂无查询导出任务。</div></div>
           </div>
         </div>
       </details>
@@ -4290,8 +4296,11 @@
             </div>
           </div>
           <label for="approvalAuthApiAddPaths">apiAdd 授权目录</label>
-          <textarea id="approvalAuthApiAddPaths" rows="3" placeholder="每行一个目录，例如：API自动授权"></textarea>
-          <div class="hint">保存后写入 <code>api_add_defaults.paths</code>，并原样作为数组提交给有数 <code>apiAdd</code> 接口。</div>
+          <input id="approvalAuthApiAddPaths" placeholder="例如：API自动授权；多个目录用英文逗号分隔">
+          <div class="hint">保存后写入 <code>api_add_defaults.paths</code>，并以数组提交给有数 <code>apiAdd</code> 接口。</div>
+          <label for="approvalAuthImportPermissionPaths">importDataPermissions 授权目录</label>
+          <input id="approvalAuthImportPermissionPaths" placeholder="例如：API授权">
+          <div class="hint">仅支持一个目录名称；保存后写入 <code>import_permissions_defaults.path</code>，并以单元素数组提交给有数 <code>importDataPermissions</code> 接口。</div>
           <label for="approvalAuthConfigJson">高级配置 JSON</label>
           <textarea id="approvalAuthConfigJson" rows="12"></textarea>
         </div>
@@ -6017,6 +6026,8 @@
       let dorisEncryptFileDecryptResult = null;
       let dorisSqlEtlTasks = [];
       let dorisSqlEtlRuns = [];
+      let queryExportJobs = [];
+      let queryExportRefreshTimer = null;
       let dorisSqlWorkbench = {
         catalogs: [],
         databases: {},
@@ -6506,6 +6517,8 @@
         setPermissionVisibility("dorisSqlWorkbenchPreviewBtn", hasAction("dorisSqlEtl:read"));
         setPermissionVisibility("dorisSqlWorkbenchDdlBtn", hasAction("dorisSqlEtl:read"));
         setPermissionVisibility("dorisSqlEtlRunDorisSqlBtn", hasAction("dorisSqlEtl:execute"));
+        setPermissionVisibility("queryExportSubmitBtn", hasAction("queryExport:execute"));
+        setPermissionVisibility("queryExportRefreshBtn", hasAction("queryExport:read"));
         setPermissionVisibility("dorisSqlWorkbenchRunSelectedBtn", hasAction("dorisSqlEtl:execute"));
         setPermissionVisibility("dorisSqlEtlPreviewOracleBtn", hasAction("dorisSqlEtl:read"));
         setPermissionVisibility("dorisSqlEtlSaveTaskBtn", hasAction("dorisSqlEtl:manage"));
@@ -9077,7 +9090,8 @@
         await Promise.all([
           refreshDorisSqlWorkbenchTree(),
           api("/api/v1/doris-sql-etl/tasks?limit=100").then((tasks) => { dorisSqlEtlTasks = tasks.tasks || []; }).catch(() => {}),
-          api("/api/v1/doris-sql-etl/runs?limit=100").then((runs) => { dorisSqlEtlRuns = runs.runs || []; }).catch(() => {})
+          api("/api/v1/doris-sql-etl/runs?limit=100").then((runs) => { dorisSqlEtlRuns = runs.runs || []; }).catch(() => {}),
+          hasAction("queryExport:read") ? refreshQueryExportJobs() : Promise.resolve()
         ]);
         renderDorisSqlEtlTasks();
         renderDorisSqlEtlRuns();
@@ -9085,6 +9099,31 @@
 
       function selectedDorisSqlProfile() {
         return selectedProfile("dorisSqlEtlDorisConnection");
+      }
+
+      async function refreshQueryExportJobs() {
+        const data = await api("/api/v1/doris-sql-etl/exports?limit=100");
+        queryExportJobs = data.jobs || [];
+        renderQueryExportJobs();
+        if (queryExportRefreshTimer) { clearTimeout(queryExportRefreshTimer); queryExportRefreshTimer = null; }
+        if (queryExportJobs.some((job) => ["queued", "running"].includes(job.state))) {
+          queryExportRefreshTimer = setTimeout(() => refreshQueryExportJobs().catch(() => {}), 3000);
+        }
+      }
+
+      function renderQueryExportJobs() {
+        const box = $("queryExportList");
+        if (!box) return;
+        if (!queryExportJobs.length) { box.innerHTML = '<div class="muted" style="padding: 10px">暂无查询导出任务。</div>'; return; }
+        box.innerHTML = queryExportJobs.map((job) => `
+          <div class="step-item"><div><strong>${escapeHtml(job.file_name || job.sql_summary || "查询导出")}</strong><div class="muted">${escapeHtml(job.state)} / ${escapeHtml(job.export_format)} / 已处理 ${job.processed_rows || 0} 行 / ${job.byte_size || 0} 字节${job.throughput_rows_per_second ? ` / ${escapeHtml(job.throughput_rows_per_second)} 行/秒` : ""}</div>${["queued", "running"].includes(job.state) ? `<progress ${job.progress_percent == null ? "" : `value="${job.progress_percent}" max="100"`}></progress>` : ""}<div class="muted">${escapeHtml(job.message || job.error_message || "")}</div></div>
+          <div class="actions">${job.state === "succeeded" && hasAction("queryExport:download") ? `<button type="button" data-query-export-download="${escapeHtml(job.job_id)}" data-query-export-name="${escapeHtml(job.file_name || "query-export")}">下载</button>` : ""}${["queued", "running"].includes(job.state) && hasAction("queryExport:execute") ? `<button type="button" class="danger" data-query-export-cancel="${escapeHtml(job.job_id)}">取消</button>` : ""}</div></div>`).join("");
+        box.querySelectorAll("[data-query-export-download]").forEach((button) => button.addEventListener("click", () => {
+          apiDownload(`/api/v1/doris-sql-etl/exports/${button.getAttribute("data-query-export-download")}/download`, button.getAttribute("data-query-export-name") || "query-export").catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
+        }));
+        box.querySelectorAll("[data-query-export-cancel]").forEach((button) => button.addEventListener("click", () => {
+          api(`/api/v1/doris-sql-etl/exports/${button.getAttribute("data-query-export-cancel")}/cancel`, { method: "POST" }).then(refreshQueryExportJobs).catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
+        }));
       }
 
       function dorisSqlObjectKey(catalog, database = "", table = "") {
@@ -9446,6 +9485,20 @@
         const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
         if (!selected) throw new Error("请先在 SQL 编辑器中选中要执行的 SQL。");
         await runDorisSqlWorkbench(selected);
+      }
+
+      async function submitQueryExport() {
+        const profile = selectedProfile("dorisSqlEtlDorisConnection");
+        if (!profile) throw new Error("请选择 Doris 连接。");
+        const sql = $("dorisSqlEtlDorisSql").value.trim();
+        if (!sql) throw new Error("请填写要导出的查询 SQL。");
+        const exportFormat = $("queryExportFormat").value;
+        const result = await api("/api/v1/doris-sql-etl/exports", {
+          method: "POST",
+          body: JSON.stringify({ connection_id: profile.id, database: $("dorisSqlEtlDorisDatabase").value.trim() || null, sql, export_format: exportFormat, encoding: "utf-8-sig", resource_profile: exportFormat === "parquet" ? "columnar" : "streaming" })
+        });
+        setMessage("dorisSqlEtlSqlMessage", result.message || "导出任务已提交。", "ok");
+        await refreshQueryExportJobs();
       }
 
       function formatDorisSqlEditor() {
@@ -10286,7 +10339,7 @@
           import_permissions_path: "/api/dash/role/importDataPermissions",
           import_permissions_role_id_path: "result",
           api_add_defaults: { projectId: 6, type: 124, paths: ["API自动授权"], server: "", port: "9030", skipTest: "false", parameters: { authType: "ldap", dorisCatalog: "internal" }, nullSafeEqual: false, driver: "mysql-connector-5.1.49" },
-          import_permissions_defaults: { projectId: 6, roleName: "", path: ["2026年7月培训"], type: 0, importResourceTypes: ["DATA_CONNECTION"] },
+          import_permissions_defaults: { projectId: 6, roleName: "", path: ["API授权"], type: 0, importResourceTypes: ["DATA_CONNECTION"] },
           debug_log_sensitive_payloads: false,
           auto_watch_enabled: false,
           auto_watch_interval_minutes: 5,
@@ -10439,7 +10492,9 @@
         $("approvalAuthMappingDatabase").value = config?.config?.mapping_database || defaultConfig.mapping_database;
         $("approvalAuthAuthInfoDatabase").value = config?.config?.auth_info_database || defaultConfig.auth_info_database;
         const apiAddPaths = config?.config?.api_add_defaults?.paths || defaultConfig.api_add_defaults.paths;
-        $("approvalAuthApiAddPaths").value = Array.isArray(apiAddPaths) ? apiAddPaths.join("\n") : "";
+        $("approvalAuthApiAddPaths").value = Array.isArray(apiAddPaths) ? apiAddPaths.join(",") : "";
+        const importPermissionPaths = config?.config?.import_permissions_defaults?.path || defaultConfig.import_permissions_defaults.path;
+        $("approvalAuthImportPermissionPaths").value = Array.isArray(importPermissionPaths) ? String(importPermissionPaths[0] || "") : "";
         $("approvalAuthConfigJson").value = JSON.stringify(config?.config || approvalAuthDefaultConfigJson(), null, 2);
         $("approvalAuthAutoWatchScheduleHint").textContent = approvalAuthAutoWatchScheduleText(config?.config || {});
         renderApprovalAuthWatchStatus();
@@ -10482,10 +10537,14 @@
         if (!config.mapping_database || !config.auth_info_database) throw new Error("请填写映射表和授权信息表所属库。");
         config.api_add_defaults = { ...(config.api_add_defaults || {}) };
         config.api_add_defaults.paths = $("approvalAuthApiAddPaths").value
-          .split(/\r?\n/)
+          .split(/[,\r\n]+/)
           .map((item) => item.trim())
           .filter(Boolean);
         if (!config.api_add_defaults.paths.length) throw new Error("请至少填写一个 apiAdd 授权目录。");
+        config.import_permissions_defaults = { ...(config.import_permissions_defaults || {}) };
+        const importPermissionPath = $("approvalAuthImportPermissionPaths").value.trim();
+        if (!importPermissionPath || /[,\r\n]/.test(importPermissionPath)) throw new Error("importDataPermissions 授权目录只支持一个不含逗号或换行的目录名称。");
+        config.import_permissions_defaults.path = [importPermissionPath];
         return payload;
       }
 
@@ -19891,6 +19950,12 @@
         });
         $("dorisSqlEtlRunDorisSqlBtn").addEventListener("click", () => {
           runDorisSqlWorkbench().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
+        });
+        $("queryExportSubmitBtn").addEventListener("click", () => {
+          submitQueryExport().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
+        });
+        $("queryExportRefreshBtn").addEventListener("click", () => {
+          refreshQueryExportJobs().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
         });
         $("dorisSqlWorkbenchRunSelectedBtn").addEventListener("click", () => {
           runSelectedDorisSqlWorkbench().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));

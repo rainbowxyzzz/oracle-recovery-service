@@ -85,6 +85,8 @@ async def create_config(
     actor: AuthContext,
 ) -> ApprovalAuthorizationConfigResponse:
     _validate_payload_passwords(payload, require_all=True)
+    config = _normalized_config(payload.config)
+    _validate_import_permission_path(config.get("import_permissions_defaults", {}).get("path"))
     row = ApprovalAuthorizationConfig(
         name=payload.name.strip(),
         status=payload.status,
@@ -96,7 +98,7 @@ async def create_config(
         youdata_email=payload.youdata_email.strip(),
         youdata_password_enc=_encrypt_secret(payload.youdata_password),
         default_doris_password_enc=_encrypt_secret(payload.default_doris_password),
-        config=_normalized_config(payload.config),
+        config=config,
         created_by_user_id=_actor_uuid(actor),
         created_by_username=actor.username,
     )
@@ -127,7 +129,9 @@ async def update_config(
         row.youdata_password_enc = _encrypt_secret(payload.youdata_password)
     if payload.default_doris_password is not None:
         row.default_doris_password_enc = _encrypt_secret(payload.default_doris_password)
-    row.config = _normalized_config(payload.config)
+    config = _normalized_config(payload.config)
+    _validate_import_permission_path(config.get("import_permissions_defaults", {}).get("path"))
+    row.config = config
     await db.commit()
     await db.refresh(row)
     return _config_response(row)
@@ -888,6 +892,7 @@ class _Runtime:
         if not unique_ids or resource_id is None:
             raise ValueError("importDataPermissions 缺少 uniqueIds 或 resourceId。")
         body = dict(self.config_dict["import_permissions_defaults"])
+        _validate_import_permission_path(body.get("path"))
         role_name = str(context.get("api_add_name") or context.get("role_name") or "").strip()
         if not role_name:
             database_name = str(context.get("database_name") or "").strip()
@@ -1127,7 +1132,7 @@ def _normalized_config(value: dict[str, Any] | None) -> dict[str, Any]:
         "import_permissions_defaults": {
             "projectId": 6,
             "roleName": "",
-            "path": ["2026年7月培训"],
+            "path": ["API授权"],
             "type": 0,
             "importResourceTypes": ["DATA_CONNECTION"],
         },
@@ -1174,6 +1179,14 @@ def _todo_status_group(value: Any) -> str:
     if text == "0":
         return "zero"
     return "other"
+
+
+def _validate_import_permission_path(value: Any) -> None:
+    if not isinstance(value, list) or len(value) != 1:
+        raise ValueError("importDataPermissions 授权目录只支持一个目录名称。")
+    path = str(value[0] or "").strip()
+    if not path or any(separator in path for separator in (",", "\r", "\n")):
+        raise ValueError("importDataPermissions 授权目录必须是一个不含逗号或换行的目录名称。")
 
 
 def _positive_int(value: Any, default: int, *, minimum: int, maximum: int) -> int:

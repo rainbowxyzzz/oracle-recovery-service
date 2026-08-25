@@ -96,6 +96,16 @@ PERMISSION_CATALOG = [
         ],
     },
     {
+        "id": "queryExport",
+        "label": "查询导出中心",
+        "actions": [
+            {"id": "queryExport:read", "label": "查看本人导出任务"},
+            {"id": "queryExport:execute", "label": "提交查询导出任务"},
+            {"id": "queryExport:download", "label": "下载本人已完成导出文件"},
+            {"id": "queryExport:manage", "label": "查看和管理全部导出任务"},
+        ],
+    },
+    {
         "id": "dataPlatform",
         "label": "离线开发",
         "actions": [
