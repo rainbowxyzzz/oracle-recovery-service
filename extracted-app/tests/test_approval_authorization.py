@@ -13,7 +13,7 @@ from recovery_service.core.models.task import (
     Base,
     DatabaseConnectionProfile,
 )
-from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _run_full_sync
+from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _normalized_config, _run_full_sync
 
 
 class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
@@ -87,7 +87,7 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
                 "code": 200,
                 "data": {
                     "list": [
-                        {"id": "A001", "auditStatus": 0},
+                        {"id": "A001", "auditStatus": 0, "createTime": "2020-08-01 18:50:10"},
                         {"id": "A002", "auditStatus": 1},
                         {"id": "A003", "auditStatus": "0"},
                         {"id": "A004", "auditStatus": ""},
@@ -99,6 +99,7 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
             result = runtime.execute_step("todo_list", {"workflow_token": "token-123"}, None)
 
         self.assertEqual(result["apply_flow_ids"], ["A001", "A003", "A004"])
+        self.assertEqual(result["apply_flow_create_times"]["A001"], "2020-08-01 18:50:10")
         log = self.session.query(ApprovalAuthorizationStepLog).one()
         self.assertEqual(log.status, "success")
         self.assertEqual(log.extracted_data["audit_status_ready_count"], 3)
@@ -159,6 +160,38 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
         self.assertEqual(_extract_department_name("重庆市审计局/某某处"), "某某处")
         self.assertEqual(_extract_department_name("重庆市财政局/预算处"), "重庆市财政局")
         self.assertEqual(_extract_department_name("重庆市审计局"), "重庆市审计局")
+
+    def test_new_config_defaults_use_ai_recovery_and_api_auto_authorization_path(self):
+        config = _normalized_config({})
+
+        self.assertEqual(config["mapping_database"], "ai_recovery")
+        self.assertEqual(config["auth_info_database"], "ai_recovery")
+        self.assertEqual(config["api_add_defaults"]["paths"], ["API自动授权"])
+
+    def test_detail_uses_todo_create_time_for_generated_username_suffix(self):
+        self.session.get(ApprovalAuthorizationConfig, self.config_id).config = {"date_suffix": "0817"}
+        self.session.commit()
+        runtime = self._runtime()
+
+        def fake_post(url, body, headers=None):
+            return {
+                "data": {
+                    "createUserDepartment": "重庆市审计局/数据处",
+                    "createUserName": "张三",
+                    "createUserMobile": "13800001234",
+                    "queryUserList": [],
+                }
+            }
+
+        with patch.object(runtime, "_post_json", side_effect=fake_post):
+            result = runtime.execute_step(
+                "detail",
+                {"workflow_token": "token-123", "apply_flow_id": "FLOW001", "todo_create_time": "2020-08-01 18:50:10"},
+                "FLOW001",
+            )
+
+        self.assertEqual(result["date_suffix"], "0801")
+        self.assertEqual(result["generated_username"], "张三_1234_0801")
 
     def test_auto_watch_retries_only_audit_status_after_import_success(self):
         self.session.add(

@@ -4279,6 +4279,19 @@
             <input id="approvalAuthUpdateAuditStatusAfterSuccess" type="checkbox" checked>
             <span>授权成功后回写审批状态</span>
           </label>
+          <div class="grid-2">
+            <div>
+              <label for="approvalAuthMappingDatabase">单位与数据库映射表所属库</label>
+              <input id="approvalAuthMappingDatabase" value="ai_recovery">
+            </div>
+            <div>
+              <label for="approvalAuthAuthInfoDatabase">授权信息表所属库</label>
+              <input id="approvalAuthAuthInfoDatabase" value="ai_recovery">
+            </div>
+          </div>
+          <label for="approvalAuthApiAddPaths">apiAdd 授权目录</label>
+          <textarea id="approvalAuthApiAddPaths" rows="3" placeholder="每行一个目录，例如：API自动授权"></textarea>
+          <div class="hint">保存后写入 <code>api_add_defaults.paths</code>，并原样作为数组提交给有数 <code>apiAdd</code> 接口。</div>
           <label for="approvalAuthConfigJson">高级配置 JSON</label>
           <textarea id="approvalAuthConfigJson" rows="12"></textarea>
         </div>
@@ -10259,13 +10272,12 @@
           audit_status_update_body_defaults: {},
           detail_data_path: "data",
           data_list_result_path: "data.list",
-          mapping_database: "TESTS",
+          mapping_database: "ai_recovery",
           mapping_table: "单位与数据库映射表",
           mapping_department_column: "部门",
           mapping_database_column: "数据库",
-          auth_info_database: "TESTS",
+          auth_info_database: "ai_recovery",
           auth_info_table: "授权信息表",
-          date_suffix: "0817",
           youdata_token_path: "/api/dash/util/genToken",
           youdata_token_type: "userPassword",
           youdata_token_result_path: "result",
@@ -10273,7 +10285,7 @@
           api_add_id_path: "result.id",
           import_permissions_path: "/api/dash/role/importDataPermissions",
           import_permissions_role_id_path: "result",
-          api_add_defaults: { projectId: 6, type: 124, paths: ["2026年7月培训项目_数据连接"], server: "", port: "9030", skipTest: "false", parameters: { authType: "ldap", dorisCatalog: "internal" }, nullSafeEqual: false, driver: "mysql-connector-5.1.49" },
+          api_add_defaults: { projectId: 6, type: 124, paths: ["API自动授权"], server: "", port: "9030", skipTest: "false", parameters: { authType: "ldap", dorisCatalog: "internal" }, nullSafeEqual: false, driver: "mysql-connector-5.1.49" },
           import_permissions_defaults: { projectId: 6, roleName: "", path: ["2026年7月培训"], type: 0, importResourceTypes: ["DATA_CONNECTION"] },
           debug_log_sensitive_payloads: false,
           auto_watch_enabled: false,
@@ -10289,7 +10301,8 @@
           login: {},
           todo_list: {},
           detail: {
-            apply_flow_id: ""
+            apply_flow_id: "",
+            todo_create_time: "2020-08-01 18:50:10"
           },
           department_mapping: {
             department: ""
@@ -10422,6 +10435,11 @@
         $("approvalAuthAutoWatchInterval").value = String(config?.config?.auto_watch_interval_minutes || 5);
         $("approvalAuthAutoWatchMaxItems").value = String(config?.config?.auto_watch_max_items_per_scan || 1);
         $("approvalAuthUpdateAuditStatusAfterSuccess").checked = config?.config?.update_audit_status_after_success !== false;
+        const defaultConfig = approvalAuthDefaultConfigJson();
+        $("approvalAuthMappingDatabase").value = config?.config?.mapping_database || defaultConfig.mapping_database;
+        $("approvalAuthAuthInfoDatabase").value = config?.config?.auth_info_database || defaultConfig.auth_info_database;
+        const apiAddPaths = config?.config?.api_add_defaults?.paths || defaultConfig.api_add_defaults.paths;
+        $("approvalAuthApiAddPaths").value = Array.isArray(apiAddPaths) ? apiAddPaths.join("\n") : "";
         $("approvalAuthConfigJson").value = JSON.stringify(config?.config || approvalAuthDefaultConfigJson(), null, 2);
         $("approvalAuthAutoWatchScheduleHint").textContent = approvalAuthAutoWatchScheduleText(config?.config || {});
         renderApprovalAuthWatchStatus();
@@ -10459,6 +10477,15 @@
         config.auto_watch_max_items_per_scan = Math.max(1, Math.min(100, Number($("approvalAuthAutoWatchMaxItems").value || 1)));
         config.auto_watch_skip_status_updated = config.auto_watch_skip_status_updated !== false;
         config.update_audit_status_after_success = $("approvalAuthUpdateAuditStatusAfterSuccess").checked;
+        config.mapping_database = $("approvalAuthMappingDatabase").value.trim();
+        config.auth_info_database = $("approvalAuthAuthInfoDatabase").value.trim();
+        if (!config.mapping_database || !config.auth_info_database) throw new Error("请填写映射表和授权信息表所属库。");
+        config.api_add_defaults = { ...(config.api_add_defaults || {}) };
+        config.api_add_defaults.paths = $("approvalAuthApiAddPaths").value
+          .split(/\r?\n/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+        if (!config.api_add_defaults.paths.length) throw new Error("请至少填写一个 apiAdd 授权目录。");
         return payload;
       }
 

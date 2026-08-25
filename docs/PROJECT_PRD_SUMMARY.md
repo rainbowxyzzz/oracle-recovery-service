@@ -1,5 +1,13 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-08-25 审批流自动授权的 Doris 用户名及有数 `apiAdd.name` 日期后缀改为逐申请读取 `getMyTodoList.createTime`，以 `YYYY-MM-DD HH:MM:SS` 格式化为 `MMDD`；不再使用配置保存时固化的日期。缺失或格式不合法的 `createTime` 将阻断当前申请并记录错误。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
+
+2026-08-25 审批流自动授权将有数 `apiAdd.paths` 提升为页面独立的“apiAdd 授权目录”配置项，支持一行一个目录；保存时同步到兼容的 `api_add_defaults.paths` JSON，并作为数组提交给接口。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
+
+2026-08-25 审批流自动授权将单位与数据库映射表、授权信息表的所属库提升为独立配置项；新建配置默认 `ai_recovery`，既有配置保留其已保存值。新建配置的 `apiAdd.paths` 默认目录为 `API自动授权`。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。
+
+2026-08-25 上述审批流 `createTime` 命名规则与独立配置项已热更新到 `192.168.150.128`：API 健康、MySQL 连接、8 个独立 Worker及审批授权无在途任务均通过；浏览器配置保存/回读闭环受本机浏览器连接信任路径故障阻塞，尚待补验。详见 `docs/RELEASE_VALIDATION_20260825_APPROVAL_AUTH_CREATE_TIME_CONFIG.md`。
+
 2026-08-21 数据血缘从自动化流水线的隐含资产能力提升为左侧独立“数据血缘中心”：提供资产/字段检索、批次与层级筛选、上下游及深度追踪、四层资产图谱、表级/字段级关系区分、SM4 传播标识，以及资产详情和证据详情二三级窗口；首版保持只读，复用现有资产和血缘数据，不改变流水线、离线开发、SM4 任务或调度语义。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 9.1 节。
 
 2026-08-21 独立“数据血缘中心”已增量发布到 `192.168.150.128`：真实鉴权接口返回 4 个四层资产、20 条血缘、18 条字段关系和 3 条 SM4 相关关系，安全表上游追踪包含 2 条字段级 `SM4_ENCRYPT`；本地完整回归 `232 passed, 1 skipped, 32 subtests passed`，API 与 8 个 Worker 健康。可见浏览器自动化因本机 Browser 插件信任路径错误未能启动，因此发布记录未把多窗口视觉检查标记为通过。详见 `docs/RELEASE_VALIDATION_20260821_DATA_LINEAGE_CENTER.md`。

@@ -2,6 +2,12 @@
 
 更新日期：2026-08-17
 
+2026-08-25 明确申请生成的 Doris 用户名及有数 `apiAdd.name` 日期后缀必须取同一条 `getMyTodoList` 记录的 `createTime`，按 `YYYY-MM-DD HH:MM:SS` 解析并格式化为 `MMDD`。例如 `2020-08-01 18:50:10` 使用 `0801`。不得使用配置保存日、任务执行日或手工固定的日期后缀；`createTime` 缺失或格式不合法时，阻断该申请并记录错误，避免创建错误命名的数据连接。
+
+2026-08-25 审批流配置页面将有数 `apiAdd.paths` 提供为独立“apiAdd 授权目录”配置项，按行维护多个目录；保存时写入 `api_add_defaults.paths`，运行时原样以数组提交给 `apiAdd`。既有高级配置 JSON 中的 `api_add_defaults.paths` 继续兼容并在页面回填。
+
+2026-08-25 审批流配置页面将 `单位与数据库映射表` 和 `授权信息表` 的所属库分别提供为独立配置项，对新建配置默认使用 `ai_recovery`；既有配置继续回读其已保存值。新建配置的 `apiAdd.paths` 默认目录调整为 `API自动授权`。
+
 2026-08-19 补充自动监听与审批状态回写闭环：审批流自动授权配置支持启用定时监听，系统按配置周期自动调用 `getMyTodoList`，筛选 `auditStatus=0` 和空值申请后直接进入同一处理链；默认每轮只处理 1 个申请，避免生产中重复授权和外部状态竞争。每个申请在内部 Doris 授权、有数 `apiAdd` 和 `importDataPermissions` 全部成功后，必须调用审批系统 `POST /api/market/dataModelApplyFlow/auditStatus`，Header 继续传入 `workflow_token`，Body 为 `{ "id": applyFlowId }`，将外部待办状态回写。若授权已成功但状态回写失败，后续监听不得重新执行整套授权流程，应优先只重试状态回写。
 
 ## 1. 背景
@@ -32,7 +38,7 @@
 
 ### 3.2 待办申请列表
 
-调用 `POST /api/market/dataModelApplyFlow/getMyTodoList`，Header 使用 `workflow_token`，Body 包含分页参数。返回后从 `data.list` 中筛选 `auditStatus = 0` 或空值的集合，提取每条记录的 `id`。该 `id` 即后续处理的 `applyFlowId`。
+调用 `POST /api/market/dataModelApplyFlow/getMyTodoList`，Header 使用 `workflow_token`，Body 包含分页参数。返回后从 `data.list` 中筛选 `auditStatus = 0` 或空值的集合，提取每条记录的 `id` 和原始 `createTime`。`id` 即后续处理的 `applyFlowId`；`createTime` 必须按 `YYYY-MM-DD HH:MM:SS` 解析为 `MMDD`，并随该 `applyFlowId` 传入后续详情、用户创建和 `apiAdd` 步骤。
 
 ### 3.3 申请详情
 
@@ -41,10 +47,10 @@
 详情解析规则：
 
 - `createUserDepartment` 若以 `重庆市审计局/` 开头，则取最后一个 `/` 后的部门名称；否则取第一个 `/` 前的内容作为部门名称。
-- 使用该部门名称查询 Doris `TESTS.单位与数据库映射表`，条件为 `部门 = 截取后的部门`，返回 `数据库` 字段作为目标数据库。
+- 使用配置的映射表所属库（新建配置默认 `ai_recovery`）中的 `单位与数据库映射表`，条件为 `部门 = 截取后的部门`，返回 `数据库` 字段作为目标数据库。
 - `queryUserList` 中所有对象的 `tel` 组成 `uniqueIds`。
 - `queryEndTime` 追加 `23:59:59` 形成 `userExpireMap` 的过期时间。
-- `createUserName` 与 `createUserMobile` 用于生成内部授权用户：`createUserName_createUserMobile后四位_MMDD`，密码使用默认密码。字段名以实际返回 `createUserName` 为准，用户口述中的 `createUserNmae` 视为笔误。
+- `createUserName` 与 `createUserMobile` 用于生成内部授权用户：`createUserName_createUserMobile后四位_MMDD`，其中 `MMDD` 必须来自同一 `applyFlowId` 的 `getMyTodoList.createTime`，密码使用默认密码。字段名以实际返回 `createUserName` 为准，用户口述中的 `createUserNmae` 视为笔误。
 
 用户已确认当前业务不存在不同库同名表，因此表元数据关联可以按 `dataTitle` 唯一匹配；如果实际查询返回 0 条或多条，系统仍需记录异常日志并阻断当前 `applyFlowId`，避免静默误授权。
 
@@ -55,7 +61,7 @@
 对每条授权数据：
 
 - 通过 Doris `information_schema.tables` 根据 `dataTitle` 查询 `schema_name`，查询范围必须限制为 `TABLE_SCHEMA LIKE 'DWD_%'`，避免同名表存在于非 DWD 业务层时导致匹配结果不是 1 条。
-- 写入 Doris `TESTS.授权信息表`，字段至少包含：`applyFlowId`、`datatitle`、`dataLevel`、`schema_name`。
+- 写入配置的授权信息表所属库（新建配置默认 `ai_recovery`）中的 `授权信息表`，字段至少包含：`applyFlowId`、`datatitle`、`dataLevel`、`schema_name`。
 
 ### 3.5 内部批量授权
 
@@ -73,6 +79,7 @@
 - `defaultSchemaName` 使用 `TESTS.单位与数据库映射表` 查询到的 `数据库` 字段。
 - `server` 自动使用当前选择的 Doris 数据连接 `host`，即本流程创建的 Doris 授权用户实际登录 Doris 时使用的 IP 或域名；配置中留空时不得继续向接口提交空 `server`。
 - 目录参数使用 `paths` 字段，不使用 `path` 字段。
+- `paths` 由配置页的“apiAdd 授权目录”按行维护，至少包含一个非空目录；保存后以字符串数组传入接口。
 - 其他入参按配置默认值或页面配置填写。
 - 成功后提取返回 `id`，作为 `resourceId`。
 
@@ -165,6 +172,7 @@ skipped
 - 配置管理：保存外部系统地址、用户名、密码、接口路径、Doris 连接、映射表、授权信息表、默认密码、项目 ID、Doris server/port/path 等参数。
 - 配置管理：保存外部系统地址、用户名、密码、接口路径、Doris 连接、映射表、授权信息表、默认密码、项目 ID、Doris server/port/path 等参数，并可显式开启仅测试环境使用的诊断日志模式。
 - 配置管理：可开启或关闭自动监听，配置扫描间隔和每轮最大处理数量。
+- 配置管理：可在独立字段中按行维护 `apiAdd` 的授权目录，保存后回读并同步到高级配置 JSON 的 `api_add_defaults.paths`。
 - 步骤测试：每一步可单独点击测试。依赖上一步 token 或 `applyFlowId` 的步骤允许手动输入测试上下文。
 - 步骤测试上下文 JSON 必须随当前测试步骤动态切换模板：无上游依赖的步骤显示 `{}`，依赖审批 token、`applyFlowId`、部门、授权数据列表、schema 记录、有数 token 或资源 ID 的步骤只展示该步骤所需字段，避免用户面对固定且无解释的通用 JSON。
 - 完整运行：一键执行完整流程。

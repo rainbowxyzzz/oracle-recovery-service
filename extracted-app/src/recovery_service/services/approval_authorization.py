@@ -405,6 +405,7 @@ def _run_full_sync(run_id: uuid.UUID, config_id: uuid.UUID, context: dict[str, A
         context["workflow_token"] = workflow["workflow_token"]
         todo = runtime.execute_step("todo_list", context, None)
         apply_flow_ids = [str(item) for item in todo.get("apply_flow_ids") or []]
+        todo_create_times = dict(todo.get("apply_flow_create_times") or {})
         discovered_count = len(apply_flow_ids)
         if auto_watch:
             max_items = _positive_int(
@@ -444,7 +445,11 @@ def _run_full_sync(run_id: uuid.UUID, config_id: uuid.UUID, context: dict[str, A
                     runtime.execute_step("audit_status_update", dict(context, apply_flow_id=apply_flow_id), apply_flow_id)
                     success_count += 1
                 else:
-                    _run_one_apply_flow(runtime, dict(context), apply_flow_id)
+                    _run_one_apply_flow(
+                        runtime,
+                        dict(context, todo_create_time=todo_create_times.get(apply_flow_id, "")),
+                        apply_flow_id,
+                    )
                     success_count += 1
             except Exception as exc:
                 failed_count += 1
@@ -667,6 +672,13 @@ class _Runtime:
             and item.get("id")
             and _todo_status_group(item.get("auditStatus")) in {"zero", "empty"}
         ]
+        apply_flow_create_times = {
+            str(item.get("id")): str(item.get("createTime") or "").strip()
+            for item in rows
+            if isinstance(item, dict)
+            and item.get("id")
+            and _todo_status_group(item.get("auditStatus")) in {"zero", "empty"}
+        }
         zero_count = sum(1 for item in rows if isinstance(item, dict) and _todo_status_group(item.get("auditStatus")) == "zero")
         empty_count = sum(1 for item in rows if isinstance(item, dict) and _todo_status_group(item.get("auditStatus")) == "empty")
         extracted = {
@@ -675,9 +687,10 @@ class _Runtime:
             "audit_status_zero_count": zero_count,
             "audit_status_empty_count": empty_count,
             "apply_flow_ids": apply_ids,
+            "apply_flow_create_times": apply_flow_create_times,
         }
         self.log_event("todo_list", STEP_NAMES["todo_list"], "success", "待办申请列表读取完成。", apply_flow_id=apply_flow_id, request={"url": url, "headers": self._workflow_headers(token), "body": body}, response=response, extracted=extracted)
-        return {"apply_flow_ids": apply_ids, "todo_rows": rows}
+        return {"apply_flow_ids": apply_ids, "apply_flow_create_times": apply_flow_create_times, "todo_rows": rows}
 
     def _step_detail(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
         flow_id = str(context.get("apply_flow_id") or apply_flow_id or "").strip()
@@ -695,7 +708,9 @@ class _Runtime:
         query_end_time = str(_json_path(detail, "queryEndTime") or "").strip()
         creator_name = str(_json_path(detail, "createUserName") or "").strip()
         creator_mobile = str(_json_path(detail, "createUserMobile") or "").strip()
-        generated_username = _generated_username(creator_name, creator_mobile, str(context.get("date_suffix") or self.config_dict["date_suffix"]))
+        todo_create_time = str(context.get("todo_create_time") or "").strip()
+        date_suffix = _date_suffix_from_todo_create_time(todo_create_time)
+        generated_username = _generated_username(creator_name, creator_mobile, date_suffix)
         extracted = {
             "apply_flow_id": flow_id,
             "department_raw": department_raw,
@@ -705,6 +720,8 @@ class _Runtime:
             "expire_at": _expire_at(query_end_time),
             "create_user_name": creator_name,
             "create_user_mobile_last4": creator_mobile[-4:] if creator_mobile else "",
+            "todo_create_time": todo_create_time,
+            "date_suffix": date_suffix,
             "generated_username": generated_username,
         }
         self.log_event("detail", STEP_NAMES["detail"], "success", "申请详情读取完成。", apply_flow_id=flow_id, request={"url": url, "headers": self._workflow_headers(token), "body": body}, response=response, extracted=extracted)
@@ -1071,13 +1088,12 @@ def _normalized_config(value: dict[str, Any] | None) -> dict[str, Any]:
         "todo_page": 1,
         "todo_rows": 1000,
         "data_list_rows": 9999,
-        "mapping_database": "TESTS",
+        "mapping_database": "ai_recovery",
         "mapping_table": "单位与数据库映射表",
         "mapping_department_column": "部门",
         "mapping_database_column": "数据库",
-        "auth_info_database": "TESTS",
+        "auth_info_database": "ai_recovery",
         "auth_info_table": "授权信息表",
-        "date_suffix": datetime.now().strftime("%m%d"),
         "youdata_token_path": "/api/dash/util/genToken",
         "youdata_token_type": "userPassword",
         "youdata_token_result_path": "result",
@@ -1100,7 +1116,7 @@ def _normalized_config(value: dict[str, Any] | None) -> dict[str, Any]:
         "api_add_defaults": {
             "projectId": 6,
             "type": 124,
-            "paths": ["2026年7月培训项目_数据连接"],
+            "paths": ["API自动授权"],
             "server": "",
             "port": "9030",
             "skipTest": "false",
@@ -1233,6 +1249,16 @@ def _generated_username(name: str, mobile: str, suffix: str) -> str:
     last4 = re.sub(r"\D", "", mobile)[-4:] if mobile else ""
     base = "_".join(part for part in (name.strip(), last4, suffix.strip()) if part)
     return base or f"approval_user_{suffix}"
+
+
+def _date_suffix_from_todo_create_time(value: str) -> str:
+    raw = str(value or "").strip()
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S").strftime("%m%d")
+    except ValueError as exc:
+        raise ValueError(
+            "getMyTodoList 返回的 createTime 缺失或格式不合法，期望 YYYY-MM-DD HH:MM:SS。"
+        ) from exc
 
 
 def _extract_department_name(department_raw: str) -> str:
