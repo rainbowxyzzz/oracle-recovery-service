@@ -3800,6 +3800,18 @@
           <div id="dorisCsvPreview" class="list">
             <div class="muted" style="padding: 10px">请选择 CSV 文件并点击解析文件。</div>
           </div>
+          <datalist id="dorisCsvColumnTypeOptions">
+            <option value="VARCHAR(65533)"></option>
+            <option value="VARCHAR(255)"></option>
+            <option value="BIGINT"></option>
+            <option value="INT"></option>
+            <option value="DECIMAL(38,2)"></option>
+            <option value="DATE"></option>
+            <option value="DATETIME"></option>
+            <option value="BOOLEAN"></option>
+            <option value="DOUBLE"></option>
+            <option value="STRING"></option>
+          </datalist>
           <div id="dorisCsvResult" class="detail" hidden>
             <h3>导入结果</h3>
             <div id="dorisCsvResultList" class="step-list"></div>
@@ -8853,10 +8865,11 @@
           const columnRows = (file.columns || []).map((column, columnIndex) => {
             const selectedColumnName = column.name || column.original_name || "";
             const mappingControl = `<input data-doris-column-map data-file-index="${fileIndex}" data-column-index="${columnIndex}" ${targetColumns.length ? `list="${datalistId}"` : ""} value="${escapeHtml(selectedColumnName)}" placeholder="目标字段名，留空则不导入">`;
+            const typeControl = `<input data-doris-column-type data-file-index="${fileIndex}" data-column-index="${columnIndex}" list="dorisCsvColumnTypeOptions" value="${escapeHtml(column.type || "VARCHAR(65533)")}" placeholder="Doris 目标类型">`;
             return `<div class="list-item">
               <span class="muted">源字段：${escapeHtml(column.original_name || "")}</span>
-              ${mappingControl}
-              <br><span class="muted">${escapeHtml(column.type || "")}${column.nullable ? "" : " NOT NULL"} / 示例：${escapeHtml((column.sample_values || []).join("，"))}</span>
+              <div class="grid-2">${mappingControl}${typeControl}</div>
+              <span class="muted">自动识别结果可按实际数据修改${column.nullable ? "" : " / NOT NULL"} / 示例：${escapeHtml((column.sample_values || []).join("，"))}</span>
             </div>`;
           }).join("");
           const warnings = (file.warnings || []).length
@@ -8874,6 +8887,10 @@
             <span class="muted">表状态：${file.target_table_exists ? "已存在，可选择映射字段" : "不存在，可快捷建表"} / 表头：${file.has_header ? "包含" : "不包含"} / 标准列数：${file.expected_columns || 0} / 可导入行：${file.valid_row_count || 0} / 问题行：${file.bad_row_count || 0}</span>
             <br>
             ${targetColumnOptions}
+            <div class="actions" style="margin: 8px 0">
+              <button data-doris-all-varchar data-file-index="${fileIndex}" type="button">全部设为 VARCHAR(65533)</button>
+              <span class="muted">超长 VARCHAR 若被选为 Doris Key，建表时会按 VARCHAR(255) 处理。</span>
+            </div>
             <div class="detail">${columnRows}</div>
             ${badRows ? `<div class="detail"><strong>问题数据预览</strong>${badRows}</div>` : ""}
             ${warnings}
@@ -8944,7 +8961,76 @@
               }
             }
           }
+          return;
         }
+        if (target.matches("[data-doris-column-type]")) {
+          if (event.type !== "change") return;
+          const columnIndex = Number(target.getAttribute("data-column-index"));
+          const column = (file.columns || [])[columnIndex];
+          if (!column) return;
+          try {
+            const normalizedType = normalizeDorisCsvColumnType(target.value);
+            column.type = normalizedType;
+            target.value = normalizedType;
+            const varcharMatch = normalizedType.match(/^VARCHAR\((\d+)\)$/);
+            if (varcharMatch) column.max_length = Number(varcharMatch[1]);
+            if (dorisCsvImportMode() === "single_table") {
+              (dorisCsvPreviewData.files || []).forEach((item) => {
+                if (!item?.columns?.[columnIndex]) return;
+                item.columns[columnIndex].type = column.type;
+                item.columns[columnIndex].max_length = column.max_length;
+              });
+              persistDorisCsvPreviewSpecForAllFiles(file.table_name).catch((e) => setMessage("dorisCsvMessage", e.message, "error"));
+            } else {
+              persistDorisCsvPreviewSpec(fileIndex).catch((e) => setMessage("dorisCsvMessage", e.message, "error"));
+            }
+          } catch (error) {
+            target.value = column.type || "VARCHAR(65533)";
+            setMessage("dorisCsvMessage", error.message, "error");
+          }
+        }
+      }
+
+      function normalizeDorisCsvColumnType(value) {
+        const normalized = String(value || "").replace(/\s+/g, "").toUpperCase();
+        const simpleTypes = new Set(["BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT", "LARGEINT", "FLOAT", "DOUBLE", "DATE", "DATETIME", "DATEV2", "STRING"]);
+        if (simpleTypes.has(normalized)) return normalized;
+        let match = normalized.match(/^(CHAR|VARCHAR)\((\d+)\)$/);
+        if (match) {
+          const length = Number(match[2]);
+          const maximum = match[1] === "CHAR" ? 255 : 65533;
+          if (length >= 1 && length <= maximum) return `${match[1]}(${length})`;
+        }
+        match = normalized.match(/^(DECIMAL|DECIMALV3)\((\d+),(\d+)\)$/);
+        if (match) {
+          const precision = Number(match[2]);
+          const scale = Number(match[3]);
+          if (precision >= 1 && precision <= 38 && scale >= 0 && scale <= precision) return `${match[1]}(${precision},${scale})`;
+        }
+        match = normalized.match(/^DATETIMEV2(?:\((\d+)\))?$/);
+        if (match && (match[1] === undefined || Number(match[1]) <= 6)) return normalized;
+        throw new Error("不支持的 Doris 字段类型，请使用候选类型或合法的 CHAR、VARCHAR、DECIMAL、DATETIMEV2 类型。");
+      }
+
+      function setDorisCsvColumnsToVarchar(event) {
+        const button = event.target.closest("[data-doris-all-varchar]");
+        if (!button || !dorisCsvPreviewData) return;
+        const fileIndex = Number(button.getAttribute("data-file-index"));
+        const files = dorisCsvPreviewData.files || [];
+        const file = files[fileIndex];
+        if (!file) return;
+        const applyVarchar = (item) => (item?.columns || []).forEach((column) => {
+          column.type = "VARCHAR(65533)";
+          column.max_length = 65533;
+        });
+        if (dorisCsvImportMode() === "single_table") files.forEach(applyVarchar);
+        else applyVarchar(file);
+        renderDorisCsvPreview(dorisCsvPreviewData);
+        const saving = dorisCsvImportMode() === "single_table"
+          ? persistDorisCsvPreviewSpecForAllFiles(file.table_name)
+          : persistDorisCsvPreviewSpec(fileIndex);
+        saving.then(() => setMessage("dorisCsvMessage", "字段类型已保存为 VARCHAR(65533)。", "ok"))
+          .catch((error) => setMessage("dorisCsvMessage", error.message, "error"));
       }
 
       async function persistDorisCsvPreviewSpec(fileIndex) {
@@ -19628,6 +19714,7 @@
         });
         $("dorisCsvPreview").addEventListener("input", updateDorisCsvPreviewSpec);
         $("dorisCsvPreview").addEventListener("change", updateDorisCsvPreviewSpec);
+        $("dorisCsvPreview").addEventListener("click", setDorisCsvColumnsToVarchar);
         $("dorisCsvPreviewBtn").addEventListener("click", () => {
           dorisCsvPreview().catch((e) => setMessage("dorisCsvMessage", e.message, "error"));
         });

@@ -36,6 +36,7 @@ from recovery_service.api.schemas.doris_csv_import import (
     DorisFtpCatalogItem,
     DorisFtpCatalogResponse,
     DorisFtpConnection,
+    normalize_doris_csv_column_type,
 )
 from recovery_service.common.security import decrypt_secret
 from recovery_service.common.time import app_now
@@ -1480,8 +1481,8 @@ def _create_table(
     key_column = _choose_key_column(columns)
     definitions = []
     for column in columns:
-        col_type = column.type
-        if column.name == key_column and col_type.startswith("VARCHAR") and column.max_length > 255:
+        col_type = normalize_doris_csv_column_type(column.type)
+        if column.name == key_column and (_varchar_type_length(col_type) or 0) > 255:
             col_type = "VARCHAR(255)"
             preview.warnings.append(
                 f"{column.name} 被用作 Doris 明细模型 key，已按 VARCHAR(255) 建表。"
@@ -1805,9 +1806,33 @@ def _matches_datetime(value: str, formats: tuple[str, ...]) -> bool:
 
 def _choose_key_column(columns: list[DorisCsvColumnPreview]) -> str:
     for column in columns:
-        if not column.type.startswith("VARCHAR") or column.max_length <= 255:
+        if _is_doris_key_type(column.type) and (_varchar_type_length(column.type) or 0) <= 255:
             return column.name
-    return columns[0].name
+    for column in columns:
+        if _is_doris_key_type(column.type):
+            return column.name
+    raise ValueError("至少需要一个可作为 Doris 明细模型 Key 的整数、日期、定点数或 CHAR/VARCHAR 字段。")
+
+
+def _varchar_type_length(column_type: str) -> int | None:
+    match = re.fullmatch(r"VARCHAR\((\d+)\)", normalize_doris_csv_column_type(column_type))
+    return int(match.group(1)) if match else None
+
+
+def _is_doris_key_type(column_type: str) -> bool:
+    normalized = normalize_doris_csv_column_type(column_type)
+    return normalized.startswith(("CHAR(", "VARCHAR(", "DECIMAL(", "DECIMALV3(")) or normalized in {
+        "BOOLEAN",
+        "TINYINT",
+        "SMALLINT",
+        "INT",
+        "BIGINT",
+        "LARGEINT",
+        "DATE",
+        "DATETIME",
+        "DATEV2",
+        "DATETIMEV2",
+    } or normalized.startswith("DATETIMEV2(")
 
 
 def _safe_int(value: Any) -> int:

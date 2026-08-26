@@ -1,5 +1,9 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-08-26 Doris CSV 导入增加字段目标类型自定义和“全部设为 VARCHAR(65533)”能力：自动识别仅作为默认建议，字段类型随任务预览保存并用于建表；后端对白名单标量类型及参数范围做统一校验，合并同表模式同步全部文件，已有表不自动 ALTER。详见 `docs/DORIS_CSV_IMPORT_TASK_PRD_20260810.md` 第 19 节。
+
+2026-08-26 上述能力已热更新到 `192.168.150.128`：本地完整回归 `239 passed, 1 skipped`，128 真实 API 完成混合类型推断、同表类型保存回读、非法类型 422、晚出现字符串保留、健康与日志检查；隔离数据已清理并恢复 API/MySQL/Redis 停止状态。由于 Doris 仍按要求停止且本机浏览器沙箱故障，真实 Stream Load 和可见窗口回归待补。详见 `docs/RELEASE_VALIDATION_20260826_DORIS_CSV_CUSTOM_TYPES.md`。
+
 2026-08-25 新增“查询导出中心”需求：Doris SQL 查询结果以独立异步任务、流式分批写文件和受控下载方式导出，支持 CSV、TSV、JSONL、XLSX、Parquet 及受限的 Doris 原生卸出；导出 Worker 按 CPU、cgroup 内存预算、磁盘空间和 90% 内存预警受控，完整结果不得进入 API 内存。详见 `docs/QUERY_EXPORT_CENTER_PRD.md`。
 
 2026-08-25 审批流自动授权的 Doris 用户名及有数 `apiAdd.name` 日期后缀改为逐申请读取 `getMyTodoList.createTime`，以 `YYYY-MM-DD HH:MM:SS` 格式化为 `MMDD`；不再使用配置保存时固化的日期。缺失或格式不合法的 `createTime` 将阻断当前申请并记录错误。详见 `docs/APPROVAL_FLOW_AUTHORIZATION_PRD.md`。

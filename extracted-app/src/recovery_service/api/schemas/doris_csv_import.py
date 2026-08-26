@@ -1,10 +1,63 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
+
+
+_DORIS_CSV_SIMPLE_COLUMN_TYPES = {
+    "BOOLEAN",
+    "TINYINT",
+    "SMALLINT",
+    "INT",
+    "BIGINT",
+    "LARGEINT",
+    "FLOAT",
+    "DOUBLE",
+    "DATE",
+    "DATETIME",
+    "DATEV2",
+    "STRING",
+}
+
+
+def normalize_doris_csv_column_type(value: str) -> str:
+    normalized = re.sub(r"\s+", "", str(value or "")).upper()
+    if normalized in _DORIS_CSV_SIMPLE_COLUMN_TYPES:
+        return normalized
+
+    match = re.fullmatch(r"(CHAR|VARCHAR)\((\d+)\)", normalized)
+    if match:
+        type_name, length_text = match.groups()
+        length = int(length_text)
+        maximum = 255 if type_name == "CHAR" else 65533
+        if 1 <= length <= maximum:
+            return f"{type_name}({length})"
+
+    match = re.fullmatch(r"(DECIMAL|DECIMALV3)\((\d+),(\d+)\)", normalized)
+    if match:
+        type_name, precision_text, scale_text = match.groups()
+        precision = int(precision_text)
+        scale = int(scale_text)
+        if 1 <= precision <= 38 and 0 <= scale <= precision:
+            return f"{type_name}({precision},{scale})"
+
+    match = re.fullmatch(r"DATETIMEV2(?:\((\d+)\))?", normalized)
+    if match:
+        scale_text = match.group(1)
+        if scale_text is None:
+            return "DATETIMEV2"
+        scale = int(scale_text)
+        if 0 <= scale <= 6:
+            return f"DATETIMEV2({scale})"
+
+    raise ValueError(
+        "不支持的 Doris CSV 字段类型。请使用受支持的标量类型，"
+        "例如 BIGINT、DATE、DATETIME、VARCHAR(65533) 或 DECIMAL(38,2)。"
+    )
 
 
 class DorisCsvColumnPreview(BaseModel):
@@ -14,6 +67,11 @@ class DorisCsvColumnPreview(BaseModel):
     nullable: bool = True
     max_length: int = 0
     sample_values: list[str] = Field(default_factory=list)
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        return normalize_doris_csv_column_type(value)
 
 
 class DorisCsvBadRowPreview(BaseModel):

@@ -1,9 +1,16 @@
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from recovery_service.api.schemas.doris_csv_import import (
+    DorisCsvColumnPreview,
+    DorisCsvFilePreview,
+)
 from recovery_service.core.models.task import Base, DatabaseConnectionProfile
 from recovery_service.services import doris_csv_import
 from recovery_service.services.doris_csv_import import (
@@ -12,6 +19,7 @@ from recovery_service.services.doris_csv_import import (
     request_import_csv_task_sync,
     request_stop_csv_parse_task_sync,
     run_csv_parse_task_sync,
+    update_csv_parse_file_preview_sync,
 )
 
 
@@ -187,3 +195,106 @@ def test_parse_task_stop_marks_waiting_files_stopped(tmp_path, monkeypatch):
 
     assert status.state == "stopped"
     assert all(item.state == "stopped" for item in status.files)
+
+
+def test_custom_column_type_is_normalized_and_unsafe_type_is_rejected():
+    column = DorisCsvColumnPreview(
+        original_name="mixed_value",
+        name="mixed_value",
+        type=" varchar ( 65533 ) ",
+    )
+
+    assert column.type == "VARCHAR(65533)"
+
+    with pytest.raises(ValidationError, match="不支持的 Doris CSV 字段类型"):
+        DorisCsvColumnPreview(
+            original_name="mixed_value",
+            name="mixed_value",
+            type="VARCHAR(20)); DROP TABLE users; --",
+        )
+
+
+def test_parse_task_persists_custom_column_type(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile,
+        [("mixed.csv", b"mixed_value\n1\n2\n")],
+        database=None,
+        has_header=True,
+        import_mode="multiple_tables",
+    )
+    run_csv_parse_task_sync(task.task_id)
+    status = get_csv_parse_task_status_sync(task.task_id)
+    preview_data = status.preview.files[0].model_dump(mode="json")
+    preview_data["columns"][0]["type"] = "varchar ( 65533 )"
+    preview_data["columns"][0]["max_length"] = 65533
+    preview = DorisCsvFilePreview.model_validate(preview_data)
+
+    updated = update_csv_parse_file_preview_sync(
+        task.task_id,
+        status.files[0].id,
+        preview,
+    )
+
+    assert updated.preview.files[0].columns[0].type == "VARCHAR(65533)"
+    assert updated.preview.files[0].columns[0].max_length == 65533
+
+
+def test_create_table_uses_custom_types_and_limits_long_varchar_key(monkeypatch):
+    executed = []
+
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, sql):
+            executed.append(sql)
+
+    class Connection:
+        def cursor(self):
+            return Cursor()
+
+    @contextmanager
+    def fake_connection(*_args, **_kwargs):
+        yield Connection()
+
+    monkeypatch.setattr(doris_csv_import, "_doris_mysql_conn", fake_connection)
+    preview = DorisCsvFilePreview(
+        filename="mixed.csv",
+        table_name="mixed",
+        columns=[
+            DorisCsvColumnPreview(
+                original_name="first_value",
+                name="first_value",
+                type="VARCHAR(65533)",
+                max_length=65533,
+            ),
+            DorisCsvColumnPreview(
+                original_name="second_value",
+                name="second_value",
+                type="VARCHAR(65533)",
+                max_length=65533,
+            ),
+        ],
+    )
+
+    ddl = doris_csv_import._create_table(object(), "TEST_DB", preview, overwrite=False)
+
+    assert "`first_value` VARCHAR(255)" in ddl
+    assert "`second_value` VARCHAR(65533)" in ddl
+    assert executed == [ddl]
+    assert any("VARCHAR(255)" in warning for warning in preview.warnings)
+
+
+def test_csv_preview_exposes_custom_type_and_bulk_varchar_controls():
+    ui = (Path(__file__).parents[1] / "src" / "recovery_service" / "static" / "ui.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "data-doris-column-type" in ui
+    assert "data-doris-all-varchar" in ui
+    assert "全部设为 VARCHAR(65533)" in ui
