@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_service_mode: str = "monolith"
+    # Optional isolated Harness planner. No model or database credentials are exchanged.
+    harness_bridge_url: str = ""
+    harness_bridge_token: str = ""
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     app_timezone: str = "Asia/Shanghai"

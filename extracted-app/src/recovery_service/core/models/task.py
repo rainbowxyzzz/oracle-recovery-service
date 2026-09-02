@@ -16,6 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import Uuid
+from recovery_service.common.time import app_now
 
 LONG_TEXT = Text().with_variant(mysql.LONGTEXT(), "mysql")
 
@@ -91,6 +92,19 @@ class TaskEvent(Base):
     stdout: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
     stderr: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class AssistantPlan(Base):
+    __tablename__ = "assistant_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    state: Mapped[str] = mapped_column(String(32), default="draft", index=True)
+    plan_hash: Mapped[str] = mapped_column(String(64))
+    snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=app_now)
 
 
 class DataAutomationPipeline(Base):

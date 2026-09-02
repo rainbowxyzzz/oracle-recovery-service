@@ -298,3 +298,33 @@ def test_csv_preview_exposes_custom_type_and_bulk_varchar_controls():
     assert "data-doris-column-type" in ui
     assert "data-doris-all-varchar" in ui
     assert "全部设为 VARCHAR(65533)" in ui
+
+
+def test_import_task_fallback_count_uses_logical_records(tmp_path, monkeypatch):
+    factory = _session_factory(tmp_path, monkeypatch)
+    profile = _profile(factory)
+    task = create_csv_parse_task(
+        profile, [("multi.csv", b'id,detail\r\n1,"a\nb"\r\n2,"c\r\nd"\r\n')],
+        database="TEST_DB", has_header=True,
+    )
+    # Parsing does not need a real database schema lookup for this unit test.
+    monkeypatch.setattr(doris_csv_import, "_target_table_columns", lambda *_args: (False, []))
+    run_csv_parse_task_sync(task.task_id)
+    request_import_csv_task_sync(task.task_id, create_table=False, overwrite=False)
+    with factory() as session:
+        file_row = session.query(doris_csv_import.DorisCsvParseFile).filter_by(task_id=task.task_id).one()
+        file_row.total_rows = 0
+        session.commit()
+    monkeypatch.setattr(doris_csv_import, "_ensure_database", lambda *_args: None)
+
+    async def load(*_args, **_kwargs):
+        return doris_csv_import.DorisCsvFileImportResult(
+            filename="multi.csv", table_name="multi", state="success", message="OK", loaded_rows=2,
+        )
+
+    monkeypatch.setattr(doris_csv_import, "_stream_load", load)
+    doris_csv_import.run_csv_import_task_sync(task.task_id)
+    status = get_csv_parse_task_status_sync(task.task_id)
+    assert status.state == "imported"
+    assert status.import_total_rows == 2
+    assert status.import_loaded_rows == 2

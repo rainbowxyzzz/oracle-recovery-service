@@ -320,7 +320,7 @@ class OracleAutoImportRunner:
         for candidate in oracle_datapump_job_candidates(job_name):
             input_text = f"{action}\nYES\n"
             inner = (
-                "export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; "
+                "export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; export LC_ALL=C.UTF-8; "
                 f"printf %s {shlex.quote(input_text)} | "
                 f"impdp {shlex.quote(login)} ATTACH={shlex.quote(candidate)}"
             )
@@ -776,7 +776,7 @@ class OracleAutoImportRunner:
             "export PATH=\"$ORACLE_HOME/bin:$PATH\"; "
             "export LD_LIBRARY_PATH=\"$ORACLE_HOME/lib:${LD_LIBRARY_PATH:-}\"; "
             "else unset ORACLE_HOME; fi; "
-            "export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; "
+            "export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; export LC_ALL=C.UTF-8; "
         )
 
     def _install_script(self, host: RemoteHost) -> None:

@@ -295,6 +295,8 @@ def resume_batch(batch_id: uuid.UUID) -> dict[str, Any]:
         batch = session.get(DataAutomationBatch, batch_id)
         if not batch:
             raise KeyError("数据批次不存在。")
+        if (batch.context or {}).get("assistant_plan_id"):
+            raise ValueError("助手批次请从智能助手核对后继续，不能绕过计划确认。")
         pipeline = session.get(DataAutomationPipeline, batch.pipeline_id)
         template = session.get(RecoveryTask, pipeline.restore_template_task_id) if pipeline and pipeline.restore_template_task_id else None
         if not pipeline or not template:
@@ -649,6 +651,9 @@ def _scheduler_loop() -> None:
 
 
 def _advance_one(session, batch: DataAutomationBatch) -> bool:
+    if (batch.context or {}).get("assistant_plan_id"):
+        from recovery_service.services.assistant_execution import advance
+        return advance(session, batch)
     pipeline = session.get(DataAutomationPipeline, batch.pipeline_id)
     if not pipeline:
         raise KeyError("流水线定义已不存在。")
@@ -738,6 +743,8 @@ def _record_sync_assets(session, pipeline, batch, run):
     table_runs = session.scalars(select(DataPlatformComponentRunTable).where(DataPlatformComponentRunTable.component_run_id == run.id, DataPlatformComponentRunTable.status == "succeeded")).all()
     node = session.get(DataPlatformNode, run.node_id)
     config = dict(node.config or {}) if node else {}
+    if (batch.context or {}).get("assistant_snapshot"):
+        config = dict(batch.context["assistant_snapshot"]["sync_config"])
     source_connection_id = _uuid_or_none(config.get("source_connection_id"))
     target_connection_id = _uuid_or_none(config.get("target_connection_id"))
     results = []

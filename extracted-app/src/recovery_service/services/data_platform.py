@@ -570,7 +570,9 @@ def submit_component_task_run(
             session.close()
             return run_component_task_once(node_id, overrides, actor)
 
-        config = _normalize_component_task_config(node.node_type, node.config or {})
+        from recovery_service.services.assistant_execution import sync_config_for_batch
+        frozen_config = sync_config_for_batch(session, (overrides or {}).get("pipeline_batch_id"), node.id, node.config or {})
+        config = _normalize_component_task_config(node.node_type, frozen_config)
         if isinstance(overrides, dict) and overrides.get("selected_tables") is not None:
             config["selected_tables"] = list(overrides.get("selected_tables") or [])
         selected_items = list(config.get("selected_tables") or [])
@@ -687,8 +689,10 @@ def run_queued_component_task(component_run_id: uuid.UUID) -> dict[str, Any]:
             raise ValueError(message)
 
         try:
-            config = _normalize_component_task_config(node.node_type, node.config or {})
             runtime_overrides = dict((component_run.result or {}).get("runtime_overrides") or {})
+            from recovery_service.services.assistant_execution import sync_config_for_batch
+            frozen_config = sync_config_for_batch(session, runtime_overrides.get("pipeline_batch_id"), node.id, node.config or {})
+            config = _normalize_component_task_config(node.node_type, frozen_config)
             restored_target = dict(runtime_overrides.get("restored_target") or {})
             restored_schema = str(restored_target.get("schema") or "").strip()
             if restored_schema:
@@ -2026,6 +2030,9 @@ def _execute_run(run_id: uuid.UUID) -> None:
             session.commit()
             return
         release = version.release_snapshot or {}
+        if (run.trigger_context or {}).get("assistant_plan_id"):
+            from recovery_service.services.assistant_execution import release_for_run
+            release = release_for_run(session, run, release)
         node_specs = _normalize_nodes(release.get("nodes") or version.nodes or [])
         edge_specs = _normalize_edges(release.get("edges") or version.edges or [])
         order = _topological_order(node_specs, edge_specs)

@@ -100,7 +100,53 @@ SQL
 
 if [ "$TEMP_AUTO_EXTEND" = "true" ]; then
   log "ensuring TEMP tablespace has recovery tempfile $TEMPFILE_NAME"
-  oracle_sql <<SQL
+  TEMP_METADATA=$(oracle_sql <<SQL
+whenever sqlerror exit sql.sqlcode
+set heading off feedback off pages 0 lines 240 verify off echo off
+alter session set container=$ORACLE_PDB;
+select 'TEMP_META=' || bigfile || ':' || to_char(block_size, 'TM9')
+from dba_tablespaces where tablespace_name = 'TEMP' and contents = 'TEMPORARY';
+exit
+SQL
+  ) || fail "could not read TEMP tablespace metadata"
+  TEMP_METADATA=$(printf '%s\n' "$TEMP_METADATA" | sed -n 's/^[[:space:]]*TEMP_META=//p' | tr -d '\r')
+  printf '%s\n' "$TEMP_METADATA" | grep -Eq '^(YES|NO):(2048|4096|8192|16384|32768)$' || fail "invalid or missing TEMP tablespace metadata"
+  if [ "${TEMP_METADATA%%:*}" = "YES" ]; then
+    log "TEMP is BIGFILE: keeping its existing tempfile unchanged; cannot add a second tempfile"
+  else
+    # Smallfile: at most 2^22-1 blocks. Round the ceiling down to whole MiB.
+    # Calculate in awk, not shell arithmetic, to also support 32-bit /bin/sh.
+    TEMP_SIZES=$(awk -v block="${TEMP_METADATA#*:}" \
+      -v initial="$TEMPFILE_INITIAL_SIZE" -v next_size="$TEMPFILE_NEXT_SIZE" \
+      -v maximum="$TEMPFILE_MAX_SIZE" '
+      function size_k(value, unit, factor) {
+        value = toupper(value)
+        if (value !~ /^[0-9]+[KMG]?$/ || value + 0 <= 0) exit 1
+        unit = substr(value, length(value), 1)
+        factor = unit == "G" ? 1048576 : (unit == "M" ? 1024 : (unit == "K" ? 1 : 1/1024))
+        return (value + 0) * factor
+      }
+      function minimum(a, b) { return a < b ? a : b }
+      function align_up(value, blocks) {
+        blocks = int(value / block_k)
+        return (blocks + (value > blocks * block_k)) * block_k
+      }
+      BEGIN {
+        block_k = block / 1024
+        limit_k = int(4194303 * block / 1048576) * 1024
+        max_k = int(minimum(size_k(maximum), limit_k) / block_k) * block_k
+        if (max_k <= 0) exit 1
+        initial_k = align_up(minimum(size_k(initial), max_k))
+        next_k = align_up(minimum(size_k(next_size), max_k))
+        printf "%.0f %.0f %.0f\n", initial_k, next_k, max_k
+      }
+    ') || fail "invalid TEMP sizes; use positive integers with optional K, M or G units"
+    set -- $TEMP_SIZES
+    log "TEMP requested initial=$TEMPFILE_INITIAL_SIZE next=$TEMPFILE_NEXT_SIZE max=$TEMPFILE_MAX_SIZE; effective initial=${1}K next=${2}K max=${3}K (block_size=${TEMP_METADATA#*:}); existing tempfile is not changed"
+    TEMPFILE_INITIAL_SIZE=${1}K
+    TEMPFILE_NEXT_SIZE=${2}K
+    TEMPFILE_MAX_SIZE=${3}K
+    oracle_sql <<SQL
 whenever sqlerror exit sql.sqlcode
 set heading off feedback on pages 100 lines 240 verify off
 alter session set container=$ORACLE_PDB;
@@ -112,7 +158,7 @@ begin
   select count(*) into v_count
   from dba_temp_files
   where tablespace_name = 'TEMP'
-    and file_name like '%/$TEMPFILE_NAME';
+    and regexp_substr(file_name, '[^/]+$') = '$TEMPFILE_NAME';
 
   if v_count = 0 then
     select regexp_replace(file_name, '[^/]+$', '') into v_dir
@@ -135,6 +181,7 @@ where tablespace_name = 'TEMP'
 order by file_id;
 exit
 SQL
+  fi
 else
   log "TEMP tablespace auto extension skipped by ORACLE21C_TEMP_AUTO_EXTEND=$TEMP_AUTO_EXTEND"
 fi

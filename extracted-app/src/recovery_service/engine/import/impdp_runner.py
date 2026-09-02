@@ -32,6 +32,9 @@ class ImpdpRunner:
         settings = get_settings()
         if settings.oracle_client_lib_dir:
             env["LD_LIBRARY_PATH"] = settings.oracle_client_lib_dir
+        env.setdefault("NLS_LANG", "AMERICAN_AMERICA.AL32UTF8")
+        env.setdefault("LANG", "C.UTF-8")
+        env.setdefault("LC_ALL", "C.UTF-8")
         return env
 
     def run_import(

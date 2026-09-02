@@ -17,6 +17,7 @@ from recovery_service.api.v1 import (
     doris_sm3_decrypt,
     doris_sm3_mapping,
     health,
+    harness_assistant,
     resource_provisioning,
     setup,
     tasks,
@@ -55,6 +56,7 @@ _DATA_PLATFORM_COMPONENT_ROUTER = _router_subset(
 _COMMON_ROUTERS = (health.router, auth.router)
 _MANAGEMENT_ROUTERS = (users.router, api_keys.router, setup.router, database_connections.router)
 _ALL_BUSINESS_ROUTERS = (
+    harness_assistant.router,
     tasks.router,
     batches.router,
     batch_authorization.router,
@@ -74,7 +76,7 @@ _SERVICE_ROUTERS = {
     "gateway": _MANAGEMENT_ROUTERS + _ALL_BUSINESS_ROUTERS,
     "oracle-restore": _MANAGEMENT_ROUTERS + (tasks.router, batches.router),
     "data-sync": _MANAGEMENT_ROUTERS + (_DATA_PLATFORM_COMPONENT_ROUTER,),
-    "data-platform": _MANAGEMENT_ROUTERS + (data_platform.router, data_automation.router),
+    "data-platform": _MANAGEMENT_ROUTERS + (data_platform.router, data_automation.router, harness_assistant.router),
     "sm4": _MANAGEMENT_ROUTERS + (doris_encryption.router,),
     "sm3": _MANAGEMENT_ROUTERS + (doris_sm3_mapping.router, doris_sm3_decrypt.router),
     "doris-sql": _MANAGEMENT_ROUTERS + (doris_sql_etl.router, _DATA_PLATFORM_COMPONENT_ROUTER),

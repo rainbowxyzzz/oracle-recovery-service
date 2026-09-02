@@ -231,10 +231,11 @@ class OracleDockerImportExecutor:
         return f"{docker} exec -i {container} bash -lc {shlex.quote(inner)}"
 
     def _oracle_env_prefix(self) -> str:
+        charset_env = "export NLS_LANG=AMERICAN_AMERICA.AL32UTF8 && export LANG=C.UTF-8 && export LC_ALL=C.UTF-8 && "
         if not self.runtime.oracle_home:
-            return ""
+            return charset_env
         oh = shlex.quote(self.runtime.oracle_home)
-        return f"export ORACLE_HOME={oh} && export PATH=$ORACLE_HOME/bin:$PATH && "
+        return f"export ORACLE_HOME={oh} && export PATH=$ORACLE_HOME/bin:$PATH && {charset_env}"
 
 
 def _mask_oracle_connections(command: str) -> str:

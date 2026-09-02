@@ -1,5 +1,13 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-09-01 Oracle 导入字符集约束补齐：所有 Oracle CLI 导入/探测/挂起任务控制路径在执行 `imp`/`impdp`/`sqlplus` 前必须默认设置 `NLS_LANG=AMERICAN_AMERICA.AL32UTF8`、`LANG=C.UTF-8`、`LC_ALL=C.UTF-8`，避免 Excel/WPS、中文姓名、中文字段值等内容在自动还原或探测阶段因客户端环境缺失退化为 `????`。该修正只改变 CLI 进程环境，不改变 DMP 内容、任务状态机、REMAP_SCHEMA、同步、DWD 或 SM4 语义。
+
+2026-08-31 新增 Harness 数据智能助手：自然语言匹配已配置路径，管理员确认后按 Oracle DMP 还原→Doris ODS 同步→SQL 生产版本更新 DWD→所选全库 SM4 任务推进。加密范围严格来自全库任务保存的全部表/字段，不从血缘推测，不自动换密钥。计划冻结、确认幂等和未知派发阻断仅作用于助手批次，不改变历史流水线与任务。2026-09-01 已热更新发布到 128，并以隔离 DMP 完成真实四阶段链路、字段结果、当前密钥绑定、可见窗口和健康验证；真实模型参数仍未提供，模型入口保持失败关闭。详见 `docs/HARNESS_ASSISTANT_PRD.md` 和 `docs/HARNESS_ASSISTANT_VALIDATION_20260831.md`。
+
+2026-08-31 Oracle 21c 启动初始化修复 TEMP 单文件上限：按实际 smallfile 块大小限制新建 tempfile 的 MAXSIZE，保留已有文件；BIGFILE 不添加第二个文件。仅本地交付初始化脚本，不发布、不替换镜像；模拟验证与真实 Oracle 验证严格区分。详见 `docs/ORACLE_TEMP_STARTUP_FIX_20260831.md`。
+
+2026-08-31 已恢复 128 项目服务并修复 Excel/WPS CSV 多行单元格的引号保真问题：标准输入解析保持不变，仅匹配 CSV 中间重写与 Doris Stream Load 的转义，并按逻辑记录回退统计行数。一个 API 服务文件热更新后，真实接口同表/多表、混合编码及历史同步新建/追加共 80 行逐单元格一致、过滤 0；本地 `277 passed, 1 skipped, 32 subtests passed`。Doris 未重启，隔离数据已清理；浏览器点击验收受本机沙箱故障阻塞，未重新打包或提交 GitHub。详见 `docs/DORIS_CSV_IMPORT_TASK_PRD_20260810.md` 第 20 节及 `docs/RELEASE_VALIDATION_20260831_DORIS_CSV_MULTILINE.md`。
+
 2026-08-26 Doris CSV 导入增加字段目标类型自定义和“全部设为 VARCHAR(65533)”能力：自动识别仅作为默认建议，字段类型随任务预览保存并用于建表；后端对白名单标量类型及参数范围做统一校验，合并同表模式同步全部文件，已有表不自动 ALTER。详见 `docs/DORIS_CSV_IMPORT_TASK_PRD_20260810.md` 第 19 节。
 
 2026-08-26 上述能力已热更新到 `192.168.150.128`：本地完整回归 `239 passed, 1 skipped`，128 真实 API 完成混合类型推断、同表类型保存回读、非法类型 422、晚出现字符串保留、健康与日志检查；隔离数据已清理并恢复 API/MySQL/Redis 停止状态。由于 Doris 仍按要求停止且本机浏览器沙箱故障，真实 Stream Load 和可见窗口回归待补。详见 `docs/RELEASE_VALIDATION_20260826_DORIS_CSV_CUSTOM_TYPES.md`。

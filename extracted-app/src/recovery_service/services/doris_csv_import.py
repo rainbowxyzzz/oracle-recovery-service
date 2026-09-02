@@ -718,7 +718,7 @@ def run_csv_import_task_sync(task_id: uuid.UUID | str) -> None:
                 )
                 results.append(result)
 
-                file_row.total_rows = int(file_row.total_rows or 0) or len(prepared["bad_rows"]) + len(prepared["content"].splitlines())
+                file_row.total_rows = int(file_row.total_rows or 0) or len(prepared["bad_rows"]) + prepared["valid_row_count"]
                 file_row.valid_rows = int(result.loaded_rows or 0)
                 file_row.bad_rows = len(prepared["bad_rows"])
                 file_row.processed_bytes = int(file_row.file_size or 0)
@@ -1417,7 +1417,11 @@ def _prepare_import_content(
         raise ValueError(f"{filename} 没有可导入的映射字段。")
 
     buffer = io.StringIO()
-    writer = csv.writer(buffer, delimiter=delimiter, quotechar='"', quoting=csv.QUOTE_ALL, lineterminator="\n")
+    # Doris uses an explicit escape character, not Excel's doubled-quote encoding.
+    writer = csv.writer(
+        buffer, delimiter=delimiter, quotechar='"', quoting=csv.QUOTE_ALL,
+        escapechar="\\", doublequote=False, lineterminator="\n",
+    )
     writer.writerow([name for _, name in mapped])
     for row in good_rows:
         writer.writerow([_cell(row, index) for index, _ in mapped])
@@ -1425,6 +1429,7 @@ def _prepare_import_content(
     return {
         "content": buffer.getvalue().encode("utf-8"),
         "columns": [name for _, name in mapped],
+        "valid_row_count": len(good_rows),
         "bad_rows": bad_rows,
         "reject_download_url": _write_reject_file(filename, bad_rows),
     }
@@ -1562,6 +1567,7 @@ def _stream_load_headers(columns: list[str], *, delimiter: str, label: str) -> d
         "strict_mode": "false",
         "max_filter_ratio": "1",
         "enclose": '"',
+        "escape": "\\",
         "trim_double_quotes": "true",
         "label": label,
         "Expect": "100-continue",

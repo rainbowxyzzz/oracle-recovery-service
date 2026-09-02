@@ -39,10 +39,11 @@ class RemoteDockerImpdpExecutor:
         return " ".join(shlex.quote(p) for p in parts)
 
     def _oracle_env_prefix(self) -> str:
+        charset_env = "export NLS_LANG=AMERICAN_AMERICA.AL32UTF8 && export LANG=C.UTF-8 && export LC_ALL=C.UTF-8 && "
         if self.docker.oracle_home:
             oh = shlex.quote(self.docker.oracle_home)
-            return f"export ORACLE_HOME={oh} && export PATH=$ORACLE_HOME/bin:$PATH && "
-        return ""
+            return f"export ORACLE_HOME={oh} && export PATH=$ORACLE_HOME/bin:$PATH && {charset_env}"
+        return charset_env
 
     def run_import(
         self,
