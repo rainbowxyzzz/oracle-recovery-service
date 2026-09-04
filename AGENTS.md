@@ -119,3 +119,19 @@
   - 旧版本兼容账号、MySQL 8.4、Oracle 超时和 SM4 持久卷等强制值仍服从本文件其他规则。
 - 每次打包前必须将新 `.env.example` 与基线包逐行比较。除版本标签和本次需求明确涉及的字段外，删除、移动、重排都视为打包失败；确需变化时必须在版本说明中逐项解释。
 - 新版本交付后，经用户确认的最新完整包自动成为下一次打包基线；不得继续从更老包派生。
+
+## Frontend UI/UX Rules
+
+- 适用范围：extracted-app/src/recovery_service/static/ui.html 主工作台、assistant.html 独立助手页及其本地静态样式。前端重构只改表现层，不修改后端业务逻辑、API URL、请求字段、返回结构、数据库结构、权限语义、任务调度或既有业务流程。
+- 产品定位：现代、专业、克制的数据分析 / 数据中台后台；优先表达任务状态、影响范围、运行结果和可操作性，不使用营销式大面积装饰、夸张渐变或无必要动画。
+- 页面骨架优先统一为 PageHeader → Search/Form → ActionBar → ContentCard → Table/Chart/Log → Pagination。toolbar 用于标题或区块标题，actions 用于操作集合并必须允许换行。
+- 全站优先复用现有技术栈和本地资源，不进行无必要的 Vue/React 或框架迁移，不引入大量第三方依赖，不删除既有入口、字段、按钮、数据区域或业务能力。
+- Design Tokens 必须统一使用并优先扩展现有兼容变量：页面背景 --background-page / --bg、卡片 --background-card / --panel、次级背景 --background-subtle、主文字 --text-primary / --text、次级文字 --text-secondary / --muted、边框 --border-color / --line、主色 --primary、浅主色 --primary-soft、成功 --success / --ok、警告 --warning / --warn、危险 --danger / --bad。字号优先 12 / 13 / 14 / 18 / 20px，间距优先 4 / 8 / 12 / 16 / 24 / 32px，默认控件高度 36px，圆角优先 6 / 8 / 12px 和 999px 状态胶囊。
+- 统一按钮、输入框、Select、Textarea、Label、Toolbar、Tab、Card、List、Table、状态标签、Message、Empty、Loading、Error、Dialog、Drawer 的尺寸、颜色、边框、Hover、Focus-visible、Active、Disabled 和 Loading 状态。主操作使用 .primary，不可逆操作使用 .danger，取消 / 返回 / 刷新使用默认次操作样式。
+- 表格文本默认左对齐，数字和时间遵循业务列规则；表格需要横向滚动时只允许在 .table-wrap 或对应工作台内部滚动，不制造页面级横向溢出。空态、加载态和错误态必须清晰可见，不能只显示空白。
+- Modal / Drawer 必须限制在视口内，内容较多时使用内部滚动；关闭、确认和取消操作必须可达。不得通过新增 !important、超大 z-index 或主布局 position:absolute 解决冲突。
+- 层级统一按 header → navigation → popover → modal → high-priority modal 管理，优先使用 30 / 40 / 50 / 80 / 100 对应 token。absolute 仅允许用于 Badge、Tooltip、Overlay、图标装饰和画布节点 / 连线 / 端口等坐标绘制；页面主体、查询区、按钮排列、Card 排列和 Form 布局必须使用 Grid / Flex。
+- 图表必须有明确容器高度，和 SearchPanel / Toolbar 分离；初始化、容器变化、Tab / Drawer / Dialog 展开后正确 resize，销毁时释放实例，不得重复初始化。当前扫描未发现 ECharts 实例；后续新增图表必须遵守此规则。
+- 响应式至少检查 1366×768、1440×900、1600×900、1920×1080，以及浏览器缩放 100%、125%、150%。窄屏可以让导航、表格、工作台或画布使用内部滚动，但不得出现页面级横向溢出、按钮遮挡、表单重叠或弹窗超出视口。
+- 共享页面是高风险文件。修改前必须检查现有页面入口、组件、CSS、JS、弹窗、工作台、画布和测试；优先新增或调整统一样式层，避免重排业务 DOM 和修改业务 JS。完成后必须检查 git diff --stat、git diff、脚本语法、相关自动化测试、静态资源加载和响应式布局；不得把未执行的浏览器级验收写成通过。
+- 详细页面清单、扫描问题、Token 表和图表 / 画布约束维护在 docs/frontend-guidelines.md；该文档与本节冲突时，以本节项目级规则为准。
