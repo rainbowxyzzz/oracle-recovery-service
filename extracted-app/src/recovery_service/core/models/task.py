@@ -16,6 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import Uuid
+
 from recovery_service.common.time import app_now
 
 LONG_TEXT = Text().with_variant(mysql.LONGTEXT(), "mysql")
@@ -218,6 +219,24 @@ class DataAsset(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
 
 
+class DataDatabaseLayer(Base):
+    __tablename__ = "data_database_layers"
+    __table_args__ = (UniqueConstraint("database_key", name="uq_data_database_layer_key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    database_key: Mapped[str] = mapped_column(String(512), index=True)
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    connection_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    engine: Mapped[str] = mapped_column(String(32), index=True)
+    catalog: Mapped[str] = mapped_column(String(128), default="")
+    database: Mapped[str] = mapped_column(String(128), index=True)
+    business_layer: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    updated_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
+
+
 class DataLineageEdge(Base):
     __tablename__ = "data_lineage_edges"
 
@@ -234,6 +253,26 @@ class DataLineageEdge(Base):
     evidence: Mapped[dict] = mapped_column(JSON, default=dict)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     review_required: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class DataLineageEvent(Base):
+    __tablename__ = "data_lineage_events"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_data_lineage_event_idempotency"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    event_type: Mapped[str] = mapped_column(String(32), index=True)
+    event_time: Mapped[datetime] = mapped_column(DateTime, index=True)
+    producer: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    schema_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    job_namespace: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    job_name: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    inputs: Mapped[list] = mapped_column(JSON, default=list)
+    outputs: Mapped[list] = mapped_column(JSON, default=list)
+    facets: Mapped[dict] = mapped_column(JSON, default=dict)
+    event_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 

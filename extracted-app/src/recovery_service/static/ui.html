@@ -3168,7 +3168,26 @@
     @media (max-width: 720px) {
       .help-toolbar, .help-manual-grid, .help-coupling-grid, .help-metrics, .help-architecture-flow { grid-template-columns: 1fr; }
     }
+    .eyebrow, .section-kicker { display: block; color: #6b7f95; font-size: 10px; font-weight: 750; letter-spacing: .12em; line-height: 1.4; }
+    .data-automation-module { display: grid; gap: 12px; }
+    .data-automation-page-head, .data-automation-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .data-automation-page-head h2, .data-automation-card-head h3 { margin: 2px 0 0; }
+    .data-automation-config-card, .data-automation-database-card, .lineage-database-panel { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }
+    .data-automation-config-card { display: grid; gap: 10px; }
+    .data-automation-metrics { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 9px; }
+    .data-automation-metrics > div { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+    .data-automation-metrics span, .data-automation-metrics small { display: block; color: var(--muted); }
+    .data-automation-metrics strong { display: block; margin: 3px 0; font-size: 22px; }
+    .data-automation-database-card { display: grid; gap: 10px; }
+    .data-automation-db-grid { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(420px, 1.2fr); gap: 12px; align-items: start; }
+    .data-automation-db-form { display: grid; gap: 8px; min-width: 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; }
+    .data-automation-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .data-automation-db-table { min-width: 0; }
+    .data-automation-db-table table, .lineage-database-panel table { min-width: 680px; }
     .lineage-shell { display: grid; gap: 12px; }
+    .lineage-database-panel { padding: 0; overflow: hidden; }
+    .lineage-database-panel .lineage-panel-head { border-radius: 8px 8px 0 0; }
+    .lineage-database-panel .table-wrap { overflow: auto; }
     .lineage-filters { display: grid; grid-template-columns: minmax(220px, 1fr) 150px minmax(220px, .8fr) 130px 110px auto; gap: 8px; align-items: end; }
     .lineage-filter-action { display: flex; gap: 7px; }
     .lineage-metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 9px; }
@@ -3222,6 +3241,9 @@
       .lineage-detail { max-height: 360px; }
     }
     @media (max-width: 900px) {
+      .data-automation-page-head, .data-automation-card-head { flex-wrap: wrap; }
+      .data-automation-db-grid { grid-template-columns: 1fr; }
+      .data-automation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .lineage-filters, .lineage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .lineage-layout { grid-template-columns: 1fr; }
       .lineage-layout > .lineage-panel:last-child { grid-column: auto; }
@@ -3229,6 +3251,7 @@
       .lineage-board { grid-template-columns: repeat(4, minmax(190px, 1fr)); }
     }
     @media (max-width: 620px) {
+      .data-automation-form-grid, .data-automation-metrics { grid-template-columns: 1fr; }
       .lineage-filters, .lineage-metrics { grid-template-columns: 1fr; }
       .lineage-filter-action { grid-column: auto; }
     }
@@ -5767,8 +5790,9 @@
       </div>
     </section>
 
-    <section class="module-panel" data-module="dataAutomation">
-      <div class="toolbar"><div><h2 style="margin:0">数据自动化流水线</h2><div class="hint">DMP 发现、恢复、Doris 同步、标准化、血缘、分级与受控加密的统一运行面板</div></div><div class="actions"><button id="dataAutomationRefreshBtn" type="button">刷新</button></div></div>
+    <section class="module-panel data-automation-module" data-module="dataAutomation">
+      <div class="data-automation-page-head"><div><span class="eyebrow">DATA OPERATIONS</span><h2>数据自动化任务工作区</h2><div class="hint">以批次为主线观察恢复、同步、标准化、血缘、分级与受控加密。</div></div><div class="actions"><button id="dataAutomationRefreshBtn" type="button">刷新</button></div></div>
+      <div class="data-automation-config-card"><div class="section-kicker">TASK CONFIGURATION</div><div class="hint">新建任务只登记流程引用，不复制凭据；保存后的监听状态仍由原接口控制。</div>
       <div class="grid">
         <div><label for="dataAutomationName">流水线名称</label><input id="dataAutomationName" placeholder="例如：客户数据月度自动处理"></div>
         <div><label for="dataAutomationRestoreTemplate">Oracle 恢复模板任务 ID</label><input id="dataAutomationRestoreTemplate" placeholder="UUID"></div>
@@ -5778,20 +5802,23 @@
         <div><label for="dataAutomationInterval">监听间隔（分钟）</label><input id="dataAutomationInterval" type="number" min="1" max="1440" value="5"></div>
         <div><label for="dataAutomationStable">文件稳定等待（秒）</label><input id="dataAutomationStable" type="number" min="10" value="60"></div>
         <div><label><input id="dataAutomationWatch" type="checkbox"> 保存后启用持续监听</label><button id="dataAutomationCreateBtn" class="primary" type="button" style="margin-left:12px">创建流水线</button></div>
-      </div>
+      </div></div>
       <div id="dataAutomationMessage" class="message"></div>
+      <div class="data-automation-metrics"><div><span>流水线</span><strong id="dataAutomationPipelineCount">0</strong><small>已保存定义</small></div><div><span>在途批次</span><strong id="dataAutomationRunningCount">0</strong><small>需要关注的运行</small></div><div><span>数据资产</span><strong id="dataAutomationAssetCount">0</strong><small>四层资产</small></div><div><span>数据库</span><strong id="dataAutomationDatabaseCount">0</strong><small>按连接与库统计</small></div></div>
       <h3>流水线与监听状态</h3><div class="table-wrap"><table><thead><tr><th>名称</th><th>监听</th><th>间隔</th><th>最近/下次扫描</th><th>绑定能力</th><th>操作</th></tr></thead><tbody id="dataAutomationPipelines"><tr><td colspan="6" class="muted">暂无流水线。</td></tr></tbody></table></div>
       <h3>批次运行链路</h3><div class="table-wrap"><table><thead><tr><th>发现时间</th><th>文件</th><th>当前阶段</th><th>恢复/同步/标准化/加密</th><th>说明</th><th>操作</th></tr></thead><tbody id="dataAutomationBatches"><tr><td colspan="6" class="muted">暂无批次。</td></tr></tbody></table></div>
-      <h3>数据资产</h3><div class="table-wrap"><table><thead><tr><th>层级</th><th>引擎</th><th>库.表</th><th>Schema 指纹</th><th>分级摘要</th><th>最近批次</th><th>操作</th></tr></thead><tbody id="dataAutomationAssets"><tr><td colspan="7" class="muted">暂无资产。</td></tr></tbody></table></div>
+      <h3>数据资产</h3><div class="table-wrap"><table><thead><tr><th>层级</th><th>引擎</th><th>库.表</th><th>库业务层级</th><th>Schema 指纹</th><th>分级摘要</th><th>最近批次</th><th>操作</th></tr></thead><tbody id="dataAutomationAssets"><tr><td colspan="8" class="muted">暂无资产。</td></tr></tbody></table></div>
+      <section class="data-automation-database-card"><div class="data-automation-card-head"><div><span class="section-kicker">DATABASE GOVERNANCE</span><h3>数据库分组与库业务层级</h3></div><span class="hint">人工配置只影响统计和展示</span></div><div class="data-automation-db-grid"><form id="dataAutomationDbForm" class="data-automation-db-form"><input id="dataAutomationDbKey" type="hidden"><input id="dataAutomationDbConnectionId" type="hidden"><div class="data-automation-form-grid"><div><label for="dataAutomationDbEngine">引擎</label><input id="dataAutomationDbEngine" value="doris"></div><div><label for="dataAutomationDbConnection">连接名称</label><input id="dataAutomationDbConnection" placeholder="连接或实例名称"></div></div><div class="data-automation-form-grid"><div><label for="dataAutomationDbCatalog">Catalog</label><input id="dataAutomationDbCatalog"></div><div><label for="dataAutomationDbDatabase">Database</label><input id="dataAutomationDbDatabase" required></div></div><div><label for="dataAutomationDbBusinessLayer">库业务层级</label><input id="dataAutomationDbBusinessLayer" placeholder="例如 ODS、DWD、客户域"></div><div><label for="dataAutomationDbDescription">备注</label><input id="dataAutomationDbDescription" placeholder="层级归属说明"></div><div class="actions"><button id="dataAutomationDbSaveBtn" class="primary" type="submit">保存库配置</button><button id="dataAutomationDbResetBtn" type="button">清空</button></div></form><div class="table-wrap data-automation-db-table"><table><thead><tr><th>连接 / Catalog / Database</th><th>业务层级</th><th>资产</th><th>关系</th><th>操作</th></tr></thead><tbody id="dataAutomationDatabaseLayers"><tr><td colspan="5" class="muted">暂无数据库。</td></tr></tbody></table></div></div></section>
     </section>
 
     <section class="module-panel" data-module="dataLineage">
       <div class="lineage-shell">
-        <div class="toolbar"><div><h2 style="margin:0">数据血缘中心</h2><div class="hint">独立查看数据从恢复层、原始层、标准层到安全层的表级与字段级流向</div></div><div class="actions"><button id="dataLineageRefreshBtn" type="button">刷新</button></div></div>
+        <div class="toolbar"><div><span class="eyebrow">LINEAGE EXPLORER</span><h2 style="margin:0">数据血缘中心</h2><div class="hint">按数据库分组观察数据从恢复层、原始层、标准层到安全层的表级与字段级流向</div></div><div class="actions"><button id="dataLineageDatabaseConfigBtn" type="button">配置库业务层级</button><button id="dataLineageRefreshBtn" type="button">刷新</button></div></div>
         <div class="lineage-filters">
           <div><label for="dataLineageSearch">资产或字段</label><input id="dataLineageSearch" placeholder="搜索库、表、字段、业务域或指纹"></div>
-          <div><label for="dataLineageLayer">业务层级</label><select id="dataLineageLayer"><option value="">全部层级</option><option value="restored">恢复层</option><option value="raw">原始层</option><option value="standard">标准层</option><option value="secured">安全层</option></select></div>
+          <div><label for="dataLineageLayer">数据层级</label><select id="dataLineageLayer"><option value="">全部层级</option><option value="restored">恢复层</option><option value="raw">原始层</option><option value="standard">标准层</option><option value="secured">安全层</option></select></div>
           <div><label for="dataLineageBatch">数据批次</label><select id="dataLineageBatch"><option value="">全部批次</option></select></div>
+          <div><label for="dataLineageDatabase">数据库分组</label><select id="dataLineageDatabase"><option value="">全部数据库</option></select></div>
           <div><label for="dataLineageDirection">追踪方向</label><select id="dataLineageDirection"><option value="upstream">查看上游</option><option value="downstream">查看下游</option></select></div>
           <div><label for="dataLineageDepth">追踪深度</label><input id="dataLineageDepth" type="number" min="1" max="20" value="8"></div>
           <div class="lineage-filter-action"><button id="dataLineageQueryBtn" class="primary" type="button">查询</button><button id="dataLineageResetBtn" type="button">重置</button></div>
@@ -5804,9 +5831,10 @@
           <div class="lineage-metric"><span>待人工确认</span><strong id="dataLineageReviewCount">0</strong></div>
           <div class="lineage-metric"><span>SM4 传播关系</span><strong id="dataLineageSm4Count">0</strong></div>
         </div>
+        <section class="lineage-database-panel"><div class="lineage-panel-head"><div><span class="section-kicker">DATABASE GROUPS</span><h3>数据库统计</h3></div><span class="hint">同名库按连接与 Catalog 分开</span></div><div class="table-wrap"><table><thead><tr><th>连接 / Catalog / Database</th><th>库业务层级</th><th>资产</th><th>关系</th><th>字段关系</th><th>待确认</th><th>SM4</th></tr></thead><tbody id="dataLineageDatabaseGroups"><tr><td colspan="7" class="muted">暂无数据库统计。</td></tr></tbody></table></div></section>
         <div class="lineage-layout">
           <div class="lineage-panel"><div class="lineage-panel-head"><h3>资产目录</h3><span id="dataLineageAssetListHint" class="muted">0 项</span></div><div id="dataLineageAssetList" class="lineage-asset-list"><div class="muted" style="padding:10px">暂无资产。</div></div></div>
-          <div class="lineage-panel lineage-main"><div class="lineage-panel-head"><div><h3>上下游图谱</h3><span id="dataLineageTraceHint" class="muted">请选择左侧资产</span></div></div><div id="dataLineageBoard" class="lineage-board"></div><div class="lineage-edge-section"><h3>字段与表关系</h3><div class="lineage-edge-table"><table><thead><tr><th>来源</th><th>目标</th><th>转换</th><th>可信度</th><th>证据</th></tr></thead><tbody id="dataLineageEdges"><tr><td colspan="5" class="muted">请选择资产查看关系。</td></tr></tbody></table></div></div></div>
+          <div class="lineage-panel lineage-main"><div class="lineage-panel-head"><div><h3>上下游图谱</h3><span id="dataLineageTraceHint" class="muted">请选择左侧资产</span></div></div><div id="dataLineageBoard" class="lineage-board"></div><div class="lineage-edge-section"><h3>字段与表关系</h3><div class="lineage-edge-table"><table><thead><tr><th>来源</th><th>目标</th><th>转换</th><th>可信度</th><th>采集来源</th><th>证据</th></tr></thead><tbody id="dataLineageEdges"><tr><td colspan="6" class="muted">请选择资产查看关系。</td></tr></tbody></table></div></div></div>
           <div class="lineage-panel"><div class="lineage-panel-head"><h3>资产详情</h3><button id="dataLineageFieldsBtn" type="button" disabled>完整字段合同</button></div><div id="dataLineageAssetDetail" class="lineage-detail"><div class="muted">选择资产后显示引擎、位置、字段分级及上下游摘要。</div></div></div>
         </div>
       </div>
@@ -6237,6 +6265,7 @@
       let dataLineageTrace = {assets:[], edges:[]};
       let dataLineageSelectedAssetId = "";
       let dataLineageBatchesLoaded = false;
+      let dataAutomationDatabaseLayers = [];
 
       const engineLabels = { oracle: "Oracle", mysql: "MySQL", sqlserver: "SQL Server", doris: "Doris", ftp: "FTP" };
       const defaultDorisEncryptKeywords = ["证件号", "住址", "地址", "电话", "手机号", "姓名"];
@@ -21540,6 +21569,7 @@
 
       const dataLineageLayerLabels = {restored:"恢复层", raw:"原始层", standard:"标准层", secured:"安全层"};
       const dataLineageTransformLabels = {direct:"直接", rename:"重命名", cast:"类型转换", expression:"表达式", join:"关联", aggregate:"聚合", constant:"常量"};
+      const dataLineageSourceLabels = {native:"系统采集", openlineage:"OpenLineage"};
 
       function dataLineageAssetName(asset) {
         if (!asset) return "未知资产";
@@ -21580,8 +21610,8 @@
           const sourceLabel = `${dataLineageAssetName(source)}${edge.source_field ? ` / ${edge.source_field}` : " / 表级"}`;
           const targetLabel = `${dataLineageAssetName(target)}${edge.target_field ? ` / ${edge.target_field}` : " / 表级"}`;
           const evidence = dataLineageIsSm4(edge) ? '<span class="lineage-sm4">SM4 传播</span>' : (edge.review_required ? '<span class="status warning">待确认</span>' : '<span class="status success">已证明</span>');
-          return `<tr data-lineage-edge="${escapeHtml(edge.edge_id)}"><td>${escapeHtml(sourceLabel)}</td><td>${escapeHtml(targetLabel)}</td><td>${escapeHtml(dataLineageTransformLabels[edge.transformation_type] || edge.transformation_type)}</td><td>${Math.round(Number(edge.confidence || 0) * 100)}%</td><td>${evidence}</td></tr>`;
-        }).join("") : '<tr><td colspan="5" class="muted">当前方向与深度下没有血缘关系。</td></tr>';
+          return `<tr data-lineage-edge="${escapeHtml(edge.edge_id)}"><td>${escapeHtml(sourceLabel)}</td><td>${escapeHtml(targetLabel)}</td><td>${escapeHtml(dataLineageTransformLabels[edge.transformation_type] || edge.transformation_type)}</td><td>${Math.round(Number(edge.confidence || 0) * 100)}%</td><td>${escapeHtml(dataLineageSourceLabels[edge.source] || edge.source || "系统采集")}</td><td>${evidence}</td></tr>`;
+        }).join("") : '<tr><td colspan="6" class="muted">当前方向与深度下没有血缘关系。</td></tr>';
         renderDataLineageAssetDetail(root, edges);
       }
 
@@ -21599,7 +21629,7 @@
           const classified = classifications.get(String(name).toUpperCase()) || {};
           return `<div class="lineage-field-row"><span><strong>${escapeHtml(name)}</strong><br><span class="muted">${escapeHtml(column.type || column.data_type || "未知类型")}</span></span><span>${classified.protection_action && classified.protection_action !== "none" ? `<span class="lineage-layer-pill secured">${escapeHtml(classified.protection_action)}</span>` : "-"}</span></div>`;
         }).join("");
-        $("dataLineageAssetDetail").innerHTML = `<dl><dt>层级</dt><dd><span class="lineage-layer-pill ${escapeHtml(asset.layer)}">${escapeHtml(dataLineageLayerLabels[asset.layer] || asset.layer)}</span></dd><dt>资产位置</dt><dd>${escapeHtml(dataLineageAssetName(asset))}</dd><dt>引擎</dt><dd>${escapeHtml(asset.engine)}</dd><dt>业务域</dt><dd>${escapeHtml(asset.business_domain || "未登记")}</dd><dt>Schema</dt><dd title="${escapeHtml(asset.schema_signature || "")}">${escapeHtml((asset.schema_signature || "-").slice(0, 20))}</dd><dt>最近批次</dt><dd>${escapeHtml(asset.last_batch_id || "-")}</dd><dt>当前关系</dt><dd>${related.length} 条</dd></dl><h3>字段预览（${columns.length}）</h3><div class="lineage-field-list">${preview || '<div class="muted">未登记字段合同。</div>'}${columns.length > 12 ? `<div class="muted">另有 ${columns.length - 12} 个字段，请点击“完整字段合同”。</div>` : ""}</div>`;
+        $("dataLineageAssetDetail").innerHTML = `<dl><dt>数据层级</dt><dd><span class="lineage-layer-pill ${escapeHtml(asset.layer)}">${escapeHtml(dataLineageLayerLabels[asset.layer] || asset.layer)}</span></dd><dt>库业务层级</dt><dd>${escapeHtml(asset.database_business_layer || "未配置")}</dd><dt>资产位置</dt><dd>${escapeHtml(dataLineageAssetName(asset))}</dd><dt>引擎</dt><dd>${escapeHtml(asset.engine)}</dd><dt>业务域</dt><dd>${escapeHtml(asset.business_domain || "未登记")}</dd><dt>Schema</dt><dd title="${escapeHtml(asset.schema_signature || "")}">${escapeHtml((asset.schema_signature || "-").slice(0, 20))}</dd><dt>最近批次</dt><dd>${escapeHtml(asset.last_batch_id || "-")}</dd><dt>当前关系</dt><dd>${related.length} 条</dd></dl><h3>字段预览（${columns.length}）</h3><div class="lineage-field-list">${preview || '<div class="muted">未登记字段合同。</div>'}${columns.length > 12 ? `<div class="muted">另有 ${columns.length - 12} 个字段，请点击“完整字段合同”。</div>` : ""}</div>`;
       }
 
       function openDataLineageEvidence(title, content) {
@@ -21651,11 +21681,22 @@
         const search = $("dataLineageSearch").value.trim();
         if (search) params.set("search", search);
         if ($("dataLineageLayer").value) params.set("layer", $("dataLineageLayer").value);
+        if ($("dataLineageDatabase").value) params.set("database_key", $("dataLineageDatabase").value);
         if ($("dataLineageBatch").value) params.set("batch_id", $("dataLineageBatch").value);
-        const requests = [api(`/api/v1/data-automation/lineage?${params.toString()}`)];
-        if (!dataLineageBatchesLoaded) requests.push(api("/api/v1/data-automation/batches?limit=200"));
-        const [catalog, batchData] = await Promise.all(requests);
+        const [catalog, databaseData, batchData] = await Promise.all([
+          api(`/api/v1/data-automation/lineage?${params.toString()}`),
+          api("/api/v1/data-automation/database-layers?limit=500"),
+          dataLineageBatchesLoaded ? Promise.resolve(null) : api("/api/v1/data-automation/batches?limit=200")
+        ]);
         dataLineageCatalog = catalog;
+        const selectedDatabase = $("dataLineageDatabase").value;
+        $("dataLineageDatabase").innerHTML = '<option value="">全部数据库</option>' + (databaseData.database_layers || []).map((item) => {
+          const location = [item.connection_name || item.engine, item.catalog, item.database].filter(Boolean).join(" / ");
+          const suffix = item.business_layer ? ` · ${item.business_layer}` : " · 未配置业务层级";
+          return `<option value="${escapeHtml(item.database_key)}">${escapeHtml(location + suffix)}</option>`;
+        }).join("");
+        $("dataLineageDatabase").value = selectedDatabase;
+        renderDataLineageDatabaseGroups(catalog.database_stats || []);
         if (batchData) {
           const selectedBatch = $("dataLineageBatch").value;
           $("dataLineageBatch").innerHTML = '<option value="">全部批次</option>' + (batchData.batches || []).map((batch) => `<option value="${escapeHtml(batch.batch_id)}">${escapeHtml((batch.source_files || []).map((file) => file.relative_path).join(", ") || batch.source_path || batch.batch_id)} · ${escapeHtml(batch.state)}</option>`).join("");
@@ -21672,7 +21713,8 @@
       function bindDataLineageEvents() {
         $("dataLineageRefreshBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
         $("dataLineageQueryBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
-        $("dataLineageResetBtn")?.addEventListener("click", () => { $("dataLineageSearch").value = ""; $("dataLineageLayer").value = ""; $("dataLineageBatch").value = ""; $("dataLineageDirection").value = "upstream"; $("dataLineageDepth").value = "8"; dataLineageSelectedAssetId = ""; refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); });
+        $("dataLineageResetBtn")?.addEventListener("click", () => { $("dataLineageSearch").value = ""; $("dataLineageLayer").value = ""; $("dataLineageBatch").value = ""; $("dataLineageDatabase").value = ""; $("dataLineageDirection").value = "upstream"; $("dataLineageDepth").value = "8"; dataLineageSelectedAssetId = ""; refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); });
+        $("dataLineageDatabase")?.addEventListener("change", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
         $("dataLineageSearch")?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); } });
         $("dataLineageDirection")?.addEventListener("change", () => selectDataLineageAsset(dataLineageSelectedAssetId).catch((e) => setMessage("dataLineageMessage", e.message, "error")));
         $("dataLineageDepth")?.addEventListener("change", () => selectDataLineageAsset(dataLineageSelectedAssetId).catch((e) => setMessage("dataLineageMessage", e.message, "error")));
@@ -21683,22 +21725,82 @@
         $("dataLineageEvidenceModal")?.addEventListener("click", (event) => { if (event.target === $("dataLineageEvidenceModal")) closeDataLineageEvidence(); });
       }
 
+      function resetDataAutomationDatabaseForm() {
+        $("dataAutomationDbKey").value = "";
+        $("dataAutomationDbConnectionId").value = "";
+        $("dataAutomationDbEngine").value = "doris";
+        $("dataAutomationDbConnection").value = "";
+        $("dataAutomationDbCatalog").value = "";
+        $("dataAutomationDbDatabase").value = "";
+        $("dataAutomationDbBusinessLayer").value = "";
+        $("dataAutomationDbDescription").value = "";
+      }
+
+      function renderDataAutomationDatabaseLayers(layers) {
+        dataAutomationDatabaseLayers = layers || [];
+        $("dataAutomationDatabaseLayers").innerHTML = dataAutomationDatabaseLayers.length ? dataAutomationDatabaseLayers.map((item) => {
+          const location = [item.connection_name || item.engine, item.catalog, item.database].filter(Boolean).join(" / ");
+          return `<tr><td><strong>${escapeHtml(location)}</strong><br><span class="muted">${escapeHtml(item.database_key || "")}</span></td><td>${escapeHtml(item.business_layer || "未配置")}</td><td>${item.asset_count || 0}</td><td>${item.edge_count || 0}</td><td><button type="button" data-data-auto-db-edit="${escapeHtml(item.database_key || "")}">配置</button></td></tr>`;
+        }).join("") : '<tr><td colspan="5" class="muted">暂无数据库。资产登记后可在此配置库业务层级。</td></tr>';
+      }
+
+      function renderDataLineageDatabaseGroups(groups) {
+        const rows = groups || [];
+        $("dataLineageDatabaseGroups").innerHTML = rows.length ? rows.map((item) => {
+          const location = [item.connection_name || item.engine, item.catalog, item.database].filter(Boolean).join(" / ");
+          return `<tr><td><strong>${escapeHtml(location)}</strong><br><span class="muted">${escapeHtml(item.database_key || "")}</span></td><td>${escapeHtml(item.business_layer || "未配置")}</td><td>${item.asset_count || 0}</td><td>${item.edge_count || 0}</td><td>${item.field_edge_count || 0}</td><td>${item.review_count || 0}</td><td>${item.sm4_edge_count || 0}</td></tr>`;
+        }).join("") : '<tr><td colspan="7" class="muted">暂无数据库统计。</td></tr>';
+      }
+
       async function refreshDataAutomation() {
-        const [pipelineData, batchData, assetData] = await Promise.all([
+        const [pipelineData, batchData, assetData, databaseData] = await Promise.all([
           api("/api/v1/data-automation/pipelines"),
           api("/api/v1/data-automation/batches?limit=100"),
-          api("/api/v1/data-automation/assets?limit=200")
+          api("/api/v1/data-automation/assets?limit=200"),
+          api("/api/v1/data-automation/database-layers?limit=500")
         ]);
         const pipelines = pipelineData.pipelines || [];
+        const runningStates = new Set(["discovered", "stabilizing", "restore_queued", "restoring", "restored", "asset_registered", "sync_queued", "syncing", "raw_ready", "path_matching", "standardize_queued", "standardizing", "standard_ready", "lineage_ready", "classified", "encryption_planned", "encrypting"]);
+        $("dataAutomationPipelineCount").textContent = pipelines.length;
+        $("dataAutomationRunningCount").textContent = (batchData.batches || []).filter((item) => runningStates.has(item.state)).length;
+        $("dataAutomationAssetCount").textContent = (assetData.assets || []).length;
+        $("dataAutomationDatabaseCount").textContent = (databaseData.database_layers || []).length;
+        renderDataAutomationDatabaseLayers(databaseData.database_layers || []);
         $("dataAutomationPipelines").innerHTML = pipelines.length ? pipelines.map((item) => `<tr><td><strong>${escapeHtml(item.name)}</strong><br><span class="muted">${escapeHtml(item.pipeline_id)}</span></td><td>${item.auto_watch_enabled ? '<span class="status success">监听中</span>' : '<span class="status muted">已关闭</span>'}</td><td>${item.watch_interval_minutes} 分钟<br><span class="muted">稳定 ${item.stable_wait_seconds} 秒</span></td><td>${formatTime(item.last_scan_at) || "尚未扫描"}<br><span class="muted">${formatTime(item.next_scan_at) || "-"}</span></td><td>${item.restore_template_task_id ? "恢复" : "-"} / ${item.data_sync_node_id ? "同步" : "-"} / ${item.standard_workflow_version_id ? "标准化" : "-"} / ${item.sm4_task_definition_id ? "SM4" : "-"}</td><td><button type="button" data-data-auto-scan="${item.pipeline_id}">立即扫描</button><button type="button" data-data-auto-toggle="${item.pipeline_id}" data-enabled="${item.auto_watch_enabled}">${item.auto_watch_enabled ? "关闭监听" : "开启监听"}</button></td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无流水线。</td></tr>';
         const batches = batchData.batches || [];
         $("dataAutomationBatches").innerHTML = batches.length ? batches.map((item) => `<tr><td>${formatTime(item.created_at)}</td><td>${escapeHtml((item.source_files || []).map((file) => file.relative_path).join(", ") || item.source_path)}</td><td><strong>${escapeHtml(item.state)}</strong></td><td>${item.restore_task_id ? "✓" : "-"} / ${item.sync_run_id ? "✓" : "-"} / ${item.standard_run_id ? "✓" : "-"} / ${item.encryption_batch_id ? "✓" : "-"}</td><td>${escapeHtml(item.error_message || item.message || "-")}</td><td><button type="button" data-data-auto-detail="${item.batch_id}">查看阶段日志</button>${["failed","blocked","discovered"].includes(item.state) ? `<button type="button" data-data-auto-resume="${item.batch_id}">继续</button>` : ""}</td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无批次。</td></tr>';
         const assets = assetData.assets || [];
-        $("dataAutomationAssets").innerHTML = assets.length ? assets.map((item) => `<tr><td>${escapeHtml(item.layer)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.database)}.${escapeHtml(item.table_name)}</td><td><span class="muted">${escapeHtml((item.schema_signature || "-").slice(0, 16))}</span></td><td>${((item.classification_summary || {}).fields || []).filter((field) => field.protection_action !== "none").length} 个保护字段</td><td>${escapeHtml(item.last_batch_id || "-")}</td><td><button type="button" data-data-auto-lineage="${escapeHtml(item.asset_id)}">查看血缘</button></td></tr>`).join("") : '<tr><td colspan="7" class="muted">暂无资产。</td></tr>';
+        $("dataAutomationAssets").innerHTML = assets.length ? assets.map((item) => `<tr><td>${escapeHtml(item.layer)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.database)}.${escapeHtml(item.table_name)}</td><td>${escapeHtml(item.database_business_layer || "未配置")}</td><td><span class="muted">${escapeHtml((item.schema_signature || "-").slice(0, 16))}</span></td><td>${((item.classification_summary || {}).fields || []).filter((field) => field.protection_action !== "none").length} 个保护字段</td><td>${escapeHtml(item.last_batch_id || "-")}</td><td><button type="button" data-data-auto-lineage="${escapeHtml(item.asset_id)}">查看血缘</button></td></tr>`).join("") : '<tr><td colspan="8" class="muted">暂无资产。</td></tr>';
       }
 
       function bindDataAutomationEvents() {
         $("dataAutomationRefreshBtn")?.addEventListener("click", () => refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error")));
+        $("dataAutomationDbForm")?.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          try {
+            await api("/api/v1/data-automation/database-layers", {method:"PUT", body:JSON.stringify({connection_id:$("dataAutomationDbConnectionId").value.trim() || null, engine:$("dataAutomationDbEngine").value.trim(), connection_name:$("dataAutomationDbConnection").value.trim() || null, catalog:$("dataAutomationDbCatalog").value.trim(), database:$("dataAutomationDbDatabase").value.trim(), business_layer:$("dataAutomationDbBusinessLayer").value.trim() || null, description:$("dataAutomationDbDescription").value.trim() || null})});
+            setMessage("dataAutomationMessage", "库业务层级已保存，血缘统计会按该配置展示。", "ok");
+            resetDataAutomationDatabaseForm();
+            await refreshDataAutomation();
+          } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
+        });
+        $("dataAutomationDbResetBtn")?.addEventListener("click", resetDataAutomationDatabaseForm);
+        $("dataAutomationDatabaseLayers")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-data-auto-db-edit]");
+          if (!button) return;
+          const item = dataAutomationDatabaseLayers.find((row) => row.database_key === button.dataset.dataAutoDbEdit);
+          if (!item) return;
+          $("dataAutomationDbKey").value = item.database_key || "";
+          $("dataAutomationDbConnectionId").value = item.connection_id || "";
+          $("dataAutomationDbEngine").value = item.engine || "doris";
+          $("dataAutomationDbConnection").value = item.connection_name || "";
+          $("dataAutomationDbCatalog").value = item.catalog || "";
+          $("dataAutomationDbDatabase").value = item.database || "";
+          $("dataAutomationDbBusinessLayer").value = item.business_layer || "";
+          $("dataAutomationDbDescription").value = item.description || "";
+          $("dataAutomationDbBusinessLayer").focus();
+        });
+        $("dataLineageDatabaseConfigBtn")?.addEventListener("click", () => { showModule("dataAutomation"); $("dataAutomationDbDatabase")?.focus(); });
         $("dataAutomationCreateBtn")?.addEventListener("click", async () => {
           try {
             const optionalId = (id) => $(id).value.trim() || null;
@@ -21728,6 +21830,7 @@
           dataLineageSelectedAssetId = button.dataset.dataAutoLineage || "";
           $("dataLineageSearch").value = "";
           $("dataLineageLayer").value = "";
+          $("dataLineageDatabase").value = "";
           showModule("dataLineage");
         });
       }

@@ -29,6 +29,8 @@
 2026-08-21 数据血缘从自动化流水线的隐含资产能力提升为左侧独立“数据血缘中心”：提供资产/字段检索、批次与层级筛选、上下游及深度追踪、四层资产图谱、表级/字段级关系区分、SM4 传播标识，以及资产详情和证据详情二三级窗口；首版保持只读，复用现有资产和血缘数据，不改变流水线、离线开发、SM4 任务或调度语义。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 9.1 节。
 
 2026-08-21 独立“数据血缘中心”已增量发布到 `192.168.150.128`：真实鉴权接口返回 4 个四层资产、20 条血缘、18 条字段关系和 3 条 SM4 相关关系，安全表上游追踪包含 2 条字段级 `SM4_ENCRYPT`；本地完整回归 `232 passed, 1 skipped, 32 subtests passed`，API 与 8 个 Worker 健康。可见浏览器自动化因本机 Browser 插件信任路径错误未能启动，因此发布记录未把多窗口视觉检查标记为通过。详见 `docs/RELEASE_VALIDATION_20260821_DATA_LINEAGE_CENTER.md`。
+2026-09-05 数据血缘中心新增 OpenMetadata 风格实体/关系投影与 OpenLineage RunEvent 兼容接入：事件按幂等键审计落库，可从 `columnLineage` facet 生成字段级关系，未知 dataset 不创建虚假资产；保留现有四层资产、血缘、任务运行和 SM4 语义。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 9.2 节。
+2026-09-05 数据血缘中心补充数据库维度统计和人工库业务层级配置：分组键为引擎/连接/Catalog/Database，库业务层级与四层数据层级分离，支持保存、刷新、回读和按库筛选；数据自动化任务 UI 同步改为任务配置与运行工作区布局。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 9.3 节。
 
 2026-08-20 启动全链路数据自动化流水线四期建设：以统一数据批次串联 Oracle DMP 目录发现、恢复目标登记、Doris 同步、资产与 Schema 指纹、历史蓝图匹配、离线标准目标、字段血缘、分类分级和受控 SM4 反推加密；采用引用/克隆既有快照、Saga 状态机、幂等键和人工风险闸门，不复制明文凭据，不改变旧任务与已上线版本。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md`。
 

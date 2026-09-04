@@ -12,8 +12,9 @@ from recovery_service.core.models.task import (
     DataAsset,
     DataAutomationBatch,
     DataAutomationPipeline,
-    DataClassificationRule,
+    DataDatabaseLayer,
     DataLineageEdge,
+    DataLineageEvent,
     RecoveryTask,
 )
 from recovery_service.services.data_automation import (
@@ -23,12 +24,16 @@ from recovery_service.services.data_automation import (
     create_classification_rule,
     create_lineage_edge,
     create_pipeline,
+    ingest_openlineage_event,
+    list_database_layers,
     lineage_overview,
     match_batch_blueprint,
+    openmetadata_lineage_projection,
     register_asset,
     scan_pipeline,
     schema_signature,
     trace_lineage,
+    upsert_database_layer,
 )
 
 
@@ -145,4 +150,87 @@ def test_lineage_overview_filters_assets_and_summarizes_edges() -> None:
     assert len(searched["assets"]) == 3
     assert [item["layer"] for item in secured_only["assets"]] == ["secured"]
     assert len(upstream["assets"]) == 3 and upstream["batch_id"] == str(batch_id)
+    engine.dispose()
+
+
+def test_openlineage_event_is_idempotent_and_creates_column_lineage() -> None:
+    engine, factory = _factory()
+    with patch("recovery_service.services.data_automation.get_sync_session_factory", return_value=factory):
+        register_asset({"engine": "doris", "catalog": "hive", "database": "ODS", "table_name": "CUSTOMER_RAW", "layer": "raw", "columns": _columns(extra=True)})
+        register_asset({"engine": "doris", "catalog": "hive", "database": "DWD", "table_name": "CUSTOMER_STANDARD", "layer": "standard", "columns": _columns(extra=True)})
+        raw_name = "doris.hive.ods.customer_raw.raw"
+        standard_name = "doris.hive.dwd.customer_standard.standard"
+        event = {
+            "eventType": "COMPLETE",
+            "eventTime": "2026-09-05T10:00:00+08:00",
+            "producer": "https://example.test/lineage",
+            "facets": {"apiToken": "should-not-persist"},
+            "run": {"runId": "run-001", "facets": {"accessToken": "should-not-persist"}},
+            "job": {"namespace": "etl", "name": "customer-standardize"},
+            "inputs": [{"namespace": "urn:test", "name": raw_name}],
+            "outputs": [{
+                "namespace": "urn:test",
+                "name": standard_name,
+                "facets": {"columnLineage": {"fields": {
+                    "PHONE": {"inputFields": [{"namespace": "urn:test", "name": raw_name, "field": "PHONE", "transformationType": "DIRECT"}]}
+                }}}
+            }],
+        }
+        first = ingest_openlineage_event(event)
+        second = ingest_openlineage_event(event)
+        projection = openmetadata_lineage_projection()
+    assert first["duplicate"] is False and first["created_edge_count"] == 1
+    assert second["duplicate"] is True and second["created_edge_count"] == 0
+    assert len(projection["relationships"]) == 1
+    assert projection["relationships"][0]["lineageDetails"]["fields"][0]["toColumn"] == "PHONE"
+    assert any(item["fullyQualifiedName"] == "doris.hive.ods.customer_raw.raw" for item in projection["entities"])
+    with factory() as session:
+        assert session.query(DataLineageEvent).count() == 1
+        persisted = session.scalar(select(DataLineageEvent))
+        assert persisted.event_payload["run"]["facets"]["accessToken"] == "[REDACTED]"
+        assert persisted.facets["apiToken"] == "[REDACTED]"
+        assert session.query(DataLineageEdge).count() == 1
+        assert session.scalar(select(DataLineageEdge)).evidence["source"] == "openlineage"
+    engine.dispose()
+
+
+def test_openlineage_unknown_dataset_is_audited_without_fake_asset_or_edge() -> None:
+    engine, factory = _factory()
+    with patch("recovery_service.services.data_automation.get_sync_session_factory", return_value=factory):
+        result = ingest_openlineage_event({
+            "eventType": "START",
+            "eventTime": "2026-09-05T10:01:00Z",
+            "run": {"runId": "run-unknown"},
+            "job": {"namespace": "etl", "name": "unknown-source"},
+            "inputs": [{"namespace": "urn:test", "name": "missing.database.table"}],
+            "outputs": [{"namespace": "urn:test", "name": "missing.database.target"}],
+        })
+    assert result["created_edge_count"] == 0
+    with factory() as session:
+        assert session.query(DataAsset).count() == 0
+        assert session.query(DataLineageEdge).count() == 0
+        assert session.query(DataLineageEvent).count() == 1
+    engine.dispose()
+
+
+def test_database_stats_are_split_by_connection_and_business_layer_is_persistent() -> None:
+    engine, factory = _factory()
+    with patch("recovery_service.services.data_automation.get_sync_session_factory", return_value=factory):
+        left = register_asset({"engine": "doris", "connection_id": str(uuid.uuid4()), "connection_name": "doris-left", "catalog": "hive", "database": "DWD", "table_name": "CUSTOMER", "layer": "standard", "columns": _columns()})
+        right = register_asset({"engine": "doris", "connection_id": str(uuid.uuid4()), "connection_name": "doris-right", "catalog": "hive", "database": "DWD", "table_name": "CUSTOMER", "layer": "standard", "columns": _columns()})
+        create_lineage_edge({"source_asset_id": left["asset_id"], "target_asset_id": right["asset_id"], "transformation_type": "direct"})
+        before = lineage_overview()
+        left_key = next(item["database_key"] for item in before["database_stats"] if item["connection_name"] == "doris-left")
+        saved = upsert_database_layer({"engine": "doris", "connection_name": "doris-left", "catalog": "hive", "database": "DWD", "business_layer": "客户域 / DWD", "description": "客户标准库"})
+        filtered = lineage_overview(database_key=left_key)
+        layers = list_database_layers()
+    assert len(before["database_stats"]) == 2
+    assert all(item["asset_count"] == 1 for item in before["database_stats"])
+    assert before["summary"]["edge_count"] == 1
+    assert saved["business_layer"] == "客户域 / DWD"
+    assert filtered["summary"]["asset_count"] == 1
+    assert filtered["assets"][0]["database_business_layer"] == "客户域 / DWD"
+    assert any(item["database_key"] == left_key and item["business_layer"] == "客户域 / DWD" for item in layers)
+    with factory() as session:
+        assert session.query(DataDatabaseLayer).count() == 1
     engine.dispose()

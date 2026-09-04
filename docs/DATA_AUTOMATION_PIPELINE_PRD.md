@@ -121,6 +121,34 @@ Oracle 自动恢复创建新 Schema 后，系统必须把本次恢复用户的�
 
 验收要求：使用已完成四层自动化批次验证资产检索、批次过滤、上游/下游切换、追踪深度、表级/字段级关系、两条 SM4 字段传播关系、二三级详情窗口和页面刷新；同时在最大化、左右半屏和还原窗口检查无横向页面溢出、关键操作可见且浏览器控制台无错误。
 
+### 9.2 OpenMetadata 模型与 OpenLineage 事件兼容扩展
+
+为支持后续 AI 数据问答、影响分析和自动化治理，血缘中心增加标准化交换边界，但不引入独立 OpenMetadata 服务，不改变现有四层资产、血缘查询和任务运行语义。
+
+- 内部 `DataAsset` 继续作为唯一事实来源，并提供 OpenMetadata 风格的实体投影：`entityType`、`fullyQualifiedName`、`serviceName`、`databaseSchema`、`tableName`、`columns`、`tags` 和 `updatedAt`。实体名称使用稳定的 `engine.catalog.database.table.layer` 规则，不能因页面显示名变化而变化。
+- 内部 `DataLineageEdge` 继续作为唯一关系事实来源，并提供 OpenMetadata 风格的 `fromEntity`、`toEntity`、`lineageDetails` 投影；字段关系放入 `lineageDetails.fields`，表级推断保留 `reviewRequired=true`，不能把无法证明的复杂 SQL 伪造成字段直连。
+- 新增轻量 OpenLineage RunEvent 接收能力，支持 `START`、`RUNNING`、`COMPLETE`、`FAIL`、`ABORT` 和 `OTHER` 状态；事件保存 `eventType`、`eventTime`、`producer`、`schemaURL`、`run`、`job`、`inputs`、`outputs` 和受控 facets，按事件幂等键去重。
+- OpenLineage dataset 的 `namespace + name` 映射到内部资产；未匹配的输入/输出只保留事件，不自动创建缺少连接、数据库或 Schema 合同的业务资产。匹配成功后生成表级关系；标准 `columnLineage` facet 仅为可解析的输入/输出字段生成字段级关系。
+- 事件状态只记录运行证据，不替代批次或工作流状态。事件接收失败不得阻断既有任务；事件接口和查询接口沿用 `dataPlatform:read/design` 权限，原始事件不得保存凭据、请求体、密钥种子或 SQL 中的敏感值。
+- 支持按 `job.namespace`、`job.name`、`run.runId` 和时间范围查询事件，并在血缘关系上标识来源为 `native` 或 `openlineage`。AI 使用方优先读取 OpenMetadata 风格实体投影和已确认字段关系，不直接读取原始事件 JSON。
+- 第一版只提供标准事件接收、幂等审计和只读投影，不提供事件反向修改资产、删除血缘、自动发布 OpenMetadata 服务或将事件转发到外部消息系统的能力；未来可在不改变内部事实表的前提下增加 Kafka/HTTP exporter、OpenMetadata API exporter 和 AI 检索索引。
+
+验收要求：同一 OpenLineage 事件重复提交只产生一条事件记录和一组血缘边；含 `columnLineage` facet 的事件生成字段关系；不含 facet 的事件只生成表级关系；未知 dataset 不创建虚假资产；事件查询与 OpenMetadata 风格导出不泄露敏感信息；既有四层血缘 API、页面、任务运行和 SM4 回归保持通过。
+
+### 9.3 数据库分组统计与库业务层级配置
+
+血缘中心的统计和筛选不能只停留在资产或表级。系统增加数据库维度的只读聚合，并提供管理员可维护的库业务层级配置。
+
+- 数据库分组键为 `engine + connection + catalog + database`；同名数据库在不同连接或 Catalog 下必须分开统计，不能合并为一个展示组。
+- 每个数据库组至少展示资产数、血缘关系数、字段级关系数、待确认关系数、SM4 传播关系数，以及当前库业务层级和最近更新时间。
+- `数据层级` 继续使用现有 `restored/raw/standard/secured`，只描述单个资产在四层链路中的位置；不得用库业务层级替代或回写该字段。
+- `库业务层级`是人工配置字符串，支持 `ODS`、`DWD`、`DWS`、`ADS`、业务域名称或用户系统中的其他稳定标签；保存前后必须真实回读，刷新页面不得丢失。未配置时显示“未配置”，系统不得根据库名或表名自动猜测。
+- 配置实体只保存库定位信息、业务层级、备注、修改人和修改时间，不保存凭据；配置修改只影响统计、筛选和展示，不改写资产、血缘边、批次、任务、调度或 OpenLineage 事件。
+- 血缘中心支持按数据库组筛选；筛选后资产图谱、关系表、摘要指标和 OpenMetadata 风格投影必须使用同一筛选范围。跨库关系在来源库和目标库的组统计中各计一次，并在关系详情中保留真实两端。
+- 库业务层级配置入口放在数据血缘中心和数据自动化任务工作区的“数据库治理”区域；页面采用保存/刷新/回读闭环，不能通过删除资产或重跑任务完成配置。
+
+验收要求：至少准备两个同名不同连接或 Catalog 的数据库，统计必须分成两个组；配置一个库的业务层级后刷新仍保持，另一个库不受影响；按库筛选时资产、关系和指标一致；现有四层数据层级、OpenLineage 事件、任务运行和 SM4 关系回归保持通过。
+
 ## 10. 兼容性边界
 
 - 旧恢复任务、同步任务、离线流程、SM4/SM3 任务、调度和运行记录保持不变。

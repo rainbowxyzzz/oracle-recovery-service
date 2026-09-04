@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DataAutomationPipelineCreate(BaseModel):
@@ -58,6 +58,16 @@ class DataAssetCreate(BaseModel):
     columns: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class DataDatabaseLayerUpsert(BaseModel):
+    connection_id: UUID | None = None
+    connection_name: str | None = Field(default=None, max_length=128)
+    engine: str = Field(default="doris", min_length=1, max_length=32)
+    catalog: str = Field(default="", max_length=128)
+    database: str = Field(min_length=1, max_length=128)
+    business_layer: str | None = Field(default=None, max_length=128)
+    description: str | None = Field(default=None, max_length=512)
+
+
 class DataLineageCreate(BaseModel):
     batch_id: UUID | None = None
     source_asset_id: UUID
@@ -71,6 +81,20 @@ class DataLineageCreate(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
     confidence: float = Field(default=1.0, ge=0, le=1)
     review_required: bool | None = None
+
+
+class OpenLineageRunEvent(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    event_type: Literal["START", "RUNNING", "COMPLETE", "FAIL", "ABORT", "OTHER"] = Field(alias="eventType")
+    event_time: str = Field(alias="eventTime")
+    producer: str | None = None
+    schema_url: str | None = Field(default=None, alias="schemaURL")
+    run: dict[str, Any] = Field(default_factory=dict)
+    job: dict[str, Any] = Field(default_factory=dict)
+    inputs: list[dict[str, Any]] = Field(default_factory=list)
+    outputs: list[dict[str, Any]] = Field(default_factory=list)
+    facets: dict[str, Any] = Field(default_factory=dict)
 
 
 class DataClassificationRuleCreate(BaseModel):

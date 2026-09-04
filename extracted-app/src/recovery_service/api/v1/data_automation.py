@@ -10,7 +10,9 @@ from recovery_service.api.schemas.data_automation import (
     DataAutomationPipelineCreate,
     DataAutomationPipelineUpdate,
     DataClassificationRuleCreate,
+    DataDatabaseLayerUpsert,
     DataLineageCreate,
+    OpenLineageRunEvent,
     ReverseEncryptionExecuteRequest,
 )
 from recovery_service.services import data_automation as service
@@ -79,6 +81,16 @@ async def assets(limit: int = Query(default=200, ge=1, le=1000), _: None = Depen
     return {"assets": await asyncio.to_thread(service.list_assets, limit)}
 
 
+@router.get("/database-layers")
+async def database_layers(limit: int = Query(default=500, ge=1, le=1000), _: None = Depends(require_permission("dataPlatform:read"))):
+    return {"database_layers": await asyncio.to_thread(service.list_database_layers, limit)}
+
+
+@router.put("/database-layers")
+async def upsert_database_layer(body: DataDatabaseLayerUpsert, actor: AuthContext = Depends(require_permission("dataPlatform:design"))):
+    return await asyncio.to_thread(service.upsert_database_layer, body.model_dump(), actor)
+
+
 @router.post("/assets", status_code=201)
 async def create_asset(body: DataAssetCreate, batch_id: UUID | None = None, _: None = Depends(require_permission("dataPlatform:design"))):
     return await asyncio.to_thread(service.register_asset, body.model_dump(), batch_id)
@@ -93,11 +105,40 @@ async def create_lineage(body: DataLineageCreate, _: None = Depends(require_perm
 async def lineage_overview(
     search: str | None = Query(default=None, max_length=255),
     layer: str | None = Query(default=None, pattern="^(restored|raw|standard|secured)$"),
+    database_key: str | None = Query(default=None, max_length=512),
     batch_id: UUID | None = None,
     limit: int = Query(default=500, ge=1, le=1000),
     _: None = Depends(require_permission("dataPlatform:read")),
 ):
-    return await asyncio.to_thread(service.lineage_overview, search=search, layer=layer, batch_id=batch_id, limit=limit)
+    return await asyncio.to_thread(service.lineage_overview, search=search, layer=layer, database_key=database_key, batch_id=batch_id, limit=limit)
+
+
+@router.get("/lineage/openmetadata")
+async def openmetadata_lineage(
+    search: str | None = Query(default=None, max_length=255),
+    layer: str | None = Query(default=None, pattern="^(restored|raw|standard|secured)$"),
+    database_key: str | None = Query(default=None, max_length=512),
+    batch_id: UUID | None = None,
+    limit: int = Query(default=500, ge=1, le=1000),
+    _: None = Depends(require_permission("dataPlatform:read")),
+):
+    return await asyncio.to_thread(service.openmetadata_lineage_projection, search=search, layer=layer, database_key=database_key, batch_id=batch_id, limit=limit)
+
+
+@router.post("/lineage/openlineage/events", status_code=201)
+async def ingest_openlineage_event(body: OpenLineageRunEvent, _: None = Depends(require_permission("dataPlatform:design"))):
+    return await asyncio.to_thread(service.ingest_openlineage_event, body.model_dump(by_alias=True, exclude_none=True))
+
+
+@router.get("/lineage/openlineage/events")
+async def openlineage_events(
+    job_namespace: str | None = Query(default=None, max_length=512),
+    job_name: str | None = Query(default=None, max_length=512),
+    run_id: str | None = Query(default=None, max_length=128),
+    limit: int = Query(default=100, ge=1, le=500),
+    _: None = Depends(require_permission("dataPlatform:read")),
+):
+    return {"events": await asyncio.to_thread(service.list_openlineage_events, job_namespace=job_namespace, job_name=job_name, run_id=run_id, limit=limit)}
 
 
 @router.get("/lineage/{asset_id}")

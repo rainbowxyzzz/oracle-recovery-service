@@ -7,13 +7,13 @@ import json
 import re
 import threading
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import desc, select
 
 from recovery_service.common.security import decrypt_secret
-from recovery_service.common.time import app_now
+from recovery_service.common.time import app_now, to_app_naive
 from recovery_service.core.domain import RemoteHost
 from recovery_service.core.models.task import (
     DataAsset,
@@ -21,8 +21,11 @@ from recovery_service.core.models.task import (
     DataAutomationBlueprint,
     DataAutomationEvent,
     DataAutomationPipeline,
+    DatabaseConnectionProfile,
     DataClassificationRule,
+    DataDatabaseLayer,
     DataLineageEdge,
+    DataLineageEvent,
     DataPlatformComponentRun,
     DataPlatformComponentRunTable,
     DataPlatformNode,
@@ -31,7 +34,6 @@ from recovery_service.core.models.task import (
     DorisSm4BatchJob,
     DorisSm4TaskDefinition,
     RecoveryTask,
-    DatabaseConnectionProfile,
 )
 from recovery_service.db.session import get_sync_session_factory
 from recovery_service.infrastructure.ssh.async_client import AsyncSSHClient
@@ -373,17 +375,21 @@ def register_asset(data: dict[str, Any], batch_id: uuid.UUID | None = None) -> d
     try:
         columns = list(data.get("columns") or (data.get("schema_contract") or {}).get("columns") or [])
         signature = str(data.get("schema_signature") or "").strip() or schema_signature(columns)
+        connection_id = _uuid_or_none(data.get("connection_id"))
+        connection_name = _optional(data.get("connection_name"), 128)
         identity = {
-            "connection_id": _uuid_or_none(data.get("connection_id")), "catalog": str(data.get("catalog") or ""),
+            "connection_id": connection_id, "catalog": str(data.get("catalog") or ""),
             "database": _required(data.get("database"), "数据库"), "table_name": _required(data.get("table_name"), "表名"),
             "layer": str(data.get("layer") or "raw"),
         }
-        row = session.scalar(select(DataAsset).where(
-            DataAsset.connection_id == identity["connection_id"], DataAsset.catalog == identity["catalog"],
-            DataAsset.database == identity["database"], DataAsset.table_name == identity["table_name"], DataAsset.layer == identity["layer"],
-        ))
+        asset_stmt = select(DataAsset).where(
+            DataAsset.catalog == identity["catalog"], DataAsset.database == identity["database"],
+            DataAsset.table_name == identity["table_name"], DataAsset.layer == identity["layer"],
+        )
+        asset_stmt = asset_stmt.where(DataAsset.connection_id == connection_id) if connection_id else asset_stmt.where(DataAsset.connection_id.is_(None), DataAsset.connection_name == connection_name)
+        row = session.scalar(asset_stmt)
         if row is None:
-            row = DataAsset(**identity, engine=str(data.get("engine") or "doris"), connection_name=_optional(data.get("connection_name"), 128), business_domain=_optional(data.get("business_domain"), 128), schema_signature=signature, schema_contract={"columns": columns}, first_batch_id=batch_id, last_batch_id=batch_id)
+            row = DataAsset(**identity, engine=str(data.get("engine") or "doris"), connection_name=connection_name, business_domain=_optional(data.get("business_domain"), 128), schema_signature=signature, schema_contract={"columns": columns}, first_batch_id=batch_id, last_batch_id=batch_id)
             session.add(row)
         else:
             row.schema_signature = signature
@@ -405,10 +411,68 @@ def list_assets(limit: int = 200) -> list[dict[str, Any]]:
         session.close()
 
 
+def list_database_layers(limit: int = 500) -> list[dict[str, Any]]:
+    overview = lineage_overview(limit=limit)
+    stats = {item["database_key"]: item for item in overview.get("database_stats", [])}
+    session = get_sync_session_factory()()
+    try:
+        rows = session.scalars(select(DataDatabaseLayer).order_by(desc(DataDatabaseLayer.updated_at)).limit(max(1, min(limit, 1000)))).all()
+        for row in rows:
+            item = stats.setdefault(row.database_key, _database_stat(row))
+            item.update(_database_layer_dict(row))
+        return sorted(stats.values(), key=lambda item: (item.get("database") or "", item.get("database_key") or ""))[:max(1, min(limit, 1000))]
+    finally:
+        session.close()
+
+
+def upsert_database_layer(data: dict[str, Any], actor: AuthContext | None = None) -> dict[str, Any]:
+    engine = _required(data.get("engine"), "引擎")[:32]
+    catalog = str(data.get("catalog") or "").strip()[:128]
+    database = _required(data.get("database"), "数据库")[:128]
+    connection_id = _uuid_or_none(data.get("connection_id"))
+    connection_name = _optional(data.get("connection_name"), 128)
+    session = get_sync_session_factory()()
+    try:
+        if not connection_id and connection_name:
+            candidate_ids = {
+                row.connection_id
+                for row in session.scalars(
+                    select(DataAsset).where(
+                        DataAsset.engine == engine,
+                        DataAsset.connection_name == connection_name,
+                        DataAsset.catalog == catalog,
+                        DataAsset.database == database,
+                        DataAsset.connection_id.is_not(None),
+                    )
+                ).all()
+            }
+            if len(candidate_ids) == 1:
+                connection_id = next(iter(candidate_ids))
+        database_key = _database_key(engine, connection_id, connection_name, catalog, database)
+        row = session.scalar(select(DataDatabaseLayer).where(DataDatabaseLayer.database_key == database_key))
+        if not row:
+            row = DataDatabaseLayer(database_key=database_key, connection_id=connection_id, connection_name=connection_name, engine=engine, catalog=catalog, database=database)
+            session.add(row)
+        row.connection_id = connection_id
+        row.connection_name = connection_name
+        row.engine = engine
+        row.catalog = catalog
+        row.database = database
+        row.business_layer = _optional(data.get("business_layer"), 128)
+        row.description = _optional(data.get("description"), 512)
+        row.updated_by_username = actor.username if actor else None
+        session.commit()
+        session.refresh(row)
+        return _database_layer_dict(row)
+    finally:
+        session.close()
+
+
 def lineage_overview(
     *,
     search: str | None = None,
     layer: str | None = None,
+    database_key: str | None = None,
     batch_id: uuid.UUID | None = None,
     limit: int = 500,
 ) -> dict[str, Any]:
@@ -426,6 +490,8 @@ def lineage_overview(
 
         def matches(row: DataAsset) -> bool:
             if layer and row.layer != layer:
+                return False
+            if database_key and _database_key_for_asset(row) != database_key:
                 return False
             if batch_id and row.first_batch_id != batch_id and row.last_batch_id != batch_id and row.id not in batch_asset_ids:
                 return False
@@ -450,10 +516,37 @@ def lineage_overview(
             if batch_id:
                 edge_stmt = edge_stmt.where(DataLineageEdge.batch_id == batch_id)
             edge_rows = session.scalars(edge_stmt.limit(5000)).all()
+        serialized_assets = []
+        database_layers = {row.database_key: row for row in session.scalars(select(DataDatabaseLayer)).all()}
+        for row in filtered_assets:
+            item = _asset_dict(row)
+            key = _database_key_for_asset(row)
+            database_info = _database_layer_dict(database_layers[key]) if key in database_layers else {"database_key": key, "database_business_layer": None, "database_description": None}
+            item.update({key: value for key, value in database_info.items() if key not in {"updated_at", "connection_id", "connection_name", "engine", "catalog", "database"}})
+            serialized_assets.append(item)
         serialized_edges = [_lineage_dict(row) for row in edge_rows]
+        database_stats = {}
+        for row in filtered_assets:
+            key = _database_key_for_asset(row)
+            item = database_stats.setdefault(key, _database_stat(row))
+            item["asset_count"] += 1
+        asset_map = {row.id: row for row in filtered_assets}
+        for row in edge_rows:
+            database_keys = {_database_key_for_asset(asset_map[asset_id]) for asset_id in (row.source_asset_id, row.target_asset_id) if asset_id in asset_map}
+            for key in database_keys:
+                item = database_stats[key]
+                item["edge_count"] += 1
+                item["field_edge_count"] += int(bool(row.source_field or row.target_field))
+                item["review_count"] += int(row.review_required)
+                item["sm4_edge_count"] += int("SM4" in str(row.expression or "").upper())
+        for item in database_stats.values():
+            config = database_layers.get(item["database_key"])
+            if config:
+                item.update(_database_layer_dict(config))
         return {
-            "assets": [_asset_dict(row) for row in filtered_assets],
+            "assets": serialized_assets,
             "edges": serialized_edges,
+            "database_stats": sorted(database_stats.values(), key=lambda item: (-item["asset_count"], item["database"])),
             "summary": {
                 "asset_count": len(filtered_assets),
                 "edge_count": len(edge_rows),
@@ -507,7 +600,142 @@ def trace_lineage(asset_id: uuid.UUID, *, direction: str = "upstream", max_depth
                     seen_assets.add(other); next_assets.add(other)
             frontier = next_assets
         assets = session.scalars(select(DataAsset).where(DataAsset.id.in_(seen_assets))).all()
-        return {"root_asset_id": str(asset_id), "direction": direction, "batch_id": str(batch_id) if batch_id else None, "assets": [_asset_dict(row) for row in assets], "edges": [_lineage_dict(row) for row in edges]}
+        database_layers = {row.database_key: row for row in session.scalars(select(DataDatabaseLayer)).all()}
+        serialized_assets = []
+        for row in assets:
+            item = _asset_dict(row)
+            key = _database_key_for_asset(row)
+            database_info = _database_layer_dict(database_layers[key]) if key in database_layers else {"database_key": key, "database_business_layer": None, "database_description": None}
+            item.update({key: value for key, value in database_info.items() if key not in {"updated_at", "connection_id", "connection_name", "engine", "catalog", "database"}})
+            serialized_assets.append(item)
+        return {"root_asset_id": str(asset_id), "direction": direction, "batch_id": str(batch_id) if batch_id else None, "assets": serialized_assets, "edges": [_lineage_dict(row) for row in edges]}
+    finally:
+        session.close()
+
+
+def openmetadata_lineage_projection(
+    *,
+    search: str | None = None,
+    layer: str | None = None,
+    database_key: str | None = None,
+    batch_id: uuid.UUID | None = None,
+    limit: int = 500,
+) -> dict[str, Any]:
+    overview = lineage_overview(search=search, layer=layer, database_key=database_key, batch_id=batch_id, limit=limit)
+    entities = [_openmetadata_entity(asset) for asset in overview["assets"]]
+    entity_by_id = {item["id"]: item for item in entities}
+    relationships = []
+    for edge in overview["edges"]:
+        source = entity_by_id.get(edge["source_asset_id"])
+        target = entity_by_id.get(edge["target_asset_id"])
+        if source and target:
+            relationships.append(_openmetadata_relationship(edge, source, target))
+    return {
+        "entities": entities,
+        "relationships": relationships,
+        "summary": overview["summary"],
+        "truncated": overview["truncated"],
+        "model": "openmetadata-table-lineage-v1",
+    }
+
+
+def ingest_openlineage_event(data: dict[str, Any]) -> dict[str, Any]:
+    event = _normalize_openlineage_event(data)
+    event_time = _parse_openlineage_time(event.get("eventTime"))
+    idempotency_key = _openlineage_idempotency_key(event)
+    session = get_sync_session_factory()()
+    try:
+        existing = session.scalar(select(DataLineageEvent).where(DataLineageEvent.idempotency_key == idempotency_key))
+        if existing:
+            return {"event": _openlineage_event_dict(existing), "duplicate": True, "created_edge_count": 0}
+
+        row = DataLineageEvent(
+            event_type=str(event.get("eventType") or "OTHER"),
+            event_time=event_time,
+            producer=_optional(event.get("producer"), 512),
+            schema_url=_optional(event.get("schemaURL"), 1024),
+            run_id=_optional((event.get("run") or {}).get("runId"), 128),
+            job_namespace=_optional((event.get("job") or {}).get("namespace"), 512),
+            job_name=_optional((event.get("job") or {}).get("name"), 512),
+            inputs=_redact_json(list(event.get("inputs") or [])),
+            outputs=_redact_json(list(event.get("outputs") or [])),
+            facets=_redact_json(dict(event.get("facets") or {})),
+            event_payload=_redact_json(event),
+            idempotency_key=idempotency_key,
+        )
+        session.add(row)
+        session.flush()
+        assets = session.scalars(select(DataAsset)).all()
+        asset_cache: dict[str, DataAsset | None] = {}
+        input_assets = {id(item): _match_openlineage_asset(item, assets, asset_cache) for item in row.inputs}
+        output_assets = {id(item): _match_openlineage_asset(item, assets, asset_cache) for item in row.outputs}
+        created_edges = []
+        for output in row.outputs:
+            target = output_assets.get(id(output))
+            if not target:
+                continue
+            column_fields = _openlineage_column_fields(output)
+            output_field_created = False
+            for target_field, details in column_fields.items():
+                for input_field in details:
+                    source_dataset = {
+                        "namespace": input_field.get("namespace"),
+                        "name": input_field.get("name"),
+                    }
+                    source = _match_openlineage_asset(source_dataset, assets, asset_cache)
+                    if not source:
+                        source = _match_input_field_asset(input_field, row.inputs, input_assets, assets, asset_cache)
+                    if not source:
+                        continue
+                    created = _create_openlineage_edge(
+                        session,
+                        source,
+                        input_field.get("field") or input_field.get("name"),
+                        target,
+                        target_field,
+                        input_field,
+                        row,
+                        event,
+                    )
+                    if created:
+                        created_edges.append(created)
+                        output_field_created = True
+            if column_fields and output_field_created:
+                continue
+            for input_item in row.inputs:
+                source = input_assets.get(id(input_item))
+                if source:
+                    created = _create_openlineage_edge(session, source, None, target, None, {}, row, event)
+                    if created:
+                        created_edges.append(created)
+        session.commit()
+        return {
+            "event": _openlineage_event_dict(row),
+            "duplicate": False,
+            "created_edge_count": len(created_edges),
+            "created_edges": [_lineage_dict(item) for item in created_edges],
+        }
+    finally:
+        session.close()
+
+
+def list_openlineage_events(
+    *,
+    job_namespace: str | None = None,
+    job_name: str | None = None,
+    run_id: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    session = get_sync_session_factory()()
+    try:
+        stmt = select(DataLineageEvent).order_by(desc(DataLineageEvent.event_time)).limit(max(1, min(limit, 500)))
+        if job_namespace:
+            stmt = stmt.where(DataLineageEvent.job_namespace == job_namespace)
+        if job_name:
+            stmt = stmt.where(DataLineageEvent.job_name == job_name)
+        if run_id:
+            stmt = stmt.where(DataLineageEvent.run_id == run_id)
+        return [_openlineage_event_dict(row) for row in session.scalars(stmt).all()]
     finally:
         session.close()
 
@@ -912,6 +1140,307 @@ def _classification_matches(config, asset, field, column):
     return not types or _normalize_type(column.get("type") or column.get("data_type")) in types
 
 
+def _normalize_openlineage_event(data: dict[str, Any]) -> dict[str, Any]:
+    event = dict(data or {})
+    if "event_type" in event and "eventType" not in event:
+        event["eventType"] = event.pop("event_type")
+    if "event_time" in event and "eventTime" not in event:
+        event["eventTime"] = event.pop("event_time")
+    if "schema_url" in event and "schemaURL" not in event:
+        event["schemaURL"] = event.pop("schema_url")
+    event["eventType"] = str(event.get("eventType") or "OTHER").upper()
+    if event["eventType"] not in {"START", "RUNNING", "COMPLETE", "FAIL", "ABORT", "OTHER"}:
+        raise ValueError("OpenLineage eventType 不受支持。")
+    event["run"] = dict(event.get("run") or {})
+    event["job"] = dict(event.get("job") or {})
+    event["inputs"] = list(event.get("inputs") or [])
+    event["outputs"] = list(event.get("outputs") or [])
+    event["facets"] = dict(event.get("facets") or {})
+    return event
+
+
+def _parse_openlineage_time(value: Any) -> datetime:
+    raw = str(value or "").strip()
+    if not raw:
+        return app_now()
+    try:
+        return to_app_naive(datetime.fromisoformat(raw.replace("Z", "+00:00")))
+    except ValueError as exc:
+        raise ValueError("OpenLineage eventTime 必须是 ISO-8601 时间。") from exc
+
+
+def _openlineage_idempotency_key(event: dict[str, Any]) -> str:
+    identity = {
+        key: event.get(key)
+        for key in ("eventType", "eventTime", "producer", "schemaURL", "run", "job", "inputs", "outputs", "facets")
+    }
+    encoded = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _redact_json(value: Any) -> Any:
+    sensitive_markers = ("password", "secret", "token", "credential", "key_seed", "private_key", "authorization", "cookie")
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            key_text = str(key).casefold()
+            result[key] = "[REDACTED]" if any(marker in key_text for marker in sensitive_markers) else _redact_json(item)
+        return result
+    if isinstance(value, list):
+        return [_redact_json(item) for item in value]
+    if isinstance(value, str) and len(value) > 20000:
+        return value[:20000] + "...[TRUNCATED]"
+    return value
+
+
+def _match_openlineage_asset(dataset: dict[str, Any], assets: list[DataAsset], cache: dict[str, DataAsset | None]) -> DataAsset | None:
+    namespace = str(dataset.get("namespace") or "").strip()
+    name = str(dataset.get("name") or "").strip()
+    if not name:
+        return None
+    cache_key = f"{namespace}\n{name}".casefold()
+    if cache_key in cache:
+        return cache[cache_key]
+    name_parts = [item for item in re.split(r"[./]+", name) if item]
+    is_asset_fqn = len(name_parts) >= 5
+    table_name = name_parts[-2 if is_asset_fqn else -1].casefold()
+    database_name = name_parts[-3 if is_asset_fqn else -2].casefold() if len(name_parts) > (2 if is_asset_fqn else 1) else ""
+    layer_name = name_parts[-1].casefold() if is_asset_fqn else ""
+    qualified_name = f"{namespace}/{name}".casefold()
+    candidates = []
+    for asset in assets:
+        fqn = _asset_fqn(asset).casefold()
+        table_match = str(asset.table_name or "").casefold() == table_name
+        database_match = not database_name or str(asset.database or "").casefold() == database_name
+        layer_match = not layer_name or str(asset.layer or "").casefold() == layer_name
+        exact_match = qualified_name.endswith(fqn) or fqn == name.casefold()
+        namespace_match = str(asset.database or "").casefold() in namespace.casefold()
+        if exact_match or (table_match and database_match and layer_match and (len(name_parts) > 1 or namespace_match)):
+            candidates.append(asset)
+    result = candidates[0] if len(candidates) == 1 else None
+    cache[cache_key] = result
+    return result
+
+
+def _match_input_field_asset(input_field: dict[str, Any], inputs: list[dict[str, Any]], input_assets: dict[int, DataAsset | None], assets: list[DataAsset], cache: dict[str, DataAsset | None]) -> DataAsset | None:
+    field_namespace = str(input_field.get("namespace") or "").casefold()
+    field_name = str(input_field.get("name") or "").casefold()
+    for item in inputs:
+        if str(item.get("namespace") or "").casefold() == field_namespace and str(item.get("name") or "").casefold() == field_name:
+            return input_assets.get(id(item))
+    return _match_openlineage_asset(input_field, assets, cache)
+
+
+def _openlineage_column_fields(dataset: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    facet = (dataset.get("facets") or {}).get("columnLineage") or {}
+    fields = facet.get("fields") if isinstance(facet, dict) else None
+    if not isinstance(fields, dict):
+        return {}
+    result = {}
+    for target_field, details in fields.items():
+        if isinstance(details, dict):
+            input_fields = details.get("inputFields") or details.get("input_fields") or []
+            result[str(target_field)] = [item for item in input_fields if isinstance(item, dict)]
+    return result
+
+
+def _create_openlineage_edge(session, source, source_field, target, target_field, details, event_row, event):
+    source_field = _optional(source_field, 255)
+    target_field = _optional(target_field, 255)
+    kind = _openlineage_transformation(details, source_field, target_field)
+    stmt = select(DataLineageEdge).where(
+        DataLineageEdge.source_asset_id == source.id,
+        DataLineageEdge.target_asset_id == target.id,
+        DataLineageEdge.transformation_type == kind,
+    )
+    stmt = stmt.where(DataLineageEdge.source_field == source_field) if source_field else stmt.where(DataLineageEdge.source_field.is_(None))
+    stmt = stmt.where(DataLineageEdge.target_field == target_field) if target_field else stmt.where(DataLineageEdge.target_field.is_(None))
+    if session.scalar(stmt.limit(1)):
+        return None
+    expression = details.get("expression") if isinstance(details, dict) else None
+    if not expression and kind == "expression" and isinstance(details, dict):
+        expression = details.get("transformation") or details.get("transformationType")
+    evidence = {
+        "source": "openlineage",
+        "event_id": str(event_row.id),
+        "idempotency_key": event_row.idempotency_key,
+        "run_id": (event.get("run") or {}).get("runId"),
+        "job_namespace": (event.get("job") or {}).get("namespace"),
+        "job_name": (event.get("job") or {}).get("name"),
+    }
+    row = DataLineageEdge(
+        source_asset_id=source.id,
+        source_field=source_field,
+        target_asset_id=target.id,
+        target_field=target_field,
+        transformation_type=kind,
+        expression=_optional(expression, 100000),
+        evidence=evidence,
+        confidence=1.0,
+        review_required=kind not in {"direct", "rename", "cast"} or not source_field or not target_field,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _openlineage_transformation(details, source_field, target_field) -> str:
+    value = str((details or {}).get("transformationType") or (details or {}).get("transformation") or "").casefold()
+    mapping = {
+        "identity": "direct", "direct": "direct", "direct_mapping": "direct",
+        "rename": "rename", "cast": "cast", "join": "join", "aggregate": "aggregate", "constant": "constant",
+    }
+    return mapping.get(value, "direct" if source_field and target_field and source_field.casefold() == target_field.casefold() else "rename" if source_field and target_field else "expression")
+
+
+def _asset_fqn(asset) -> str:
+    return ".".join(str(value or "") for value in (asset.engine, asset.catalog, asset.database, asset.table_name, asset.layer))
+
+
+def _database_key(engine, connection_id, connection_name, catalog, database) -> str:
+    connection = str(connection_id or connection_name or "").strip().casefold()
+    return "|".join(str(value or "").strip().casefold() for value in (engine, connection, catalog, database))
+
+
+def _database_key_for_asset(asset) -> str:
+    return _database_key(asset.engine, asset.connection_id, asset.connection_name, asset.catalog, asset.database)
+
+
+def _database_stat(asset_or_row) -> dict[str, Any]:
+    if isinstance(asset_or_row, DataAsset):
+        return {
+            "database_key": _database_key_for_asset(asset_or_row),
+            "connection_id": str(asset_or_row.connection_id) if asset_or_row.connection_id else None,
+            "connection_name": asset_or_row.connection_name,
+            "engine": asset_or_row.engine,
+            "catalog": asset_or_row.catalog,
+            "database": asset_or_row.database,
+            "business_layer": None,
+            "description": None,
+            "asset_count": 0,
+            "edge_count": 0,
+            "field_edge_count": 0,
+            "review_count": 0,
+            "sm4_edge_count": 0,
+        }
+    return {
+        "database_key": asset_or_row.database_key,
+        "connection_id": str(asset_or_row.connection_id) if asset_or_row.connection_id else None,
+        "connection_name": asset_or_row.connection_name,
+        "engine": asset_or_row.engine,
+        "catalog": asset_or_row.catalog,
+        "database": asset_or_row.database,
+        "business_layer": asset_or_row.business_layer,
+        "description": asset_or_row.description,
+        "asset_count": 0,
+        "edge_count": 0,
+        "field_edge_count": 0,
+        "review_count": 0,
+        "sm4_edge_count": 0,
+    }
+
+
+def _database_layer_dict(row) -> dict[str, Any]:
+    return {
+        "database_key": row.database_key,
+        "connection_id": str(row.connection_id) if row.connection_id else None,
+        "connection_name": row.connection_name,
+        "engine": row.engine,
+        "catalog": row.catalog,
+        "database": row.database,
+        "business_layer": row.business_layer,
+        "database_business_layer": row.business_layer,
+        "description": row.description,
+        "database_description": row.description,
+        "updated_by_username": row.updated_by_username,
+        "updated_at": row.updated_at,
+    }
+
+
+def _openmetadata_entity(asset: dict[str, Any]) -> dict[str, Any]:
+    columns = []
+    for column in (asset.get("schema_contract") or {}).get("columns") or []:
+        name = column.get("name") or column.get("column_name")
+        if name:
+            columns.append({
+                "name": name,
+                "dataType": column.get("type") or column.get("data_type") or "unknown",
+                "required": not bool(column.get("nullable", True)),
+                "constraint": "PRIMARY_KEY" if column.get("key") or column.get("is_primary_key") else None,
+            })
+    tags = []
+    for field in (asset.get("classification_summary") or {}).get("fields") or []:
+        if field.get("classification") and field.get("field"):
+            tags.append({"tagFQN": f"{field['classification']}.{field['field']}", "source": "Classification"})
+    fqn = ".".join(str(value or "") for value in (asset.get("engine"), asset.get("catalog"), asset.get("database"), asset.get("table_name"), asset.get("layer"))).casefold()
+    service_name = asset.get("connection_name") or asset.get("engine")
+    return {
+        "id": asset["asset_id"],
+        "entityType": "table",
+        "name": asset.get("table_name"),
+        "displayName": asset.get("table_name"),
+        "fullyQualifiedName": fqn,
+        "serviceName": service_name,
+        "serviceType": asset.get("engine"),
+        "databaseSchema": asset.get("database"),
+        "tableName": asset.get("table_name"),
+        "columns": columns,
+        "tags": tags,
+        "updatedAt": _iso_value(asset.get("updated_at")),
+        "customProperties": {
+            "layer": asset.get("layer"),
+            "businessDomain": asset.get("business_domain"),
+            "schemaSignature": asset.get("schema_signature"),
+        },
+    }
+
+
+def _openmetadata_relationship(edge: dict[str, Any], source: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:
+    fields = []
+    if edge.get("source_field") or edge.get("target_field"):
+        fields.append({
+            "fromColumns": [edge.get("source_field")] if edge.get("source_field") else [],
+            "toColumn": edge.get("target_field"),
+            "transformer": edge.get("expression") or edge.get("transformation_type"),
+        })
+    return {
+        "fromEntity": {"id": source["id"], "type": source["entityType"], "fullyQualifiedName": source["fullyQualifiedName"]},
+        "toEntity": {"id": target["id"], "type": target["entityType"], "fullyQualifiedName": target["fullyQualifiedName"]},
+        "lineageDetails": {
+            "source": edge.get("source"),
+            "confidence": edge.get("confidence"),
+            "reviewRequired": edge.get("review_required"),
+            "pipeline": edge.get("workflow_version_id"),
+            "node": edge.get("node_key"),
+            "batchId": edge.get("batch_id"),
+            "fields": fields,
+        },
+    }
+
+
+def _openlineage_event_dict(row):
+    return {
+        "event_id": str(row.id),
+        "event_type": row.event_type,
+        "event_time": row.event_time,
+        "producer": row.producer,
+        "schema_url": row.schema_url,
+        "run_id": row.run_id,
+        "job_namespace": row.job_namespace,
+        "job_name": row.job_name,
+        "inputs": row.inputs or [],
+        "outputs": row.outputs or [],
+        "facets": row.facets or {},
+        "event": row.event_payload or {},
+        "idempotency_key": row.idempotency_key,
+        "created_at": row.created_at,
+    }
+
+
+def _iso_value(value):
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
 def _blueprint_score(signature: str, columns: list[dict[str, Any]], blueprint: DataAutomationBlueprint) -> tuple[float, str]:
     if blueprint.schema_signature == signature:
         return 1.0, "Schema 指纹与历史蓝图完全一致。"
@@ -942,5 +1471,5 @@ def _batch_dict(row): return {"batch_id": str(row.id), "pipeline_id": str(row.pi
 def _event_dict(row): return {"event_id": str(row.id), "stage": row.stage, "event_type": row.event_type, "status": row.status, "message": row.message, "payload": row.payload or {}, "created_at": row.created_at}
 def _blueprint_dict(row): return {"blueprint_id": str(row.id), "pipeline_id": str(row.pipeline_id), "version_no": row.version_no, "name": row.name, "status": row.status, "source_rule": row.source_rule or {}, "schema_signature": row.schema_signature, "schema_contract": row.schema_contract or {}, "execution_snapshot": row.execution_snapshot or {}, "auto_execute": row.auto_execute, "created_at": row.created_at}
 def _asset_dict(row): return {"asset_id": str(row.id), "connection_id": str(row.connection_id) if row.connection_id else None, "connection_name": row.connection_name, "engine": row.engine, "catalog": row.catalog, "database": row.database, "table_name": row.table_name, "layer": row.layer, "business_domain": row.business_domain, "schema_signature": row.schema_signature, "schema_contract": row.schema_contract or {}, "classification_summary": row.classification_summary or {}, "first_batch_id": str(row.first_batch_id) if row.first_batch_id else None, "last_batch_id": str(row.last_batch_id) if row.last_batch_id else None, "created_at": row.created_at, "updated_at": row.updated_at}
-def _lineage_dict(row): return {"edge_id": str(row.id), "batch_id": str(row.batch_id) if row.batch_id else None, "source_asset_id": str(row.source_asset_id), "source_field": row.source_field, "target_asset_id": str(row.target_asset_id), "target_field": row.target_field, "transformation_type": row.transformation_type, "expression": row.expression, "workflow_version_id": str(row.workflow_version_id) if row.workflow_version_id else None, "node_key": row.node_key, "evidence": row.evidence or {}, "confidence": row.confidence, "review_required": row.review_required, "created_at": row.created_at}
+def _lineage_dict(row): return {"edge_id": str(row.id), "batch_id": str(row.batch_id) if row.batch_id else None, "source_asset_id": str(row.source_asset_id), "source_field": row.source_field, "target_asset_id": str(row.target_asset_id), "target_field": row.target_field, "transformation_type": row.transformation_type, "expression": row.expression, "workflow_version_id": str(row.workflow_version_id) if row.workflow_version_id else None, "node_key": row.node_key, "evidence": row.evidence or {}, "source": "openlineage" if (row.evidence or {}).get("source") == "openlineage" else "native", "confidence": row.confidence, "review_required": row.review_required, "created_at": row.created_at}
 def _classification_rule_dict(row): return {"rule_id": str(row.id), "name": row.name, "status": row.status, "priority": row.priority, "match_config": row.match_config or {}, "classification": row.classification, "protection_action": row.protection_action, "auto_apply": row.auto_apply, "version_no": row.version_no, "created_at": row.created_at}
