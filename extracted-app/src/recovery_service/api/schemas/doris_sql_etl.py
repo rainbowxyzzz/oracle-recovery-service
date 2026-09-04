@@ -73,6 +73,92 @@ class DorisSqlDdlResponse(BaseModel):
     message: str = ""
 
 
+class DorisSqlCollectionCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = None
+    business_domain: str | None = Field(default=None, max_length=128)
+    data_layer: str | None = Field(default=None, max_length=32)
+    tags: list[str] = Field(default_factory=list, max_length=20)
+    default_connection_id: UUID | None = None
+    default_database: str | None = Field(default=None, max_length=255)
+    task_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+
+class DorisSqlCollectionUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = None
+    business_domain: str | None = Field(default=None, max_length=128)
+    data_layer: str | None = Field(default=None, max_length=32)
+    tags: list[str] | None = Field(default=None, max_length=20)
+    default_connection_id: UUID | None = None
+    default_database: str | None = Field(default=None, max_length=255)
+    task_ids: list[UUID] | None = Field(default=None, max_length=200)
+
+
+class DorisSqlCollectionMember(BaseModel):
+    task_id: UUID
+    name: str
+    revision: int = 1
+    description: str | None = None
+    connection_id: UUID | None = None
+    connection_name: str | None = None
+    database: str | None = None
+    sql_summary: str = ""
+    position: int = 0
+
+
+class DorisSqlCollectionReference(BaseModel):
+    reference_type: str
+    reference_id: UUID | None = None
+    name: str
+    version_id: UUID | None = None
+    current_online: bool = False
+
+
+class DorisSqlCollectionRunSummary(BaseModel):
+    run_id: UUID
+    version_id: UUID
+    version_no: int
+    channel: str
+    trigger_type: str
+    status: str
+    message: str | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
+
+
+class DorisSqlCollectionStatus(BaseModel):
+    collection_id: UUID
+    name: str
+    description: str | None = None
+    business_domain: str | None = None
+    data_layer: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    default_connection_id: UUID | None = None
+    default_database: str | None = None
+    members: list[DorisSqlCollectionMember] = Field(default_factory=list)
+    member_count: int = 0
+    latest_dev_version_id: UUID | None = None
+    latest_dev_version_no: int | None = None
+    latest_prod_version_id: UUID | None = None
+    latest_prod_version_no: int | None = None
+    online_version_id: UUID | None = None
+    online_version_no: int | None = None
+    schedule_enabled: bool = False
+    next_run_at: datetime | None = None
+    references: list[DorisSqlCollectionReference] = Field(default_factory=list)
+    recent_runs: list[DorisSqlCollectionRunSummary] = Field(default_factory=list)
+    created_by_username: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class DorisSqlCollectionListResponse(BaseModel):
+    collections: list[DorisSqlCollectionStatus] = Field(default_factory=list)
+    ungrouped_task_ids: list[UUID] = Field(default_factory=list)
+    ungrouped_count: int = 0
+
+
 class DorisSqlEtlColumnMapping(BaseModel):
     source_name: str
     target_name: str

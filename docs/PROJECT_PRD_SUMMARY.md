@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-09-04 Doris SQL 开发工作台新增“SQL 集合”治理：复用现有数据平台工作流、组件任务、开发/生产版本、运行和调度模型，把多个已保存 Doris SQL 任务按顺序纳入集合，支持集合级保存、测试运行、不可变发布、生产运行和引用关系展示；未分组及历史 SQL 任务保持原行为。详见 `docs/DORIS_SQL_ETL_CENTER_PRD.md` 第 21 节。
+
 2026-09-01 Oracle 导入字符集约束补齐：所有 Oracle CLI 导入/探测/挂起任务控制路径在执行 `imp`/`impdp`/`sqlplus` 前必须默认设置 `NLS_LANG=AMERICAN_AMERICA.AL32UTF8`、`LANG=C.UTF-8`、`LC_ALL=C.UTF-8`，避免 Excel/WPS、中文姓名、中文字段值等内容在自动还原或探测阶段因客户端环境缺失退化为 `????`。该修正只改变 CLI 进程环境，不改变 DMP 内容、任务状态机、REMAP_SCHEMA、同步、DWD 或 SM4 语义。
 
 2026-08-31 新增 Harness 数据智能助手：自然语言匹配已配置路径，管理员确认后按 Oracle DMP 还原→Doris ODS 同步→SQL 生产版本更新 DWD→所选全库 SM4 任务推进。加密范围严格来自全库任务保存的全部表/字段，不从血缘推测，不自动换密钥。计划冻结、确认幂等和未知派发阻断仅作用于助手批次，不改变历史流水线与任务。2026-09-01 已热更新发布到 128，并以隔离 DMP 完成真实四阶段链路、字段结果、当前密钥绑定、可见窗口和健康验证；真实模型参数仍未提供，模型入口保持失败关闭。详见 `docs/HARNESS_ASSISTANT_PRD.md` 和 `docs/HARNESS_ASSISTANT_VALIDATION_20260831.md`。

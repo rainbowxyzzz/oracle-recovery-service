@@ -425,6 +425,33 @@
     .sql-task-toolbar #dorisSqlSavedTaskSelect { flex: 1 1 230px; }
     .sql-task-toolbar #dorisSqlSavedTaskName { flex: 1 1 180px; }
     .sql-task-toolbar #dorisSqlSavedTaskDescription { flex: 1 1 220px; }
+    .doris-sql-titlebar { align-items: flex-start; gap: 12px; }
+    .doris-sql-titlebar h2 { margin-bottom: 0; line-height: 36px; }
+    .doris-sql-titlebar .actions { justify-content: flex-end; }
+    .sql-collection-modal { width: min(1280px, calc(100vw - 40px)); height: min(860px, calc(100vh - 40px)); max-height: calc(100vh - 40px); overflow: hidden; display: flex; flex-direction: column; }
+    .sql-collection-layout { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 14px; min-height: 0; flex: 1 1 auto; overflow: hidden; padding-top: 12px; }
+    .sql-collection-sidebar, .sql-collection-editor { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); min-height: 0; }
+    .sql-collection-sidebar { display: flex; flex-direction: column; }
+    .sql-collection-sidebar-head, .sql-collection-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+    .sql-collection-modal-head { flex: 0 0 auto; padding: 0 0 12px; }
+    .sql-collection-modal-head h2 { margin-bottom: 4px; }
+    .sql-collection-list { overflow: auto; padding: 8px; min-height: 220px; }
+    .sql-collection-item { width: 100%; text-align: left; padding: 10px; margin: 0 0 6px; border: 1px solid transparent; background: transparent; }
+    .sql-collection-item.active { border-color: var(--primary); background: var(--primary-soft); }
+    .sql-collection-editor { display: flex; flex-direction: column; overflow: hidden; }
+    .sql-collection-editor-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px; }
+    .sql-collection-fields { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px 12px; }
+    .sql-collection-fields label { display: grid; gap: 5px; }
+    .sql-collection-fields .wide { grid-column: 1 / -1; }
+    .sql-collection-taskbar { align-items: flex-start; margin-top: 14px; }
+    .sql-collection-taskbar .actions { flex: 1 1 300px; justify-content: flex-end; min-width: 260px; }
+    .sql-collection-taskbar select { flex: 1 1 260px; min-width: 220px; }
+    .sql-collection-members { display: grid; gap: 8px; margin-top: 10px; }
+    .sql-collection-member { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px; border: 1px solid var(--line); border-radius: 8px; }
+    .sql-collection-member-order { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+    .sql-collection-reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .sql-collection-reference-grid > div { padding: 9px; border: 1px solid var(--line); border-radius: 8px; }
+    .sql-collection-modal .sql-collection-footer { flex: 0 0 auto; justify-content: flex-end; gap: 8px; margin: 0; padding: 12px 14px; border-top: 1px solid var(--line); background: #fff; }
     .sql-task-toolbar button { flex: 0 0 auto; }
     .sql-editor-pane textarea {
       flex: 1 1 260px;
@@ -2888,6 +2915,15 @@
       }
     }
     @media (max-width: 900px) {
+      .sql-collection-modal { width: calc(100vw - 24px); height: calc(100vh - 24px); max-height: calc(100vh - 24px); }
+      .sql-collection-layout { grid-template-columns: 1fr; overflow: auto; }
+      .sql-collection-sidebar { max-height: 240px; }
+      .sql-collection-editor { min-height: 520px; overflow: visible; }
+      .sql-collection-editor-scroll { overflow: visible; }
+      .sql-collection-fields, .sql-collection-reference-grid { grid-template-columns: 1fr; }
+      .sql-collection-taskbar .actions, .sql-collection-taskbar select { min-width: 0; width: 100%; }
+      .sql-collection-modal .sql-collection-footer { flex-wrap: wrap; justify-content: flex-start; }
+      .sql-collection-modal .sql-collection-footer button { flex: 1 1 170px; }
       .orchestration-layout,
       .orchestration-run-grid { grid-template-columns: 1fr; }
       .api-sql-workbench { grid-template-columns: 1fr; height: auto; min-height: 900px; }
@@ -2910,6 +2946,7 @@
       .orchestration-workflow-title { grid-template-columns: 1fr; }
     }
     @media (max-width: 620px) {
+      .doris-sql-titlebar .actions { width: 100%; justify-content: flex-start; }
       .connector-titlebar { align-items: flex-start; flex-wrap: wrap; }
       .connector-title-field { flex-basis: 100%; }
       .connector-request-bar { grid-template-columns: 1fr; }
@@ -3196,6 +3233,7 @@
       .lineage-filter-action { grid-column: auto; }
     }
   </style>
+  <link rel='stylesheet' href='/static/ui-unified.css'>
 </head>
 <body class="auth-checking">
   <header>
@@ -3901,9 +3939,10 @@
     </section>
 
     <section class="module-panel" data-module="dorisSqlEtl">
-      <div class="toolbar">
+      <div class="toolbar doris-sql-titlebar">
         <h2>Doris SQL 开发工作台</h2>
         <div class="actions">
+          <button id="dorisSqlCollectionsBtn" type="button">SQL 集合</button>
           <button id="dorisSqlEtlRefreshBtn" type="button">刷新对象树</button>
         </div>
       </div>
@@ -5862,6 +5901,57 @@
   <div id="dataPlatformCanvasContextMenu" class="data-platform-context-menu trigger-context-menu" role="menu" hidden></div>
   <div id="dataChangeTaskContextMenu" class="data-platform-context-menu" role="menu" hidden></div>
 
+  <div id="dorisSqlCollectionModal" class="modal-backdrop" hidden>
+    <section class="modal sql-collection-modal" role="dialog" aria-modal="true" aria-labelledby="dorisSqlCollectionModalTitle">
+      <div class="sql-collection-modal-head">
+        <div>
+          <h2 id="dorisSqlCollectionModalTitle">SQL 集合</h2>
+          <div class="muted">将多个已保存 SQL 组织成有序开发版，测试后发布为不可变生产版本。</div>
+        </div>
+        <button id="dorisSqlCollectionCloseBtn" type="button">关闭</button>
+      </div>
+      <div class="modal-body sql-collection-layout">
+        <aside class="sql-collection-sidebar">
+          <div class="sql-collection-sidebar-head">
+            <div><strong>集合列表</strong><div id="dorisSqlUngroupedCount" class="muted">未分组 0 个</div></div>
+            <button id="dorisSqlCollectionNewBtn" type="button">新建</button>
+          </div>
+          <div id="dorisSqlCollectionList" class="sql-collection-list"><div class="muted">暂无 SQL 集合。</div></div>
+        </aside>
+        <div class="sql-collection-editor">
+          <div class="sql-collection-editor-scroll">
+          <div class="sql-collection-fields">
+            <label>集合名称<input id="dorisSqlCollectionName" maxlength="128" placeholder="例如：自然资源 DWD 月度加工"></label>
+            <label>业务域<input id="dorisSqlCollectionDomain" maxlength="128" placeholder="例如：自然资源"></label>
+            <label>数据层级<select id="dorisSqlCollectionLayer"><option value="">未指定</option><option value="ODS">ODS</option><option value="DWD">DWD</option><option value="DWS">DWS</option><option value="ADS">ADS</option></select></label>
+            <label>标签<input id="dorisSqlCollectionTags" placeholder="多个标签用英文逗号分隔"></label>
+            <label>默认 Doris 连接<select id="dorisSqlCollectionConnection"><option value="">未指定</option></select></label>
+            <label>默认数据库<input id="dorisSqlCollectionDatabase" maxlength="255" placeholder="可为空"></label>
+            <label class="wide">集合说明<textarea id="dorisSqlCollectionDescription" rows="2" placeholder="说明业务目标、输入输出和影响范围"></textarea></label>
+          </div>
+          <div class="toolbar sql-collection-taskbar">
+            <div><h3>有序 SQL 任务</h3><div class="muted">保存集合时冻结当前任务修订；生产版只会在重新发布后变化。</div></div>
+            <div class="actions">
+              <select id="dorisSqlCollectionTaskSelect"><option value="">选择已保存 SQL</option></select>
+              <button id="dorisSqlCollectionAddTaskBtn" type="button">加入集合</button>
+            </div>
+          </div>
+          <div id="dorisSqlCollectionMembers" class="sql-collection-members"><div class="muted">尚未加入 SQL 任务。</div></div>
+          <div id="dorisSqlCollectionStatus" class="detail" style="margin-top: 14px"><div class="muted">新集合尚未保存。</div></div>
+          <div id="dorisSqlCollectionMessage" class="message"></div>
+          </div>
+          <div class="actions sql-collection-footer">
+            <button id="dorisSqlCollectionArchiveBtn" class="danger" type="button" disabled>归档集合</button>
+            <button id="dorisSqlCollectionTestBtn" type="button" disabled>测试运行开发版</button>
+            <button id="dorisSqlCollectionPublishBtn" type="button" disabled>发布生产版</button>
+            <button id="dorisSqlCollectionRunProdBtn" type="button" disabled>运行生产版</button>
+            <button id="dorisSqlCollectionSaveBtn" class="primary" type="button">保存集合</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="noticeModal" class="modal-backdrop" hidden>
     <div id="noticePanel" class="modal" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
       <h2 id="noticeTitle">提示</h2>
@@ -5965,6 +6055,10 @@
       let dataPlatformEditorVersionId = "";
       let dataPlatformEditingNodeId = "";
       let dorisSqlEditingSavedTaskId = "";
+      let dorisSqlCollections = [];
+      let dorisSqlUngroupedTaskIds = [];
+      let dorisSqlEditingCollectionId = "";
+      let dorisSqlCollectionTaskIds = [];
       let dataSyncEditingTaskId = "";
       let dataSyncMappings = [];
       let dataSyncEditingMappingId = "";
@@ -6526,6 +6620,7 @@
         setPermissionVisibility("dorisCsvPreviewBtn", hasAction("dorisCsv:read"));
         setPermissionVisibility("dorisCsvImportBtn", hasAction("dorisCsv:import"));
         setPermissionVisibility("dorisSqlEtlRefreshBtn", hasAction("dorisSqlEtl:read"));
+        setPermissionVisibility("dorisSqlCollectionsBtn", hasAction("dorisSqlEtl:read"));
         setPermissionVisibility("dorisSqlWorkbenchReloadBtn", hasAction("dorisSqlEtl:read"));
         setPermissionVisibility("dorisSqlWorkbenchPreviewBtn", hasAction("dorisSqlEtl:read"));
         setPermissionVisibility("dorisSqlWorkbenchDdlBtn", hasAction("dorisSqlEtl:read"));
@@ -9176,6 +9271,7 @@
         if (!hasAction("dorisSqlEtl:read")) return;
         await Promise.all([
           refreshDorisSqlWorkbenchTree(),
+          refreshDorisSqlCollections(false),
           api("/api/v1/doris-sql-etl/tasks?limit=100").then((tasks) => { dorisSqlEtlTasks = tasks.tasks || []; }).catch(() => {}),
           api("/api/v1/doris-sql-etl/runs?limit=100").then((runs) => { dorisSqlEtlRuns = runs.runs || []; }).catch(() => {}),
           hasAction("queryExport:read") ? refreshQueryExportJobs() : Promise.resolve()
@@ -13983,6 +14079,217 @@
           renderDataPlatformNodes();
           renderDataPlatformCanvas();
         }
+      }
+
+      async function refreshDorisSqlCollections(render = true) {
+        if (!hasAction("dorisSqlEtl:read")) return;
+        const result = await api("/api/v1/doris-sql-etl/collections");
+        dorisSqlCollections = result.collections || [];
+        dorisSqlUngroupedTaskIds = (result.ungrouped_task_ids || []).map(String);
+        if (dorisSqlEditingCollectionId && !dorisSqlCollections.some((item) => String(item.collection_id) === dorisSqlEditingCollectionId)) {
+          dorisSqlEditingCollectionId = "";
+          dorisSqlCollectionTaskIds = [];
+        }
+        if (render) {
+          renderDorisSqlCollectionList();
+          renderDorisSqlCollectionEditor();
+        }
+      }
+
+      async function openDorisSqlCollections() {
+        $("dorisSqlCollectionModal").hidden = false;
+        setMessage("dorisSqlCollectionMessage", "正在加载 SQL 集合…", "");
+        await Promise.all([
+          refreshDorisSqlCollections(false),
+          refreshDataPlatformComponentTasks().catch(() => {})
+        ]);
+        renderDorisSqlCollectionList();
+        if (dorisSqlEditingCollectionId) selectDorisSqlCollection(dorisSqlEditingCollectionId);
+        else startNewDorisSqlCollection();
+        setMessage("dorisSqlCollectionMessage", "", "");
+      }
+
+      function closeDorisSqlCollections() {
+        $("dorisSqlCollectionModal").hidden = true;
+      }
+
+      function renderDorisSqlCollectionList() {
+        const box = $("dorisSqlCollectionList");
+        if (!box) return;
+        $("dorisSqlUngroupedCount").textContent = `未分组 ${dorisSqlUngroupedTaskIds.length} 个`;
+        box.innerHTML = dorisSqlCollections.length ? dorisSqlCollections.map((item) => `
+          <button type="button" class="sql-collection-item ${String(item.collection_id) === dorisSqlEditingCollectionId ? "active" : ""}" data-sql-collection-select="${escapeHtml(item.collection_id)}">
+            <strong>${escapeHtml(item.name)}</strong>
+            <div class="muted">${item.member_count || 0} 个 SQL · ${item.online_version_no ? `生产 V${item.online_version_no}` : "未发布"}</div>
+            <div class="muted">${escapeHtml(item.business_domain || "未设置业务域")}${item.data_layer ? ` · ${escapeHtml(item.data_layer)}` : ""}</div>
+          </button>`).join("") : '<div class="muted" style="padding: 8px">暂无 SQL 集合，点击“新建”开始。</div>';
+      }
+
+      function startNewDorisSqlCollection() {
+        dorisSqlEditingCollectionId = "";
+        dorisSqlCollectionTaskIds = [];
+        $("dorisSqlCollectionName").value = "";
+        $("dorisSqlCollectionDescription").value = "";
+        $("dorisSqlCollectionDomain").value = "";
+        $("dorisSqlCollectionLayer").value = "";
+        $("dorisSqlCollectionTags").value = "";
+        $("dorisSqlCollectionConnection").value = "";
+        $("dorisSqlCollectionDatabase").value = "";
+        renderDorisSqlCollectionList();
+        renderDorisSqlCollectionEditor();
+        setMessage("dorisSqlCollectionMessage", "正在新建 SQL 集合。", "");
+      }
+
+      function selectDorisSqlCollection(collectionId) {
+        const collection = dorisSqlCollections.find((item) => String(item.collection_id) === String(collectionId));
+        if (!collection) return startNewDorisSqlCollection();
+        dorisSqlEditingCollectionId = String(collection.collection_id);
+        dorisSqlCollectionTaskIds = (collection.members || []).map((item) => String(item.task_id));
+        $("dorisSqlCollectionName").value = collection.name || "";
+        $("dorisSqlCollectionDescription").value = collection.description || "";
+        $("dorisSqlCollectionDomain").value = collection.business_domain || "";
+        $("dorisSqlCollectionLayer").value = collection.data_layer || "";
+        $("dorisSqlCollectionTags").value = (collection.tags || []).join(", ");
+        $("dorisSqlCollectionConnection").value = collection.default_connection_id || "";
+        $("dorisSqlCollectionDatabase").value = collection.default_database || "";
+        renderDorisSqlCollectionList();
+        renderDorisSqlCollectionEditor();
+        setMessage("dorisSqlCollectionMessage", `已加载集合“${collection.name}”。`, "ok");
+      }
+
+      function renderDorisSqlCollectionEditor() {
+        const connectionSelect = $("dorisSqlCollectionConnection");
+        if (!connectionSelect) return;
+        const selectedConnection = connectionSelect.value;
+        const dorisConnections = connections.filter((item) => item.engine === "doris");
+        connectionSelect.innerHTML = '<option value="">未指定</option>' + dorisConnections.map((item) =>
+          `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`
+        ).join("");
+        connectionSelect.value = selectedConnection;
+        const tasks = dataPlatformComponentTasks("doris_sql");
+        const available = tasks.filter((task) => !dorisSqlCollectionTaskIds.includes(String(task.node_id)));
+        $("dorisSqlCollectionTaskSelect").innerHTML = '<option value="">选择已保存 SQL</option>' + available.map((task) =>
+          `<option value="${escapeHtml(task.node_id)}">${escapeHtml(task.name)} · V${Number(task.revision || 1)}${dorisSqlUngroupedTaskIds.includes(String(task.node_id)) ? " · 未分组" : ""}</option>`
+        ).join("");
+        const currentCollection = dorisSqlCollections.find((item) => String(item.collection_id) === dorisSqlEditingCollectionId);
+        const currentMembers = new Map((currentCollection?.members || []).map((item) => [String(item.task_id), item]));
+        $("dorisSqlCollectionMembers").innerHTML = dorisSqlCollectionTaskIds.length ? dorisSqlCollectionTaskIds.map((taskId, index) => {
+          const live = tasks.find((item) => String(item.node_id) === taskId);
+          const saved = currentMembers.get(taskId);
+          const name = live?.name || saved?.name || taskId;
+          const revision = saved?.revision || live?.revision || 1;
+          const latestRevision = live?.revision || revision;
+          const database = live?.config?.database || saved?.database || "未指定数据库";
+          return `<div class="sql-collection-member" data-sql-collection-member="${escapeHtml(taskId)}">
+            <div class="sql-collection-member-order">${index + 1}</div>
+            <div><strong>${escapeHtml(name)}</strong><div class="muted">集合 V${Number(revision)}${Number(latestRevision) !== Number(revision) ? ` · 当前任务 V${Number(latestRevision)}，保存集合后更新` : ""} · ${escapeHtml(database)}</div></div>
+            <div class="actions"><button type="button" data-sql-collection-open-task="${escapeHtml(taskId)}">打开</button><button type="button" data-sql-collection-move="up" ${index === 0 ? "disabled" : ""}>↑</button><button type="button" data-sql-collection-move="down" ${index === dorisSqlCollectionTaskIds.length - 1 ? "disabled" : ""}>↓</button><button type="button" class="danger" data-sql-collection-remove>移除</button></div>
+          </div>`;
+        }).join("") : '<div class="muted">尚未加入 SQL 任务。</div>';
+        renderDorisSqlCollectionStatus(currentCollection);
+        const saved = Boolean(currentCollection);
+        $("dorisSqlCollectionArchiveBtn").disabled = !saved || !hasAction("dataPlatform:design");
+        $("dorisSqlCollectionTestBtn").disabled = !saved || !dorisSqlCollectionTaskIds.length || !hasAction("dataPlatform:execute");
+        $("dorisSqlCollectionPublishBtn").disabled = !saved || !dorisSqlCollectionTaskIds.length || !hasAction("dataPlatform:publish");
+        $("dorisSqlCollectionRunProdBtn").disabled = !saved || !currentCollection?.online_version_id || !hasAction("dataPlatform:execute");
+        $("dorisSqlCollectionSaveBtn").disabled = !hasAction("dataPlatform:design");
+        $("dorisSqlCollectionAddTaskBtn").disabled = !hasAction("dataPlatform:design");
+      }
+
+      function renderDorisSqlCollectionStatus(collection) {
+        const box = $("dorisSqlCollectionStatus");
+        if (!collection) {
+          box.innerHTML = '<div class="muted">新集合尚未保存。保存后可测试并发布生产版本。</div>';
+          return;
+        }
+        const references = collection.references || [];
+        const runs = collection.recent_runs || [];
+        box.innerHTML = `
+          <div class="sql-collection-reference-grid">
+            <div><strong>开发版本</strong><div>${collection.latest_dev_version_no ? `V${collection.latest_dev_version_no}` : "-"}</div></div>
+            <div><strong>在线生产版本</strong><div>${collection.online_version_no ? `V${collection.online_version_no}` : "尚未发布"}</div></div>
+            <div><strong>调度</strong><div>${collection.schedule_enabled ? `已启用 · 下次 ${formatTime(collection.next_run_at) || "待计算"}` : "未启用"}</div></div>
+            <div><strong>外部引用</strong><div>${references.length ? references.map((item) => `${escapeHtml(item.name)}${item.current_online ? "（当前版）" : "（历史版）"}`).join("<br>") : "暂无"}</div></div>
+          </div>
+          <h3 style="margin-top: 12px">最近运行</h3>
+          ${runs.length ? runs.map((run) => `<div class="step-item"><div><strong>${escapeHtml(run.channel === "prod" ? "生产运行" : "开发测试")} · ${escapeHtml(run.status)}</strong><div class="muted">V${run.version_no} · ${formatTime(run.created_at)} · ${escapeHtml(run.message || "")}</div></div>${hasAction("dataPlatform:monitor") ? `<button type="button" data-sql-collection-run-log="${escapeHtml(run.run_id)}">查看日志</button>` : ""}</div>`).join("") : '<div class="muted">暂无集合运行记录。</div>'}`;
+      }
+
+      async function openDorisSqlCollectionRunLog(runId) {
+        const collectionId = dorisSqlEditingCollectionId;
+        closeDorisSqlCollections();
+        showModule("dataPlatform");
+        await refreshDataPlatformAll();
+        selectDataPlatformWorkflow(collectionId);
+        await openDataPlatformLogs(runId, "designer");
+      }
+
+      function addDorisSqlCollectionTask() {
+        const taskId = $("dorisSqlCollectionTaskSelect").value;
+        if (!taskId || dorisSqlCollectionTaskIds.includes(taskId)) return;
+        dorisSqlCollectionTaskIds.push(taskId);
+        renderDorisSqlCollectionEditor();
+      }
+
+      function mutateDorisSqlCollectionMember(taskId, action) {
+        const index = dorisSqlCollectionTaskIds.indexOf(taskId);
+        if (index < 0) return;
+        if (action === "remove") dorisSqlCollectionTaskIds.splice(index, 1);
+        if (action === "up" && index > 0) [dorisSqlCollectionTaskIds[index - 1], dorisSqlCollectionTaskIds[index]] = [dorisSqlCollectionTaskIds[index], dorisSqlCollectionTaskIds[index - 1]];
+        if (action === "down" && index < dorisSqlCollectionTaskIds.length - 1) [dorisSqlCollectionTaskIds[index + 1], dorisSqlCollectionTaskIds[index]] = [dorisSqlCollectionTaskIds[index], dorisSqlCollectionTaskIds[index + 1]];
+        renderDorisSqlCollectionEditor();
+      }
+
+      async function saveDorisSqlCollection() {
+        const name = $("dorisSqlCollectionName").value.trim();
+        if (!name) throw new Error("请填写 SQL 集合名称。");
+        const body = {
+          name,
+          description: $("dorisSqlCollectionDescription").value.trim() || null,
+          business_domain: $("dorisSqlCollectionDomain").value.trim() || null,
+          data_layer: $("dorisSqlCollectionLayer").value || null,
+          tags: $("dorisSqlCollectionTags").value.split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+          default_connection_id: $("dorisSqlCollectionConnection").value || null,
+          default_database: $("dorisSqlCollectionDatabase").value.trim() || null,
+          task_ids: dorisSqlCollectionTaskIds
+        };
+        const result = await api(
+          dorisSqlEditingCollectionId ? `/api/v1/doris-sql-etl/collections/${dorisSqlEditingCollectionId}` : "/api/v1/doris-sql-etl/collections",
+          { method: dorisSqlEditingCollectionId ? "PATCH" : "POST", body: JSON.stringify(body) }
+        );
+        dorisSqlEditingCollectionId = String(result.collection_id);
+        await refreshDorisSqlCollections(false);
+        selectDorisSqlCollection(dorisSqlEditingCollectionId);
+        setMessage("dorisSqlCollectionMessage", `集合“${result.name}”已保存，当前冻结 ${result.member_count} 个 SQL 任务。`, "ok");
+      }
+
+      async function publishDorisSqlCollection() {
+        if (!dorisSqlEditingCollectionId) return;
+        if (!window.confirm("确认把当前开发版发布为新的不可变生产版本吗？原在线版本将下线，其他模块对历史版本的引用不会自动改写。")) return;
+        const result = await api(`/api/v1/doris-sql-etl/collections/${dorisSqlEditingCollectionId}/publish`, { method: "POST" });
+        await refreshDorisSqlCollections(false);
+        selectDorisSqlCollection(dorisSqlEditingCollectionId);
+        setMessage("dorisSqlCollectionMessage", `生产版本 V${result.online_version_no} 已上线。`, "ok");
+      }
+
+      async function runDorisSqlCollection(channel) {
+        if (!dorisSqlEditingCollectionId) return;
+        if (channel === "prod" && !window.confirm("确认运行当前在线生产版本吗？集合中的 DDL/DML 可能修改 Doris 业务数据。")) return;
+        const result = await api(`/api/v1/doris-sql-etl/collections/${dorisSqlEditingCollectionId}/run?channel=${channel}`, { method: "POST" });
+        await refreshDorisSqlCollections(false);
+        selectDorisSqlCollection(dorisSqlEditingCollectionId);
+        setMessage("dorisSqlCollectionMessage", `集合运行已提交：${result.run_id}。可在离线开发运行日志查看逐节点结果。`, "ok");
+      }
+
+      async function archiveDorisSqlCollection() {
+        const collection = dorisSqlCollections.find((item) => String(item.collection_id) === dorisSqlEditingCollectionId);
+        if (!collection || !window.confirm(`确认归档集合“${collection.name}”吗？成员 SQL 和历史运行不会删除，未来调度将停用。`)) return;
+        await api(`/api/v1/doris-sql-etl/collections/${dorisSqlEditingCollectionId}`, { method: "DELETE" });
+        dorisSqlEditingCollectionId = "";
+        dorisSqlCollectionTaskIds = [];
+        await refreshDorisSqlCollections(false);
+        startNewDorisSqlCollection();
+        setMessage("dorisSqlCollectionMessage", `集合“${collection.name}”已归档。`, "ok");
       }
 
       function renderDorisSqlSavedTasks() {
@@ -19775,6 +20082,39 @@
         });
         $("dorisSqlEtlRefreshBtn").addEventListener("click", () => {
           refreshDorisSqlEtlAll().catch((e) => setMessage("dorisSqlEtlSqlMessage", e.message, "error"));
+        });
+        $("dorisSqlCollectionsBtn").addEventListener("click", () => openDorisSqlCollections().catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionCloseBtn").addEventListener("click", closeDorisSqlCollections);
+        $("dorisSqlCollectionNewBtn").addEventListener("click", startNewDorisSqlCollection);
+        $("dorisSqlCollectionAddTaskBtn").addEventListener("click", addDorisSqlCollectionTask);
+        $("dorisSqlCollectionSaveBtn").addEventListener("click", () => saveDorisSqlCollection().catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionTestBtn").addEventListener("click", () => runDorisSqlCollection("dev").catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionPublishBtn").addEventListener("click", () => publishDorisSqlCollection().catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionRunProdBtn").addEventListener("click", () => runDorisSqlCollection("prod").catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionArchiveBtn").addEventListener("click", () => archiveDorisSqlCollection().catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionList").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-sql-collection-select]");
+          if (button) selectDorisSqlCollection(button.getAttribute("data-sql-collection-select") || "");
+        });
+        $("dorisSqlCollectionMembers").addEventListener("click", (event) => {
+          const row = event.target.closest("[data-sql-collection-member]");
+          if (!row) return;
+          const taskId = row.getAttribute("data-sql-collection-member") || "";
+          if (event.target.closest("[data-sql-collection-open-task]")) {
+            closeDorisSqlCollections();
+            loadDorisSqlSavedTask(taskId);
+            return;
+          }
+          const move = event.target.closest("[data-sql-collection-move]");
+          if (move) mutateDorisSqlCollectionMember(taskId, move.getAttribute("data-sql-collection-move") || "");
+          if (event.target.closest("[data-sql-collection-remove]")) mutateDorisSqlCollectionMember(taskId, "remove");
+        });
+        $("dorisSqlCollectionStatus").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-sql-collection-run-log]");
+          if (button) openDorisSqlCollectionRunLog(button.getAttribute("data-sql-collection-run-log") || "").catch((e) => setMessage("dataPlatformVersionMessage", e.message, "error"));
+        });
+        $("dorisSqlCollectionModal").addEventListener("click", (event) => {
+          if (event.target === $("dorisSqlCollectionModal")) closeDorisSqlCollections();
         });
         $("dorisSqlSavedTaskSelect").addEventListener("change", () => loadDorisSqlSavedTask($("dorisSqlSavedTaskSelect").value));
         $("dorisSqlNewTaskBtn").addEventListener("click", startNewDorisSqlSavedTask);

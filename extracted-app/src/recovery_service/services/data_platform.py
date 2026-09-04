@@ -30,6 +30,7 @@ from recovery_service.api.schemas.data_platform import (
 )
 from recovery_service.common.time import app_now
 from recovery_service.core.models.task import (
+    DataAutomationPipeline,
     DataAutomationBatch,
     DataPlatformFolder,
     DataPlatformChangeTriggerState,
@@ -83,6 +84,7 @@ _VERSION_SCHEDULE_FIELDS = {
 }
 _VERSION_DESIGN_FIELDS = {"nodes", "edges", "business_metadata"}
 _COMPONENT_TASK_TYPES = {"doris_sql", "data_sync", "change_trigger"}
+_DORIS_SQL_COLLECTION_KIND = "doris_sql_collection"
 _CHANGE_TRIGGER_OPERATORS = {
     "row_count": {"changed", "increased", "increase_by", "increase_percent", "greater_than", "equals"},
     "max": {"changed", "increased", "increase_by", "increase_percent", "greater_than", "equals"},
@@ -1326,6 +1328,231 @@ def update_workflow(workflow_id: uuid.UUID, updates: dict[str, Any], actor: Auth
         session.close()
 
 
+def list_doris_sql_collections() -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        workflows = session.execute(
+            select(DataPlatformWorkflow)
+            .where(DataPlatformWorkflow.status == "active")
+            .order_by(desc(DataPlatformWorkflow.updated_at))
+        ).scalars().all()
+        collections = [
+            _doris_sql_collection_to_dict(session, row)
+            for row in workflows
+            if (row.business_metadata or {}).get("workflow_kind") == _DORIS_SQL_COLLECTION_KIND
+        ]
+        grouped_ids = {
+            str(member["task_id"])
+            for collection in collections
+            for member in collection["members"]
+        }
+        tasks = session.execute(
+            select(DataPlatformNode).where(
+                DataPlatformNode.node_type == "doris_sql",
+                DataPlatformNode.status == "active",
+            )
+        ).scalars().all()
+        ungrouped = [row.id for row in tasks if str(row.id) not in grouped_ids]
+        return {
+            "collections": collections,
+            "ungrouped_task_ids": ungrouped,
+            "ungrouped_count": len(ungrouped),
+        }
+    finally:
+        session.close()
+
+
+def create_doris_sql_collection(data: dict[str, Any], actor: AuthContext | None) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        now = app_now()
+        name = str(data.get("name") or "").strip()
+        if not name:
+            raise ValueError("SQL 集合名称不能为空。")
+        metadata = _normalize_doris_sql_collection_metadata(data)
+        _validate_doris_sql_collection_connection(session, metadata)
+        workflow = DataPlatformWorkflow(
+            id=uuid.uuid4(),
+            name=name,
+            description=str(data.get("description") or "").strip() or None,
+            business_metadata=metadata,
+            status="active",
+            created_by_user_id=_actor_uuid(actor),
+            created_by_username=actor.username if actor else None,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(workflow)
+        task_ids = data.get("task_ids") or []
+        nodes, edges = _build_doris_sql_collection_graph(session, task_ids)
+        release = _build_release_snapshot(nodes, edges, {"business_metadata": metadata})
+        session.add(
+            DataPlatformWorkflowVersion(
+                id=uuid.uuid4(),
+                workflow_id=workflow.id,
+                version_no=1,
+                channel="dev",
+                status="draft",
+                nodes=nodes,
+                edges=edges,
+                business_metadata=deepcopy(metadata),
+                release_snapshot=release,
+                execution_content_hash=_execution_content_hash(release),
+                schedule_enabled=False,
+                schedule_type="daily",
+                run_time="02:00",
+                created_by_user_id=_actor_uuid(actor),
+                created_by_username=actor.username if actor else None,
+                updated_by_username=actor.username if actor else None,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+        session.refresh(workflow)
+        return _doris_sql_collection_to_dict(session, workflow)
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def update_doris_sql_collection(
+    collection_id: uuid.UUID,
+    updates: dict[str, Any],
+    actor: AuthContext | None,
+) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        workflow = _get_doris_sql_collection(session, collection_id)
+        if "name" in updates and updates["name"] is not None:
+            name = str(updates["name"]).strip()
+            if not name:
+                raise ValueError("SQL 集合名称不能为空。")
+            workflow.name = name
+        if "description" in updates:
+            workflow.description = str(updates.get("description") or "").strip() or None
+        metadata_source = {**(workflow.business_metadata or {}), **updates}
+        metadata = _normalize_doris_sql_collection_metadata(metadata_source)
+        _validate_doris_sql_collection_connection(session, metadata)
+        workflow.business_metadata = metadata
+        version = session.execute(
+            select(DataPlatformWorkflowVersion)
+            .where(
+                DataPlatformWorkflowVersion.workflow_id == workflow.id,
+                DataPlatformWorkflowVersion.channel == "dev",
+            )
+            .order_by(desc(DataPlatformWorkflowVersion.version_no))
+            .limit(1)
+        ).scalar_one_or_none()
+        if not version:
+            raise ValueError("SQL 集合缺少开发版本。")
+        if "task_ids" in updates and updates["task_ids"] is not None:
+            version.nodes, version.edges = _build_doris_sql_collection_graph(session, updates["task_ids"])
+        version.business_metadata = deepcopy(metadata)
+        version.release_snapshot = _build_release_snapshot(
+            version.nodes or [],
+            version.edges or [],
+            {**_version_schedule_payload(version), "business_metadata": metadata},
+        )
+        version.execution_content_hash = _execution_content_hash(version.release_snapshot)
+        version.updated_by_username = actor.username if actor else None
+        version.updated_at = app_now()
+        workflow.updated_at = app_now()
+        session.commit()
+        session.refresh(workflow)
+        return _doris_sql_collection_to_dict(session, workflow)
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def archive_doris_sql_collection(collection_id: uuid.UUID, actor: AuthContext | None) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        workflow = _get_doris_sql_collection(session, collection_id)
+        snapshot = _doris_sql_collection_to_dict(session, workflow)
+    finally:
+        session.close()
+    archive_workflow(collection_id, actor)
+    return snapshot
+
+
+def publish_doris_sql_collection(collection_id: uuid.UUID, actor: AuthContext | None) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        workflow = _get_doris_sql_collection(session, collection_id)
+        dev = session.execute(
+            select(DataPlatformWorkflowVersion)
+            .where(
+                DataPlatformWorkflowVersion.workflow_id == workflow.id,
+                DataPlatformWorkflowVersion.channel == "dev",
+            )
+            .order_by(desc(DataPlatformWorkflowVersion.version_no))
+            .limit(1)
+        ).scalar_one_or_none()
+        if not dev or not dev.nodes:
+            raise ValueError("SQL 集合至少需要一个任务才能发布。")
+        dev_id = dev.id
+    finally:
+        session.close()
+    submitted = submit_version(dev_id, actor)
+    publish_version(submitted.version_id, actor)
+    return get_doris_sql_collection(collection_id)
+
+
+def run_doris_sql_collection(
+    collection_id: uuid.UUID,
+    *,
+    channel: str,
+    actor: AuthContext | None,
+) -> DataPlatformRunResponse:
+    session = get_sync_session_factory()()
+    try:
+        workflow = _get_doris_sql_collection(session, collection_id)
+        if channel == "prod":
+            version = session.execute(
+                select(DataPlatformWorkflowVersion).where(
+                    DataPlatformWorkflowVersion.workflow_id == workflow.id,
+                    DataPlatformWorkflowVersion.status == "online",
+                )
+            ).scalar_one_or_none()
+            trigger_type = "sql_collection_prod"
+            missing = "SQL 集合尚未发布在线生产版本。"
+        else:
+            version = session.execute(
+                select(DataPlatformWorkflowVersion)
+                .where(
+                    DataPlatformWorkflowVersion.workflow_id == workflow.id,
+                    DataPlatformWorkflowVersion.channel == "dev",
+                )
+                .order_by(desc(DataPlatformWorkflowVersion.version_no))
+                .limit(1)
+            ).scalar_one_or_none()
+            trigger_type = "sql_collection_test"
+            missing = "SQL 集合缺少开发版本。"
+        if not version:
+            raise ValueError(missing)
+        if not version.nodes:
+            raise ValueError("SQL 集合至少需要一个任务才能运行。")
+        version_id = version.id
+    finally:
+        session.close()
+    return run_version(version_id, trigger_type=trigger_type, actor=actor)
+
+
+def get_doris_sql_collection(collection_id: uuid.UUID) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        workflow = _get_doris_sql_collection(session, collection_id)
+        return _doris_sql_collection_to_dict(session, workflow)
+    finally:
+        session.close()
+
+
 def copy_workflow(
     workflow_id: uuid.UUID,
     *,
@@ -1738,8 +1965,20 @@ def list_node_runs(run_id: uuid.UUID) -> list[DataPlatformNodeRunResponse]:
     session = get_sync_session_factory()()
     try:
         rows = session.execute(
-            select(DataPlatformNodeRun).where(DataPlatformNodeRun.run_id == run_id).order_by(DataPlatformNodeRun.created_at)
+            select(DataPlatformNodeRun).where(DataPlatformNodeRun.run_id == run_id).order_by(
+                DataPlatformNodeRun.created_at,
+                DataPlatformNodeRun.id,
+            )
         ).scalars().all()
+        run = session.get(DataPlatformWorkflowRun, run_id)
+        version = session.get(DataPlatformWorkflowVersion, run.version_id) if run else None
+        if version:
+            positions = {
+                str(spec.get("key")): index
+                for index, spec in enumerate(version.nodes or [])
+                if spec.get("key")
+            }
+            rows.sort(key=lambda row: positions.get(str(row.node_key), len(positions)))
         return [_node_run_to_response(row) for row in rows]
     finally:
         session.close()
@@ -3130,6 +3369,203 @@ def _normalize_component_task_config(node_type: str, config: dict[str, Any]) -> 
     if clean["graph_schema_version"] >= 2 and clean["action_nodes"]:
         _validate_standalone_trigger_action_graph(clean["action_nodes"], clean["action_edges"])
     return clean
+
+
+def _normalize_doris_sql_collection_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    tags: list[str] = []
+    for value in data.get("tags") or []:
+        tag = str(value or "").strip()
+        if tag and tag not in tags:
+            tags.append(tag[:64])
+    if len(tags) > 20:
+        raise ValueError("SQL 集合标签最多 20 个。")
+    connection_id = data.get("default_connection_id")
+    if connection_id:
+        try:
+            connection_id = str(uuid.UUID(str(connection_id)))
+        except ValueError as exc:
+            raise ValueError("SQL 集合默认连接 ID 无效。") from exc
+    return {
+        "workflow_kind": _DORIS_SQL_COLLECTION_KIND,
+        "business_domain": str(data.get("business_domain") or "").strip()[:128] or None,
+        "data_layer": str(data.get("data_layer") or "").strip().upper()[:32] or None,
+        "tags": tags,
+        "default_connection_id": connection_id or None,
+        "default_database": str(data.get("default_database") or "").strip()[:255] or None,
+    }
+
+
+def _build_doris_sql_collection_graph(session, task_ids: list[Any]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    normalized_ids: list[uuid.UUID] = []
+    seen: set[uuid.UUID] = set()
+    for value in task_ids or []:
+        try:
+            task_id = uuid.UUID(str(value))
+        except ValueError as exc:
+            raise ValueError(f"Doris SQL 任务 ID 无效：{value}") from exc
+        if task_id in seen:
+            raise ValueError("同一个 Doris SQL 任务不能在集合中重复出现。")
+        seen.add(task_id)
+        normalized_ids.append(task_id)
+    if len(normalized_ids) > 200:
+        raise ValueError("一个 SQL 集合最多包含 200 个任务。")
+    rows = session.execute(
+        select(DataPlatformNode).where(DataPlatformNode.id.in_(normalized_ids))
+    ).scalars().all() if normalized_ids else []
+    by_id = {row.id: row for row in rows}
+    missing = [str(task_id) for task_id in normalized_ids if task_id not in by_id]
+    if missing:
+        raise ValueError(f"Doris SQL 任务不存在：{', '.join(missing)}")
+    invalid = [row.name for row in rows if row.node_type != "doris_sql" or row.status != "active"]
+    if invalid:
+        raise ValueError(f"集合只能包含启用的 Doris SQL 任务：{', '.join(invalid)}")
+    specs = [
+        {
+            "key": f"sql_{index + 1}_{task_id.hex[:8]}",
+            "node_id": str(task_id),
+            "name": by_id[task_id].name,
+            "node_type": "doris_sql",
+            "config": {"task_definition_id": str(task_id)},
+            "x": 80,
+            "y": 80 + index * 160,
+        }
+        for index, task_id in enumerate(normalized_ids)
+    ]
+    nodes = _freeze_component_task_nodes(session, specs, preserve_existing=False)
+    edges = [
+        {"source": nodes[index - 1]["key"], "target": nodes[index]["key"]}
+        for index in range(1, len(nodes))
+    ]
+    _validate_workflow_graph(nodes, edges)
+    return nodes, edges
+
+
+def _validate_doris_sql_collection_connection(session, metadata: dict[str, Any]) -> None:
+    connection_id = _optional_uuid(metadata.get("default_connection_id"))
+    if not connection_id:
+        return
+    profile = session.get(DatabaseConnectionProfile, connection_id)
+    if not profile or profile.engine != "doris":
+        raise ValueError("SQL 集合默认连接必须是 Doris 连接。")
+
+
+def _get_doris_sql_collection(session, collection_id: uuid.UUID) -> DataPlatformWorkflow:
+    workflow = session.get(DataPlatformWorkflow, collection_id)
+    if (
+        not workflow
+        or workflow.status == "archived"
+        or (workflow.business_metadata or {}).get("workflow_kind") != _DORIS_SQL_COLLECTION_KIND
+    ):
+        raise KeyError("SQL 集合不存在。")
+    return workflow
+
+
+def _optional_uuid(value: Any) -> uuid.UUID | None:
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _doris_sql_collection_to_dict(session, workflow: DataPlatformWorkflow) -> dict[str, Any]:
+    versions = session.execute(
+        select(DataPlatformWorkflowVersion)
+        .where(DataPlatformWorkflowVersion.workflow_id == workflow.id)
+        .order_by(desc(DataPlatformWorkflowVersion.version_no))
+    ).scalars().all()
+    latest_dev = next((row for row in versions if row.channel == "dev"), None)
+    latest_prod = next((row for row in versions if row.channel == "prod"), None)
+    online = next((row for row in versions if row.status == "online"), None)
+    display_version = latest_dev or online or latest_prod
+    members: list[dict[str, Any]] = []
+    for position, spec in enumerate((display_version.nodes if display_version else []) or []):
+        config = dict(spec.get("config") or {})
+        snapshot = dict(config.get("task_definition_snapshot") or {})
+        task_id = _optional_uuid(config.get("task_definition_id") or spec.get("node_id"))
+        if not task_id:
+            continue
+        current = session.get(DataPlatformNode, task_id)
+        task_config = dict(snapshot.get("config") or (current.config if current else {}) or {})
+        sql = str(task_config.get("sql") or "").strip()
+        members.append({
+            "task_id": task_id,
+            "name": snapshot.get("name") or (current.name if current else spec.get("name") or str(task_id)),
+            "revision": int(snapshot.get("revision") or config.get("task_definition_revision") or (current.revision if current else 1)),
+            "description": snapshot.get("description") if snapshot else (current.description if current else None),
+            "connection_id": _optional_uuid(task_config.get("connection_id")),
+            "connection_name": task_config.get("connection_name"),
+            "database": task_config.get("database"),
+            "sql_summary": " ".join(sql.split())[:200],
+            "position": position,
+        })
+    prod_ids = [row.id for row in versions if row.channel == "prod"]
+    references: list[dict[str, Any]] = []
+    if prod_ids:
+        pipelines = session.execute(
+            select(DataAutomationPipeline).where(
+                DataAutomationPipeline.standard_workflow_version_id.in_(prod_ids),
+                DataAutomationPipeline.status == "active",
+            )
+        ).scalars().all()
+        references.extend({
+            "reference_type": "data_automation_pipeline",
+            "reference_id": row.id,
+            "name": row.name,
+            "version_id": row.standard_workflow_version_id,
+            "current_online": bool(online and row.standard_workflow_version_id == online.id),
+        } for row in pipelines)
+    if online and online.schedule_enabled:
+        references.append({
+            "reference_type": "schedule",
+            "reference_id": online.id,
+            "name": "离线开发调度",
+            "version_id": online.id,
+            "current_online": True,
+        })
+    runs = session.execute(
+        select(DataPlatformWorkflowRun)
+        .where(DataPlatformWorkflowRun.workflow_id == workflow.id)
+        .order_by(desc(DataPlatformWorkflowRun.created_at))
+        .limit(5)
+    ).scalars().all()
+    metadata = workflow.business_metadata or {}
+    return {
+        "collection_id": workflow.id,
+        "name": workflow.name,
+        "description": workflow.description,
+        "business_domain": metadata.get("business_domain"),
+        "data_layer": metadata.get("data_layer"),
+        "tags": metadata.get("tags") or [],
+        "default_connection_id": _optional_uuid(metadata.get("default_connection_id")),
+        "default_database": metadata.get("default_database"),
+        "members": members,
+        "member_count": len(members),
+        "latest_dev_version_id": latest_dev.id if latest_dev else None,
+        "latest_dev_version_no": latest_dev.version_no if latest_dev else None,
+        "latest_prod_version_id": latest_prod.id if latest_prod else None,
+        "latest_prod_version_no": latest_prod.version_no if latest_prod else None,
+        "online_version_id": online.id if online else None,
+        "online_version_no": online.version_no if online else None,
+        "schedule_enabled": bool(online and online.schedule_enabled),
+        "next_run_at": online.next_run_at if online else None,
+        "references": references,
+        "recent_runs": [{
+            "run_id": row.id,
+            "version_id": row.version_id,
+            "version_no": row.version_no,
+            "channel": row.channel,
+            "trigger_type": row.trigger_type,
+            "status": row.status,
+            "message": row.message,
+            "created_at": row.created_at,
+            "finished_at": row.finished_at,
+        } for row in runs],
+        "created_by_username": workflow.created_by_username,
+        "created_at": workflow.created_at,
+        "updated_at": workflow.updated_at,
+    }
 
 
 def _folder_to_response(folder: DataPlatformFolder) -> DataPlatformFolderResponse:

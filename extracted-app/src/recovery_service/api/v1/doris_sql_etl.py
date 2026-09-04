@@ -1,12 +1,16 @@
 import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recovery_service.api.deps import get_db, require_permission
 from recovery_service.api.schemas.doris_sql_etl import (
+    DorisSqlCollectionCreateRequest,
+    DorisSqlCollectionListResponse,
+    DorisSqlCollectionStatus,
+    DorisSqlCollectionUpdateRequest,
     DorisSqlDdlResponse,
     DorisSqlEtlRunListResponse,
     DorisSqlEtlRunStatus,
@@ -23,6 +27,8 @@ from recovery_service.api.schemas.doris_sql_etl import (
     SqlPreviewRequest,
     SqlPreviewResponse,
 )
+from recovery_service.api.schemas.data_platform import DataPlatformRunResponse
+from recovery_service.services.audit import record_audit
 from recovery_service.services.auth import AuthContext
 from recovery_service.services.database_connections import get_profile
 from recovery_service.services.doris_sql_etl import (
@@ -42,6 +48,15 @@ from recovery_service.services.doris_sql_etl import (
     submit_doris_sql_etl_run,
 )
 from recovery_service.services.query_export import cancel_query_export_job, create_query_export_job, list_query_export_jobs, record_query_export_download
+from recovery_service.services.data_platform import (
+    archive_doris_sql_collection,
+    create_doris_sql_collection,
+    get_doris_sql_collection,
+    list_doris_sql_collections,
+    publish_doris_sql_collection,
+    run_doris_sql_collection,
+    update_doris_sql_collection,
+)
 
 router = APIRouter(prefix="/doris-sql-etl", tags=["doris-sql-etl"])
 
@@ -238,6 +253,131 @@ async def download_query_export(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/collections", response_model=DorisSqlCollectionListResponse)
+async def get_sql_collections(
+    _: AuthContext = Depends(require_permission("dorisSqlEtl:read")),
+):
+    return await asyncio.to_thread(list_doris_sql_collections)
+
+
+@router.get("/collections/{collection_id}", response_model=DorisSqlCollectionStatus)
+async def get_sql_collection(
+    collection_id: uuid.UUID,
+    _: AuthContext = Depends(require_permission("dorisSqlEtl:read")),
+):
+    try:
+        return await asyncio.to_thread(get_doris_sql_collection, collection_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/collections", response_model=DorisSqlCollectionStatus)
+async def create_sql_collection(
+    body: DorisSqlCollectionCreateRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    actor: AuthContext = Depends(require_permission("dataPlatform:design")),
+):
+    try:
+        result = await asyncio.to_thread(create_doris_sql_collection, body.model_dump(), actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await record_audit(
+        db, actor, action="create_doris_sql_collection", module="doris-sql-etl",
+        target_type="data_platform_workflow", target_id=str(result["collection_id"]),
+        payload={"member_count": result["member_count"]}, request=request,
+    )
+    return result
+
+
+@router.patch("/collections/{collection_id}", response_model=DorisSqlCollectionStatus)
+async def update_sql_collection(
+    collection_id: uuid.UUID,
+    body: DorisSqlCollectionUpdateRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    actor: AuthContext = Depends(require_permission("dataPlatform:design")),
+):
+    try:
+        result = await asyncio.to_thread(
+            update_doris_sql_collection, collection_id, body.model_dump(exclude_unset=True), actor,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await record_audit(
+        db, actor, action="update_doris_sql_collection", module="doris-sql-etl",
+        target_type="data_platform_workflow", target_id=str(collection_id),
+        payload={"member_count": result["member_count"]}, request=request,
+    )
+    return result
+
+
+@router.delete("/collections/{collection_id}", response_model=DorisSqlCollectionStatus)
+async def delete_sql_collection(
+    collection_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    actor: AuthContext = Depends(require_permission("dataPlatform:design")),
+):
+    try:
+        result = await asyncio.to_thread(archive_doris_sql_collection, collection_id, actor)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await record_audit(
+        db, actor, action="archive_doris_sql_collection", module="doris-sql-etl",
+        target_type="data_platform_workflow", target_id=str(collection_id),
+        payload={"member_count": result["member_count"]}, request=request,
+    )
+    return result
+
+
+@router.post("/collections/{collection_id}/publish", response_model=DorisSqlCollectionStatus)
+async def publish_sql_collection(
+    collection_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    actor: AuthContext = Depends(require_permission("dataPlatform:publish")),
+):
+    try:
+        result = await asyncio.to_thread(publish_doris_sql_collection, collection_id, actor)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await record_audit(
+        db, actor, action="publish_doris_sql_collection", module="doris-sql-etl",
+        target_type="data_platform_workflow", target_id=str(collection_id),
+        payload={"online_version_id": str(result["online_version_id"])}, request=request,
+    )
+    return result
+
+
+@router.post("/collections/{collection_id}/run", response_model=DataPlatformRunResponse)
+async def run_sql_collection(
+    collection_id: uuid.UUID,
+    request: Request,
+    channel: str = Query(default="dev", pattern="^(dev|prod)$"),
+    db: AsyncSession = Depends(get_db),
+    actor: AuthContext = Depends(require_permission("dataPlatform:execute")),
+):
+    try:
+        result = await asyncio.to_thread(
+            run_doris_sql_collection, collection_id, channel=channel, actor=actor,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await record_audit(
+        db, actor, action="run_doris_sql_collection", module="doris-sql-etl",
+        target_type="data_platform_workflow", target_id=str(collection_id),
+        payload={"run_id": str(result.run_id), "channel": channel}, request=request,
+    )
+    return result
 
 
 @router.post("/tasks", response_model=DorisSqlEtlTaskListResponse)
