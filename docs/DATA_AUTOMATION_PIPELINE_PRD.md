@@ -162,6 +162,7 @@ Oracle 自动恢复创建新 Schema 后，系统必须把本次恢复用户的�
 - OpenMetadata 原生 UI 是血缘、资产搜索、字段级血缘、Profiling、Data Quality、Tags、Glossary、Domain 和后续 AI 上下文的唯一正式展示入口；当前系统的“数据血缘中心”只显示连接状态、同步状态、最近同步结果和“打开 OpenMetadata”入口，不再显示自研血缘图、数据库分组指标或库业务层级编辑表单。
 - 当前系统保留 `DataAsset`、`DataLineageEdge` 和 `DataLineageEvent` 作为任务执行审计与兼容事实，不删除历史记录；这些内部记录不再作为第二套用户治理 UI 的来源。数据库层级旧表和兼容 API 暂时保留读兼容，新的治理字段不得继续扩展到当前系统 UI。
 - 新增 OpenMetadata 连接配置：`OPENMETADATA_URL`（原生 UI 地址）、`OPENMETADATA_API_URL`（默认由 UI 地址推导 `/api`）、`OPENMETADATA_API_TOKEN`（仅服务端使用，不回显）、`OPENMETADATA_SYNC_ENABLED` 和请求超时。未配置或未启用时，任务和本地 OpenLineage 审计照常运行，页面明确显示“未连接”，不得伪造已同步状态。
+- OpenMetadata Server 不随当前系统 API/Worker 镜像内置；部署环境必须先提供可访问的 OpenMetadata UI/API 服务，再注入上述配置并重启 API/Worker。当前系统只能检测配置状态并给出部署引导，不能用本地投影冒充 OpenMetadata 原生服务。
 - 资产采集优先使用 OpenMetadata 原生 Doris、Oracle、MySQL 等 Database Service Connector，负责数据库、Schema、表、列、使用统计、Profiler、质量和标签等元数据；当前系统不重新实现连接器采集逻辑，也不在页面中手工维护库业务层级。
 - 当前系统任务完成资产登记或产生可证明血缘后，生成标准 OpenLineage RunEvent，并通过可配置的 OpenMetadata API Bridge 同步表实体和血缘关系。表实体使用稳定 `fullyQualifiedName`；更新使用 OpenMetadata `PUT /v1/tables`，血缘使用 `PUT /v1/lineage`，字段映射写入 `lineageDetails`。不存在对应 Database Service/Schema 合同时只记录同步失败，不自动创建虚假连接或资产。
 - 同步内容必须携带当前系统的 `pipeline_id`、`batch_id`、任务运行 ID、工作流版本和节点信息作为受控 custom property 或 pipeline reference；不得传输凭据、密钥种子、明文口令或未经脱敏的 SQL 请求体。OpenMetadata 同步失败不得回滚或阻断恢复、同步、标准化和加密任务，必须进入可重试的同步结果记录。

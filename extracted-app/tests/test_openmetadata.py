@@ -28,6 +28,20 @@ def test_status_derives_api_url_from_native_ui_url() -> None:
     assert result["configured"] is True
     assert result["sync_ready"] is True
     assert result["api_url"] == "http://openmetadata.test:8585/api"
+    assert result["configuration"]["api_env"] == "OPENMETADATA_API_URL"
+
+
+def test_status_explains_unconfigured_openmetadata_without_claiming_ready() -> None:
+    with patch.object(
+        openmetadata,
+        "get_settings",
+        return_value=_settings(openmetadata_url="", openmetadata_api_url="", openmetadata_sync_enabled=False),
+    ):
+        result = openmetadata.status()
+    assert result["configured"] is False
+    assert result["sync_ready"] is False
+    assert "OPENMETADATA_URL" in result["message"]
+    assert result["configuration"]["default_api_suffix"] == "/api"
 
 
 def test_table_payload_uses_native_fqn_and_keeps_task_context_as_properties() -> None:

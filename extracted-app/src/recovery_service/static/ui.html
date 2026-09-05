@@ -240,6 +240,13 @@
     }
     .module-panel { display: none; }
     .module-panel.active { display: block; }
+    .metadata-status-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 9px; margin: 12px 0; }
+    .metadata-status-item { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+    .metadata-status-item span, .metadata-status-item small { display: block; color: var(--muted); }
+    .metadata-status-item strong { display: block; margin: 3px 0; font-size: 18px; overflow-wrap: anywhere; }
+    .metadata-setup-card { border: 1px solid #f0d59a; border-radius: 8px; background: #fffaf0; padding: 12px; margin: 12px 0; }
+    .metadata-setup-card h3 { margin: 0 0 6px; }
+    .metadata-setup-card code { padding: 1px 4px; border-radius: 4px; background: #fff0c7; }
     .module-panel[data-module="dorisSqlEtl"].active {
       display: flex;
       flex-direction: column;
@@ -3170,10 +3177,10 @@
     .data-automation-metrics strong { display: block; margin: 3px 0; font-size: 22px; }
     @media (max-width: 900px) {
       .data-automation-page-head, .data-automation-card-head { flex-wrap: wrap; }
-      .data-automation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .data-automation-metrics, .metadata-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 620px) {
-      .data-automation-metrics { grid-template-columns: 1fr; }
+      .data-automation-metrics, .metadata-status-grid { grid-template-columns: 1fr; }
     }
   </style>
   <link rel='stylesheet' href='/static/ui-unified.css'>
@@ -5734,9 +5741,10 @@
       <div class="native-metadata-shell">
         <div class="toolbar"><div><span class="eyebrow">OPENMETADATA NATIVE</span><h2 style="margin:0">OpenMetadata 数据目录</h2><div class="hint">血缘、搜索、字段详情、质量、标签、术语和 AI 上下文统一使用 OpenMetadata 原生能力</div></div><div class="actions"><button id="openMetadataRefreshBtn" type="button">刷新连接状态</button><button id="openMetadataOpenBtn" class="primary" type="button" disabled>打开 OpenMetadata</button></div></div>
         <div id="openMetadataMessage" class="message"></div>
-        <div class="data-automation-metrics"><div><span>UI 地址</span><strong id="openMetadataUiUrl">未配置</strong><small>原生目录入口</small></div><div><span>API 状态</span><strong id="openMetadataApiStatus">未配置</strong><small>资产与血缘同步桥接</small></div><div><span>同步开关</span><strong id="openMetadataSyncStatus">关闭</strong><small>失败不阻塞业务任务</small></div><div><span>事件来源</span><strong id="openMetadataProducer">-</strong><small>OpenLineage / 当前任务</small></div></div>
-        <section class="data-automation-config-card"><div class="data-automation-card-head"><div><span class="section-kicker">CURRENT SYSTEM INTEGRATION</span><h3>当前系统任务集成</h3></div><span class="hint">任务、批次、运行日志仍在本系统；目录治理交给 OpenMetadata</span></div><div class="native-metadata-grid"><div><h4>本系统保留</h4><p class="hint">流水线定义、批次状态、恢复/同步/标准化/加密执行、调度、日志与审计。</p></div><div><h4>OpenMetadata 原生</h4><p class="hint">连接器采集、目录搜索、表/字段血缘、Profiler、质量、标签、Glossary、Domain 与 AI 上下文。</p></div><div><h4>同步方式</h4><p class="hint">当前资产快照通过 OpenMetadata API upsert；任务运行继续产生 OpenLineage 事件，后续可接入异步 outbox。</p></div></div><div class="actions"><button id="openMetadataSyncBtn" class="primary" type="button">同步当前资产与血缘</button><span class="hint">仅在配置地址和同步开关开启时执行</span></div></section>
-        <section id="openMetadataSyncResult" class="data-automation-config-card" hidden><div class="data-automation-card-head"><div><span class="section-kicker">LAST SYNC</span><h3>最近同步结果</h3></div><span id="openMetadataSyncSummary" class="hint">-</span></div><pre id="openMetadataSyncDetails" class="metadata-sync-details"></pre></section>
+        <div class="metadata-status-grid"><div class="metadata-status-item"><span>UI 地址</span><strong id="openMetadataUiUrl">未配置</strong><small>原生目录入口</small></div><div class="metadata-status-item"><span>API 状态</span><strong id="openMetadataApiStatus">未配置</strong><small>资产与血缘同步桥接</small></div><div class="metadata-status-item"><span>同步开关</span><strong id="openMetadataSyncStatus">关闭</strong><small>失败不阻塞业务任务</small></div><div class="metadata-status-item"><span>事件来源</span><strong id="openMetadataProducer">-</strong><small>OpenLineage / 当前任务</small></div></div>
+        <section id="openMetadataSetupCard" class="metadata-setup-card" hidden><h3>OpenMetadata 尚未就绪</h3><div id="openMetadataSetupText" class="hint">请先部署 OpenMetadata Server，再配置系统连接地址。</div></section>
+        <div class="actions"><button id="openMetadataSyncBtn" class="primary" type="button" disabled>同步当前资产与血缘</button><span class="hint">配置地址并开启同步后，任务资产会通过 API Bridge 异步同步。</span></div>
+        <section id="openMetadataSyncResult" class="metadata-setup-card" hidden><div class="data-automation-card-head"><div><span class="section-kicker">LAST SYNC</span><h3>最近同步结果</h3></div><span id="openMetadataSyncSummary" class="hint">-</span></div><pre id="openMetadataSyncDetails" class="metadata-sync-details"></pre></section>
       </div>
     </section>
 
@@ -6515,7 +6523,7 @@
           button.hidden = !allowed;
           if (allowed) visibleModules.push(moduleName);
         });
-        document.querySelectorAll("[data-module]").forEach((panel) => {
+        document.querySelectorAll(".module-panel[data-module]").forEach((panel) => {
           const moduleName = panel.getAttribute("data-module") || "";
           const allowed = hasModule(moduleName);
           panel.hidden = !allowed;
@@ -7234,7 +7242,7 @@
           button.classList.toggle("active", button.getAttribute("data-nav-module") === next);
         });
         updateSystemUserMenu();
-        document.querySelectorAll("[data-module]").forEach((panel) => {
+        document.querySelectorAll(".module-panel[data-module]").forEach((panel) => {
           panel.classList.toggle("active", panel.getAttribute("data-module") === next);
         });
         localStorage.setItem(MODULE_STORAGE_KEY, next);
@@ -7362,7 +7370,7 @@
         if (saved && legacySm4Tabs[saved]) {
           showModule("dorisEncrypt");
           showDorisEncryptTab(legacySm4Tabs[saved]);
-        } else if (saved && document.querySelector(`[data-module="${CSS.escape(saved)}"]`)) {
+        } else if (saved && document.querySelector(`.module-panel[data-module="${CSS.escape(saved)}"]`)) {
           showModule(saved);
         }
       }
@@ -7403,7 +7411,7 @@
       }
 
       function moveModuleChildrenToHost(moduleName, hostId) {
-        const source = document.querySelector(`[data-module="${moduleName}"]`);
+        const source = document.querySelector(`.module-panel[data-module="${moduleName}"]`);
         const host = $(hostId);
         if (!source || !host || source.parentElement === host || source.dataset.movedToCenter === "true") return;
         while (source.firstChild) host.appendChild(source.firstChild);
@@ -21463,13 +21471,24 @@
         $("openMetadataApiStatus").textContent = state.configured ? "已配置" : "未配置";
         $("openMetadataSyncStatus").textContent = state.enabled ? (state.sync_ready ? "已开启" : "待配置") : "关闭";
         $("openMetadataProducer").textContent = state.producer || "-";
+        const setupCard = $("openMetadataSetupCard");
+        const setupText = $("openMetadataSetupText");
+        setupCard.hidden = state.configured && state.enabled;
+        if (setupText) {
+          setupText.innerHTML = state.message || "请先部署 OpenMetadata Server，再配置系统连接地址。";
+          if (!state.configured) {
+            setupText.innerHTML += "<br>配置 <code>OPENMETADATA_URL</code>（UI 地址）和 <code>OPENMETADATA_API_URL</code>（默认是 UI 地址加 <code>/api</code>），再重启 API/Worker。";
+          } else if (!state.enabled) {
+            setupText.innerHTML += "<br>如需自动同步，请将 <code>OPENMETADATA_SYNC_ENABLED=true</code> 后重启 API/Worker。";
+          }
+        }
         const openButton = $("openMetadataOpenBtn");
         openButton.disabled = !state.ui_url;
         openButton.dataset.url = state.ui_url || "";
         const syncButton = $("openMetadataSyncBtn");
         syncButton.disabled = !state.sync_ready;
-        if (!state.configured) setMessage("openMetadataMessage", "尚未配置 OPENMETADATA_URL / OPENMETADATA_API_URL；当前系统仍可继续执行任务。", "warn");
-        else if (!state.enabled) setMessage("openMetadataMessage", "OpenMetadata 地址已配置，但同步开关未开启。", "warn");
+        if (!state.configured) setMessage("openMetadataMessage", state.message || "OpenMetadata 尚未配置；当前系统任务仍可继续执行。", "warn");
+        else if (!state.enabled) setMessage("openMetadataMessage", state.message || "OpenMetadata 地址已配置，但同步开关未开启。", "warn");
         else setMessage("openMetadataMessage", "OpenMetadata 原生目录已就绪。", "ok");
         return state;
       }

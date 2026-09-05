@@ -39,6 +39,12 @@ def status() -> dict[str, Any]:
     ui_url = _base_url(settings.openmetadata_url)
     api_url = _api_url()
     configured = bool(ui_url and api_url)
+    if configured and settings.openmetadata_sync_enabled:
+        message = "OpenMetadata 地址已配置，目录入口和 API Bridge 已就绪。"
+    elif configured:
+        message = "OpenMetadata 地址已配置，但同步开关未开启。"
+    else:
+        message = "未部署或未配置 OpenMetadata；请先部署 OpenMetadata Server，再设置 OPENMETADATA_URL 和 OPENMETADATA_API_URL。"
     return {
         "configured": configured,
         "enabled": bool(settings.openmetadata_sync_enabled),
@@ -46,6 +52,14 @@ def status() -> dict[str, Any]:
         "ui_url": ui_url or None,
         "api_url": api_url or None,
         "producer": settings.openmetadata_producer,
+        "message": message,
+        "configuration": {
+            "ui_env": "OPENMETADATA_URL",
+            "api_env": "OPENMETADATA_API_URL",
+            "token_env": "OPENMETADATA_API_TOKEN",
+            "sync_env": "OPENMETADATA_SYNC_ENABLED",
+            "default_api_suffix": "/api",
+        },
     }
 
 
