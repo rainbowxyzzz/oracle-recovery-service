@@ -22,6 +22,7 @@ celery_app = Celery(
         "recovery_service.workers.tasks.data_platform_workflow",
         "recovery_service.workers.tasks.resource_provisioning",
         "recovery_service.workers.tasks.api_orchestration",
+        "recovery_service.workers.tasks.openmetadata",
     ],
 )
 
@@ -36,6 +37,7 @@ task_routes = {
     "resource_provisioning.run_batch": {"queue": settings.celery_resource_provisioning_queue},
     "resource_provisioning.run_permission_batch": {"queue": settings.celery_resource_provisioning_queue},
     "api_orchestration.run": {"queue": settings.celery_api_orchestration_queue},
+    "openmetadata.sync_outbox": {"queue": settings.celery_data_platform_queue},
 }
 
 celery_app.conf.update(

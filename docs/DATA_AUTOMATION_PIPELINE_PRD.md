@@ -155,7 +155,7 @@ Oracle 自动恢复创建新 Schema 后，系统必须把本次恢复用户的�
 
 ### 9.4 OpenMetadata 原生 UI 与当前系统任务集成（当前正式方案）
 
-当前实现边界：本版本提供 OpenLineage 接收、脱敏、幂等审计和按需 API Bridge 同步；自动任务完成事件到异步 outbox 的投递作为下一增量，不在本次同步按钮中阻塞业务任务。
+本轮实现边界：系统提供 OpenLineage 接收、脱敏、幂等审计和按需 API Bridge 同步；资产登记、血缘提交和 OpenLineage 事件落库后进入异步 outbox，由现有 data-platform Worker 派发，失败最多重试 5 次并保留失败记录，不阻塞业务任务。
 
 本阶段将血缘中心从“自研图谱和数据库治理工作台”重构为 OpenMetadata 原生 UI 集成入口。当前系统不再复制 OpenMetadata 的搜索、资产详情、字段血缘、质量、标签、域和治理页面；当前系统继续负责任务定义、批次状态、调度、运行日志、业务恢复/同步/标准化/加密，以及向 OpenMetadata 提供可审计的资产和运行事实。
 

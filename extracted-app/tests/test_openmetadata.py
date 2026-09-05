@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+from recovery_service.core.models.task import Base, OpenMetadataSyncOutbox
 from recovery_service.services import openmetadata
 
 
@@ -12,6 +16,7 @@ def _settings(**overrides):
         "openmetadata_sync_enabled": True,
         "openmetadata_request_timeout_seconds": 20,
         "openmetadata_producer": "oracle-recovery-service",
+        "celery_data_platform_queue": "data_platform",
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -97,3 +102,26 @@ def test_sync_snapshot_upserts_tables_and_lineage_without_persisting_credentials
     assert Client.last_calls[-1][1] == "/v1/lineage"
     assert Client.last_calls[-1][2]["edge"]["lineageDetails"]["columnsLineage"][0]["toColumn"] == "id"
     assert "secret" not in str(Client.last_calls)
+
+
+def test_enqueue_snapshot_is_idempotent_and_outbox_worker_records_success() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(engine, expire_on_commit=False)
+    with (
+        patch.object(openmetadata, "get_settings", return_value=_settings()),
+        patch.object(openmetadata, "get_sync_session_factory", return_value=factory),
+        patch("recovery_service.workers.celery_app.celery_app.send_task") as send_task,
+    ):
+        first = openmetadata.enqueue_snapshot(batch_id="00000000-0000-0000-0000-000000000001")
+        second = openmetadata.enqueue_snapshot(batch_id="00000000-0000-0000-0000-000000000001")
+        assert first and second and first["outbox_id"] == second["outbox_id"]
+        send_task.assert_called_once()
+        with patch.object(openmetadata, "sync_snapshot", return_value={"status": "success", "summary": {"entities": 1}}):
+            result = openmetadata.run_outbox_item(first["outbox_id"])
+    assert result["status"] == "success"
+    with factory() as session:
+        row = session.scalar(select(OpenMetadataSyncOutbox))
+        assert row.status == "succeeded"
+        assert row.attempts == 1
+    engine.dispose()

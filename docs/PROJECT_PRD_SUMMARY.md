@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-09-05 OpenMetadata 原生目录改造完成异步 outbox：资产登记、血缘提交和 OpenLineage 事件落库后，按时间桶幂等写入 outbox 并复用 data-platform Worker 派发；失败最多重试 5 次并保留状态，不阻塞原任务。详见 docs/DATA_AUTOMATION_PIPELINE_PRD.md 第 9.4 节。
+
 2026-09-05 数据血缘数据库治理与任务工作区 UI 已完成并热更新到 `192.168.150.128`：按引擎、连接、Catalog、Database 分组统计血缘，新增库业务层级手动配置和血缘筛选，任务工作区同步展示数据库治理与运行指标；系统库新增 `data_database_layers`、`data_lineage_events` 表。128 发布前 9 个 Worker 的 active/reserved/scheduled 均为空，完成系统库备份、API 热更新、鉴权 API 闭环、配置保存回读、血缘筛选、OpenMetadata 投影、UI 资源标识和健康日志检查；临时配置已恢复原值。详见 `docs/RELEASE_VALIDATION_20260905_DATA_LINEAGE_DB_GOVERNANCE.md`。
 
 2026-09-04 Doris SQL 开发工作台新增“SQL 集合”治理：复用现有数据平台工作流、组件任务、开发/生产版本、运行和调度模型，把多个已保存 Doris SQL 任务按顺序纳入集合，支持集合级保存、测试运行、不可变发布、生产运行和引用关系展示；未分组及历史 SQL 任务保持原行为。详见 `docs/DORIS_SQL_ETL_CENTER_PRD.md` 第 21 节。

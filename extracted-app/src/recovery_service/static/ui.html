@@ -2898,22 +2898,6 @@
     .api-sql-asset-main .connector-asset-name { padding-right: 12px; }
     .orchestration-json { min-height: 90px; font-family: Consolas, monospace; }
     .orchestration-sql { min-height: 180px; font-family: Consolas, monospace; }
-    @media (max-width: 1280px) {
-      .connector-workbench { grid-template-columns: 220px minmax(0, 1fr); }
-      .api-sql-workbench { grid-template-columns: 220px minmax(0, 1fr); }
-      .api-sql-context { grid-template-columns: minmax(170px, 1.2fr) minmax(120px, .8fr) 110px 90px 90px; }
-      .orchestration-designer,
-      .orchestration-designer.inspector-open { grid-template-columns: 210px minmax(420px, 1fr); }
-      .orchestration-inspector {
-        position: absolute;
-        z-index: 10;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        width: min(360px, calc(100% - 210px));
-        box-shadow: -10px 0 28px rgba(24, 39, 58, .16);
-      }
-    }
     @media (max-width: 900px) {
       .sql-collection-modal { width: calc(100vw - 24px); height: calc(100vh - 24px); max-height: calc(100vh - 24px); }
       .sql-collection-layout { grid-template-columns: 1fr; overflow: auto; }
@@ -3172,7 +3156,7 @@
     .data-automation-module { display: grid; gap: 12px; }
     .data-automation-page-head, .data-automation-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .data-automation-page-head h2, .data-automation-card-head h3 { margin: 2px 0 0; }
-    .data-automation-config-card, .data-automation-database-card, .lineage-database-panel { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }
+    .data-automation-config-card { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }
     .data-automation-config-card { display: grid; gap: 10px; }
     .native-metadata-shell { display: grid; gap: 16px; }
     .native-metadata-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -3184,82 +3168,12 @@
     .data-automation-metrics > div { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
     .data-automation-metrics span, .data-automation-metrics small { display: block; color: var(--muted); }
     .data-automation-metrics strong { display: block; margin: 3px 0; font-size: 22px; }
-    .data-automation-database-card { display: grid; gap: 10px; }
-    .data-automation-db-grid { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(420px, 1.2fr); gap: 12px; align-items: start; }
-    .data-automation-db-form { display: grid; gap: 8px; min-width: 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; }
-    .data-automation-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-    .data-automation-db-table { min-width: 0; }
-    .data-automation-db-table table, .lineage-database-panel table { min-width: 680px; }
-    .lineage-shell { display: grid; gap: 12px; }
-    .lineage-database-panel { padding: 0; overflow: hidden; }
-    .lineage-database-panel .lineage-panel-head { border-radius: 8px 8px 0 0; }
-    .lineage-database-panel .table-wrap { overflow: auto; }
-    .lineage-filters { display: grid; grid-template-columns: minmax(220px, 1fr) 150px minmax(220px, .8fr) 130px 110px auto; gap: 8px; align-items: end; }
-    .lineage-filter-action { display: flex; gap: 7px; }
-    .lineage-metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 9px; }
-    .lineage-metric { min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(180deg, #fff, #f8fbff); }
-    .lineage-metric span { display: block; color: var(--muted); font-size: 12px; }
-    .lineage-metric strong { display: block; margin-top: 3px; font-size: 21px; }
-    .lineage-layout { display: grid; grid-template-columns: 270px minmax(440px, 1fr) 300px; gap: 10px; min-height: 620px; }
-    .lineage-panel { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
-    .lineage-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: #f8fafc; }
-    .lineage-panel-head h3 { margin: 0; }
-    .lineage-asset-list { max-height: 680px; overflow: auto; padding: 7px; }
-    .lineage-asset-item { width: 100%; display: block; padding: 9px; margin-bottom: 6px; border-color: transparent; background: transparent; text-align: left; box-shadow: none; }
-    .lineage-asset-item:hover, .lineage-asset-item.active { border-color: #b8d4ff; background: var(--primary-soft); }
-    .lineage-asset-item strong, .lineage-node strong { display: block; overflow-wrap: anywhere; }
-    .lineage-asset-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; color: var(--muted); font-size: 11px; }
-    .lineage-layer-pill { display: inline-flex; padding: 1px 6px; border-radius: 999px; background: #edf2f7; color: #40536a; }
-    .lineage-layer-pill.restored { background: #fff4dc; color: #805600; }
-    .lineage-layer-pill.raw { background: #eaf2ff; color: #24599a; }
-    .lineage-layer-pill.standard { background: #e9f7ef; color: #196b3b; }
-    .lineage-layer-pill.secured { background: #f4edff; color: #6941a5; }
-    .lineage-main { display: grid; grid-template-rows: auto minmax(250px, auto) auto; min-width: 0; }
-    .lineage-board { display: grid; grid-template-columns: repeat(4, minmax(165px, 1fr)); gap: 18px; padding: 12px; overflow: auto; background: #f8fafc; }
-    .lineage-lane { position: relative; min-width: 165px; }
-    .lineage-lane:not(:last-child)::after { content: "→"; position: absolute; right: -15px; top: 8px; color: #7890aa; font-size: 18px; }
-    .lineage-lane-title { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
-    .lineage-node { width: 100%; min-height: 74px; display: block; margin-bottom: 8px; padding: 9px; border: 1px solid #d6e1ed; border-left: 4px solid #8095ad; border-radius: 7px; background: #fff; text-align: left; box-shadow: 0 3px 10px rgba(15,23,42,.04); }
-    .lineage-node.root { border-color: #79aef7; border-left-color: var(--primary); box-shadow: 0 0 0 2px rgba(31,111,235,.10); }
-    .lineage-node.secured { border-left-color: #7c3bb8; }
-    .lineage-edge-section { min-width: 0; padding: 0 12px 12px; }
-    .lineage-edge-table { max-height: 285px; overflow: auto; border: 1px solid var(--line); border-radius: 7px; }
-    .lineage-edge-table table { min-width: 760px; }
-    .lineage-edge-table tr { cursor: pointer; }
-    .lineage-edge-table tr:hover td { background: #f5f9ff; }
-    .lineage-sm4 { color: #6f2da8; font-weight: 700; }
-    .lineage-detail { max-height: 680px; overflow: auto; padding: 12px; }
-    .lineage-detail dl { display: grid; grid-template-columns: 72px 1fr; gap: 7px; margin: 0; }
-    .lineage-detail dt { color: var(--muted); }
-    .lineage-detail dd { margin: 0; overflow-wrap: anywhere; }
-    .lineage-field-list { display: grid; gap: 5px; margin-top: 10px; }
-    .lineage-field-row { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 8px; padding: 7px; border: 1px solid #edf1f5; border-radius: 6px; }
-    .lineage-evidence-modal { width: min(920px, calc(100vw - 36px)); max-height: calc(100vh - 36px); display: flex; flex-direction: column; }
-    .lineage-evidence-body { min-height: 0; overflow: auto; white-space: normal; color: var(--text); }
-    .lineage-evidence-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
-    .lineage-evidence-grid > div:nth-child(odd) { color: var(--muted); }
-    .lineage-code { margin-top: 10px; padding: 10px; border-radius: 6px; background: #f6f8fa; font: 12px/1.55 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-    @media (max-width: 1280px) {
-      .lineage-filters { grid-template-columns: minmax(220px, 1fr) 140px minmax(200px, 1fr) 120px 100px; }
-      .lineage-filter-action { grid-column: 1 / -1; }
-      .lineage-layout { grid-template-columns: 230px minmax(420px, 1fr); }
-      .lineage-layout > .lineage-panel:last-child { grid-column: 1 / -1; }
-      .lineage-detail { max-height: 360px; }
-    }
     @media (max-width: 900px) {
       .data-automation-page-head, .data-automation-card-head { flex-wrap: wrap; }
-      .data-automation-db-grid { grid-template-columns: 1fr; }
       .data-automation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .lineage-filters, .lineage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .lineage-layout { grid-template-columns: 1fr; }
-      .lineage-layout > .lineage-panel:last-child { grid-column: auto; }
-      .lineage-asset-list, .lineage-detail { max-height: 360px; }
-      .lineage-board { grid-template-columns: repeat(4, minmax(190px, 1fr)); }
     }
     @media (max-width: 620px) {
-      .data-automation-form-grid, .data-automation-metrics { grid-template-columns: 1fr; }
-      .lineage-filters, .lineage-metrics { grid-template-columns: 1fr; }
-      .lineage-filter-action { grid-column: auto; }
+      .data-automation-metrics { grid-template-columns: 1fr; }
     }
   </style>
   <link rel='stylesheet' href='/static/ui-unified.css'>
@@ -6240,12 +6154,6 @@
       let apiOrchestrationNodeSamples = {};
       let apiOrchestrationNodeTestStates = {};
       let apiOrchestrationDataPickerTarget = null;
-      let dataLineageCatalog = {assets:[], edges:[], summary:{}};
-      let dataLineageTrace = {assets:[], edges:[]};
-      let dataLineageSelectedAssetId = "";
-      let dataLineageBatchesLoaded = false;
-      let dataAutomationDatabaseLayers = [];
-
       const engineLabels = { oracle: "Oracle", mysql: "MySQL", sqlserver: "SQL Server", doris: "Doris", ftp: "FTP" };
       const defaultDorisEncryptKeywords = ["证件号", "住址", "地址", "电话", "手机号", "姓名"];
       const defaultDorisSm3Keywords = ["证件号", "住址", "地址", "电话", "手机号", "姓名"];
@@ -21546,149 +21454,6 @@
         });
       }
 
-      const dataLineageLayerLabels = {restored:"恢复层", raw:"原始层", standard:"标准层", secured:"安全层"};
-      const dataLineageTransformLabels = {direct:"直接", rename:"重命名", cast:"类型转换", expression:"表达式", join:"关联", aggregate:"聚合", constant:"常量"};
-      const dataLineageSourceLabels = {native:"系统采集", openlineage:"OpenLineage"};
-
-      function dataLineageAssetName(asset) {
-        if (!asset) return "未知资产";
-        return [asset.catalog, asset.database, asset.table_name].filter(Boolean).join(".") || asset.asset_id;
-      }
-
-      function dataLineageIsSm4(edge) {
-        return String(edge?.expression || "").toUpperCase().includes("SM4");
-      }
-
-      function renderDataLineageCatalog() {
-        const assets = dataLineageCatalog.assets || [];
-        const summary = dataLineageCatalog.summary || {};
-        $("dataLineageAssetCount").textContent = summary.asset_count || 0;
-        $("dataLineageEdgeCount").textContent = summary.edge_count || 0;
-        $("dataLineageFieldEdgeCount").textContent = summary.field_edge_count || 0;
-        $("dataLineageReviewCount").textContent = summary.review_count || 0;
-        $("dataLineageSm4Count").textContent = summary.sm4_edge_count || 0;
-        $("dataLineageAssetListHint").textContent = `${assets.length} 项`;
-        $("dataLineageAssetList").innerHTML = assets.length ? assets.map((asset) => `<button type="button" class="lineage-asset-item ${asset.asset_id === dataLineageSelectedAssetId ? "active" : ""}" data-lineage-asset="${escapeHtml(asset.asset_id)}"><strong>${escapeHtml(dataLineageAssetName(asset))}</strong><div class="lineage-asset-meta"><span class="lineage-layer-pill ${escapeHtml(asset.layer)}">${escapeHtml(dataLineageLayerLabels[asset.layer] || asset.layer)}</span><span>${escapeHtml(asset.engine)}</span><span>${((asset.schema_contract || {}).columns || []).length} 字段</span></div></button>`).join("") : '<div class="muted" style="padding:10px">没有符合条件的数据资产。</div>';
-      }
-
-      function renderDataLineageTrace() {
-        const assets = dataLineageTrace.assets || [];
-        const edges = dataLineageTrace.edges || [];
-        const assetMap = new Map(assets.map((asset) => [asset.asset_id, asset]));
-        const root = assetMap.get(dataLineageSelectedAssetId) || (dataLineageCatalog.assets || []).find((asset) => asset.asset_id === dataLineageSelectedAssetId);
-        const directionLabel = $("dataLineageDirection").value === "downstream" ? "下游" : "上游";
-        $("dataLineageTraceHint").textContent = root ? `${dataLineageAssetName(root)} · ${directionLabel} ${assets.length} 个资产 / ${edges.length} 条关系` : "请选择左侧资产";
-        const layers = ["restored", "raw", "standard", "secured"];
-        $("dataLineageBoard").innerHTML = layers.map((layer) => {
-          const rows = assets.filter((asset) => asset.layer === layer);
-          return `<div class="lineage-lane"><div class="lineage-lane-title">${escapeHtml(dataLineageLayerLabels[layer])} · ${rows.length}</div>${rows.length ? rows.map((asset) => `<button type="button" class="lineage-node ${escapeHtml(layer)} ${asset.asset_id === dataLineageSelectedAssetId ? "root" : ""}" data-lineage-asset="${escapeHtml(asset.asset_id)}"><strong>${escapeHtml(asset.database)}.${escapeHtml(asset.table_name)}</strong><div class="lineage-asset-meta"><span>${escapeHtml(asset.engine)}</span><span>${((asset.schema_contract || {}).columns || []).length} 字段</span>${asset.asset_id === dataLineageSelectedAssetId ? "<span>追踪根节点</span>" : ""}</div></button>`).join("") : '<div class="muted">本次追踪无资产</div>'}</div>`;
-        }).join("");
-        $("dataLineageEdges").innerHTML = edges.length ? edges.map((edge) => {
-          const source = assetMap.get(edge.source_asset_id);
-          const target = assetMap.get(edge.target_asset_id);
-          const sourceLabel = `${dataLineageAssetName(source)}${edge.source_field ? ` / ${edge.source_field}` : " / 表级"}`;
-          const targetLabel = `${dataLineageAssetName(target)}${edge.target_field ? ` / ${edge.target_field}` : " / 表级"}`;
-          const evidence = dataLineageIsSm4(edge) ? '<span class="lineage-sm4">SM4 传播</span>' : (edge.review_required ? '<span class="status warning">待确认</span>' : '<span class="status success">已证明</span>');
-          return `<tr data-lineage-edge="${escapeHtml(edge.edge_id)}"><td>${escapeHtml(sourceLabel)}</td><td>${escapeHtml(targetLabel)}</td><td>${escapeHtml(dataLineageTransformLabels[edge.transformation_type] || edge.transformation_type)}</td><td>${Math.round(Number(edge.confidence || 0) * 100)}%</td><td>${escapeHtml(dataLineageSourceLabels[edge.source] || edge.source || "系统采集")}</td><td>${evidence}</td></tr>`;
-        }).join("") : '<tr><td colspan="6" class="muted">当前方向与深度下没有血缘关系。</td></tr>';
-        renderDataLineageAssetDetail(root, edges);
-      }
-
-      function renderDataLineageAssetDetail(asset, edges) {
-        $("dataLineageFieldsBtn").disabled = !asset;
-        if (!asset) {
-          $("dataLineageAssetDetail").innerHTML = '<div class="muted">选择资产后显示引擎、位置、字段分级及上下游摘要。</div>';
-          return;
-        }
-        const columns = (asset.schema_contract || {}).columns || [];
-        const classifications = new Map(((asset.classification_summary || {}).fields || []).map((item) => [String(item.field || "").toUpperCase(), item]));
-        const related = edges.filter((edge) => edge.source_asset_id === asset.asset_id || edge.target_asset_id === asset.asset_id);
-        const preview = columns.slice(0, 12).map((column) => {
-          const name = column.name || column.column_name || "未命名字段";
-          const classified = classifications.get(String(name).toUpperCase()) || {};
-          return `<div class="lineage-field-row"><span><strong>${escapeHtml(name)}</strong><br><span class="muted">${escapeHtml(column.type || column.data_type || "未知类型")}</span></span><span>${classified.protection_action && classified.protection_action !== "none" ? `<span class="lineage-layer-pill secured">${escapeHtml(classified.protection_action)}</span>` : "-"}</span></div>`;
-        }).join("");
-        $("dataLineageAssetDetail").innerHTML = `<dl><dt>数据层级</dt><dd><span class="lineage-layer-pill ${escapeHtml(asset.layer)}">${escapeHtml(dataLineageLayerLabels[asset.layer] || asset.layer)}</span></dd><dt>库业务层级</dt><dd>${escapeHtml(asset.database_business_layer || "未配置")}</dd><dt>资产位置</dt><dd>${escapeHtml(dataLineageAssetName(asset))}</dd><dt>引擎</dt><dd>${escapeHtml(asset.engine)}</dd><dt>业务域</dt><dd>${escapeHtml(asset.business_domain || "未登记")}</dd><dt>Schema</dt><dd title="${escapeHtml(asset.schema_signature || "")}">${escapeHtml((asset.schema_signature || "-").slice(0, 20))}</dd><dt>最近批次</dt><dd>${escapeHtml(asset.last_batch_id || "-")}</dd><dt>当前关系</dt><dd>${related.length} 条</dd></dl><h3>字段预览（${columns.length}）</h3><div class="lineage-field-list">${preview || '<div class="muted">未登记字段合同。</div>'}${columns.length > 12 ? `<div class="muted">另有 ${columns.length - 12} 个字段，请点击“完整字段合同”。</div>` : ""}</div>`;
-      }
-
-      function openDataLineageEvidence(title, content) {
-        $("dataLineageEvidenceTitle").textContent = title;
-        $("dataLineageEvidenceBody").innerHTML = content;
-        $("dataLineageEvidenceModal").hidden = false;
-      }
-
-      function closeDataLineageEvidence() {
-        $("dataLineageEvidenceModal").hidden = true;
-      }
-
-      function showDataLineageFields() {
-        const asset = (dataLineageTrace.assets || []).find((item) => item.asset_id === dataLineageSelectedAssetId) || (dataLineageCatalog.assets || []).find((item) => item.asset_id === dataLineageSelectedAssetId);
-        if (!asset) return;
-        const columns = (asset.schema_contract || {}).columns || [];
-        const classifications = new Map(((asset.classification_summary || {}).fields || []).map((item) => [String(item.field || "").toUpperCase(), item]));
-        const rows = columns.map((column, index) => {
-          const name = column.name || column.column_name || `字段 ${index + 1}`;
-          const classified = classifications.get(String(name).toUpperCase()) || {};
-          return `<tr><td>${index + 1}</td><td><strong>${escapeHtml(name)}</strong></td><td>${escapeHtml(column.type || column.data_type || "-")}</td><td>${column.nullable === false ? "否" : "是"}</td><td>${escapeHtml(classified.classification || "未分级")}</td><td>${escapeHtml(classified.protection_action || "none")}</td></tr>`;
-        }).join("");
-        openDataLineageEvidence(`字段合同 · ${dataLineageAssetName(asset)}`, `<div class="table-wrap"><table><thead><tr><th>序号</th><th>字段</th><th>类型</th><th>可空</th><th>分级</th><th>保护动作</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="muted">未登记字段合同。</td></tr>'}</tbody></table></div><div class="lineage-code">Schema 指纹：${escapeHtml(asset.schema_signature || "-")}</div>`);
-      }
-
-      function showDataLineageEdge(edgeId) {
-        const edge = (dataLineageTrace.edges || []).find((item) => item.edge_id === edgeId);
-        if (!edge) return;
-        const assetMap = new Map((dataLineageTrace.assets || []).map((asset) => [asset.asset_id, asset]));
-        const source = assetMap.get(edge.source_asset_id);
-        const target = assetMap.get(edge.target_asset_id);
-        openDataLineageEvidence("血缘关系证据", `<div class="lineage-evidence-grid"><div>来源</div><div>${escapeHtml(dataLineageAssetName(source))} / ${escapeHtml(edge.source_field || "表级")}</div><div>目标</div><div>${escapeHtml(dataLineageAssetName(target))} / ${escapeHtml(edge.target_field || "表级")}</div><div>转换类型</div><div>${escapeHtml(dataLineageTransformLabels[edge.transformation_type] || edge.transformation_type)}</div><div>可信度</div><div>${Math.round(Number(edge.confidence || 0) * 100)}%</div><div>确认状态</div><div>${edge.review_required ? "需要人工确认" : "已证明"}</div><div>数据批次</div><div>${escapeHtml(edge.batch_id || "-")}</div><div>工作流版本</div><div>${escapeHtml(edge.workflow_version_id || "-")}</div><div>节点</div><div>${escapeHtml(edge.node_key || "-")}</div></div><h3>转换表达式</h3><div class="lineage-code ${dataLineageIsSm4(edge) ? "lineage-sm4" : ""}">${escapeHtml(edge.expression || "无显式表达式")}</div><h3>可审计证据</h3><div class="lineage-code">${escapeHtml(JSON.stringify(edge.evidence || {}, null, 2))}</div>`);
-      }
-
-      async function selectDataLineageAsset(assetId) {
-        dataLineageSelectedAssetId = assetId || "";
-        renderDataLineageCatalog();
-        if (!dataLineageSelectedAssetId) {
-          dataLineageTrace = {assets:[], edges:[]}; renderDataLineageTrace(); return;
-        }
-        const params = new URLSearchParams({direction:$("dataLineageDirection").value, max_depth:String(Math.max(1, Math.min(20, Number($("dataLineageDepth").value) || 8)))});
-        if ($("dataLineageBatch").value) params.set("batch_id", $("dataLineageBatch").value);
-        dataLineageTrace = await api(`/api/v1/data-automation/lineage/${encodeURIComponent(dataLineageSelectedAssetId)}?${params.toString()}`);
-        renderDataLineageTrace();
-      }
-
-      async function refreshDataLineage() {
-        const params = new URLSearchParams({limit:"500"});
-        const search = $("dataLineageSearch").value.trim();
-        if (search) params.set("search", search);
-        if ($("dataLineageLayer").value) params.set("layer", $("dataLineageLayer").value);
-        if ($("dataLineageDatabase").value) params.set("database_key", $("dataLineageDatabase").value);
-        if ($("dataLineageBatch").value) params.set("batch_id", $("dataLineageBatch").value);
-        const [catalog, databaseData, batchData] = await Promise.all([
-          api(`/api/v1/data-automation/lineage?${params.toString()}`),
-          api("/api/v1/data-automation/database-layers?limit=500"),
-          dataLineageBatchesLoaded ? Promise.resolve(null) : api("/api/v1/data-automation/batches?limit=200")
-        ]);
-        dataLineageCatalog = catalog;
-        const selectedDatabase = $("dataLineageDatabase").value;
-        $("dataLineageDatabase").innerHTML = '<option value="">全部数据库</option>' + (databaseData.database_layers || []).map((item) => {
-          const location = [item.connection_name || item.engine, item.catalog, item.database].filter(Boolean).join(" / ");
-          const suffix = item.business_layer ? ` · ${item.business_layer}` : " · 未配置业务层级";
-          return `<option value="${escapeHtml(item.database_key)}">${escapeHtml(location + suffix)}</option>`;
-        }).join("");
-        $("dataLineageDatabase").value = selectedDatabase;
-        renderDataLineageDatabaseGroups(catalog.database_stats || []);
-        if (batchData) {
-          const selectedBatch = $("dataLineageBatch").value;
-          $("dataLineageBatch").innerHTML = '<option value="">全部批次</option>' + (batchData.batches || []).map((batch) => `<option value="${escapeHtml(batch.batch_id)}">${escapeHtml((batch.source_files || []).map((file) => file.relative_path).join(", ") || batch.source_path || batch.batch_id)} · ${escapeHtml(batch.state)}</option>`).join("");
-          $("dataLineageBatch").value = selectedBatch;
-          dataLineageBatchesLoaded = true;
-        }
-        const visibleIds = new Set((catalog.assets || []).map((asset) => asset.asset_id));
-        if (!dataLineageSelectedAssetId || !visibleIds.has(dataLineageSelectedAssetId)) dataLineageSelectedAssetId = catalog.assets?.[0]?.asset_id || "";
-        renderDataLineageCatalog();
-        await selectDataLineageAsset(dataLineageSelectedAssetId);
-        setMessage("dataLineageMessage", catalog.truncated ? "结果已达到安全展示上限，请缩小筛选范围。" : `已加载 ${catalog.summary?.asset_count || 0} 个资产和 ${catalog.summary?.edge_count || 0} 条关系。`, catalog.truncated ? "warning" : "ok");
-      }
-
       let openMetadataState = null;
 
       async function refreshOpenMetadata() {
@@ -21739,48 +21504,6 @@
         $("openMetadataRefreshBtn")?.addEventListener("click", () => refreshOpenMetadata().catch((e) => setMessage("openMetadataMessage", e.message, "error")));
         $("openMetadataOpenBtn")?.addEventListener("click", openOpenMetadata);
         $("openMetadataSyncBtn")?.addEventListener("click", () => syncOpenMetadata());
-      }
-
-      function bindDataLineageEvents() {
-        $("dataLineageRefreshBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
-        $("dataLineageQueryBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
-        $("dataLineageResetBtn")?.addEventListener("click", () => { $("dataLineageSearch").value = ""; $("dataLineageLayer").value = ""; $("dataLineageBatch").value = ""; $("dataLineageDatabase").value = ""; $("dataLineageDirection").value = "upstream"; $("dataLineageDepth").value = "8"; dataLineageSelectedAssetId = ""; refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); });
-        $("dataLineageDatabase")?.addEventListener("change", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
-        $("dataLineageSearch")?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")); } });
-        $("dataLineageDirection")?.addEventListener("change", () => selectDataLineageAsset(dataLineageSelectedAssetId).catch((e) => setMessage("dataLineageMessage", e.message, "error")));
-        $("dataLineageDepth")?.addEventListener("change", () => selectDataLineageAsset(dataLineageSelectedAssetId).catch((e) => setMessage("dataLineageMessage", e.message, "error")));
-        [$("dataLineageAssetList"), $("dataLineageBoard")].forEach((container) => container?.addEventListener("click", (event) => { const button = event.target.closest("[data-lineage-asset]"); if (button) selectDataLineageAsset(button.dataset.lineageAsset).catch((e) => setMessage("dataLineageMessage", e.message, "error")); }));
-        $("dataLineageEdges")?.addEventListener("click", (event) => { const row = event.target.closest("[data-lineage-edge]"); if (row) showDataLineageEdge(row.dataset.lineageEdge); });
-        $("dataLineageFieldsBtn")?.addEventListener("click", showDataLineageFields);
-        $("dataLineageEvidenceCloseBtn")?.addEventListener("click", closeDataLineageEvidence);
-        $("dataLineageEvidenceModal")?.addEventListener("click", (event) => { if (event.target === $("dataLineageEvidenceModal")) closeDataLineageEvidence(); });
-      }
-
-      function resetDataAutomationDatabaseForm() {
-        $("dataAutomationDbKey").value = "";
-        $("dataAutomationDbConnectionId").value = "";
-        $("dataAutomationDbEngine").value = "doris";
-        $("dataAutomationDbConnection").value = "";
-        $("dataAutomationDbCatalog").value = "";
-        $("dataAutomationDbDatabase").value = "";
-        $("dataAutomationDbBusinessLayer").value = "";
-        $("dataAutomationDbDescription").value = "";
-      }
-
-      function renderDataAutomationDatabaseLayers(layers) {
-        dataAutomationDatabaseLayers = layers || [];
-        $("dataAutomationDatabaseLayers").innerHTML = dataAutomationDatabaseLayers.length ? dataAutomationDatabaseLayers.map((item) => {
-          const location = [item.connection_name || item.engine, item.catalog, item.database].filter(Boolean).join(" / ");
-          return `<tr><td><strong>${escapeHtml(location)}</strong><br><span class="muted">${escapeHtml(item.database_key || "")}</span></td><td>${escapeHtml(item.business_layer || "未配置")}</td><td>${item.asset_count || 0}</td><td>${item.edge_count || 0}</td><td><button type="button" data-data-auto-db-edit="${escapeHtml(item.database_key || "")}">配置</button></td></tr>`;
-        }).join("") : '<tr><td colspan="5" class="muted">暂无数据库。资产登记后可在此配置库业务层级。</td></tr>';
-      }
-
-      function renderDataLineageDatabaseGroups(groups) {
-        const rows = groups || [];
-        $("dataLineageDatabaseGroups").innerHTML = rows.length ? rows.map((item) => {
-          const location = [item.connection_name || item.engine, item.catalog, item.database].filter(Boolean).join(" / ");
-          return `<tr><td><strong>${escapeHtml(location)}</strong><br><span class="muted">${escapeHtml(item.database_key || "")}</span></td><td>${escapeHtml(item.business_layer || "未配置")}</td><td>${item.asset_count || 0}</td><td>${item.edge_count || 0}</td><td>${item.field_edge_count || 0}</td><td>${item.review_count || 0}</td><td>${item.sm4_edge_count || 0}</td></tr>`;
-        }).join("") : '<tr><td colspan="7" class="muted">暂无数据库统计。</td></tr>';
       }
 
       async function refreshDataAutomation() {

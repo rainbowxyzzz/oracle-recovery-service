@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+import uuid
+from datetime import timedelta
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
+from recovery_service.common.time import app_now
+from recovery_service.core.models.task import OpenMetadataSyncOutbox
+from recovery_service.db.session import get_sync_session_factory
 from recovery_service.services import data_automation
 from recovery_service.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def _base_url(value: str) -> str:
@@ -35,6 +47,104 @@ def status() -> dict[str, Any]:
         "api_url": api_url or None,
         "producer": settings.openmetadata_producer,
     }
+
+
+def enqueue_snapshot(
+    *,
+    search: str | None = None,
+    layer: str | None = None,
+    database_key: str | None = None,
+    batch_id: Any = None,
+    limit: int = 500,
+) -> dict[str, Any] | None:
+    """Persist and dispatch a best-effort snapshot sync after a business commit."""
+    if not status()["sync_ready"]:
+        return None
+    scope = {
+        "search": search,
+        "layer": layer,
+        "database_key": database_key,
+        "batch_id": str(batch_id) if batch_id else None,
+        "limit": limit,
+    }
+    scope = {key: value for key, value in scope.items() if value is not None}
+    bucket = int(app_now().timestamp() // 300)
+    key_material = json.dumps({"scope": scope, "bucket": bucket}, ensure_ascii=False, sort_keys=True)
+    idempotency_key = f"snapshot:{hashlib.sha256(key_material.encode('utf-8')).hexdigest()}"
+    session = get_sync_session_factory()()
+    try:
+        row = session.scalar(select(OpenMetadataSyncOutbox).where(OpenMetadataSyncOutbox.idempotency_key == idempotency_key))
+        should_dispatch = row is None
+        if row is None:
+            row = OpenMetadataSyncOutbox(idempotency_key=idempotency_key, scope=scope, status="pending", next_attempt_at=app_now())
+            session.add(row)
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                row = session.scalar(select(OpenMetadataSyncOutbox).where(OpenMetadataSyncOutbox.idempotency_key == idempotency_key))
+        if row is None:
+            return None
+        outbox_id = str(row.id)
+        should_dispatch = should_dispatch or row.status in {"failed", "deferred"} or bool(row.last_error)
+        try:
+            if not should_dispatch:
+                return {"outbox_id": outbox_id, "status": row.status}
+            from recovery_service.workers.celery_app import celery_app
+
+            celery_app.send_task(
+                "openmetadata.sync_outbox",
+                args=[outbox_id],
+                queue=get_settings().celery_data_platform_queue,
+            )
+        except Exception as exc:  # noqa: BLE001 - dispatch failure must not block the business transaction
+            row.last_error = f"派发 OpenMetadata outbox 失败：{str(exc)[:500]}"
+            row.status = "pending"
+            session.commit()
+            logger.warning("OpenMetadata outbox dispatch failed: %s", exc)
+        return {"outbox_id": outbox_id, "status": row.status}
+    finally:
+        session.close()
+
+
+def run_outbox_item(outbox_id: Any) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        row = session.get(OpenMetadataSyncOutbox, uuid.UUID(str(outbox_id)))
+        if row is None:
+            return {"status": "missing", "outbox_id": str(outbox_id), "retry": False}
+        if row.status == "succeeded":
+            return {"status": "succeeded", "outbox_id": str(row.id), "retry": False}
+        row.status = "running"
+        row.attempts += 1
+        row.last_started_at = app_now()
+        row.updated_at = app_now()
+        session.commit()
+        try:
+            result = sync_snapshot(**(row.scope or {}))
+        except Exception as exc:  # noqa: BLE001 - external OpenMetadata failures are retried by the outbox
+            result = {"status": "failed", "message": str(exc)[:500], "summary": {}}
+        if result.get("status") == "success":
+            row.status = "succeeded"
+            row.completed_at = app_now()
+            row.next_attempt_at = None
+            row.last_error = None
+            retry = False
+        elif result.get("status") in {"disabled", "not_configured"}:
+            row.status = "deferred"
+            row.last_error = str(result.get("message") or "OpenMetadata 尚未就绪")[:500]
+            row.next_attempt_at = None
+            retry = False
+        else:
+            retry = row.attempts < 5
+            row.status = "pending" if retry else "failed"
+            row.last_error = str(result.get("message") or result.get("failures") or "同步存在失败项")[:500]
+            row.next_attempt_at = app_now() + timedelta(minutes=min(30, 2 ** min(row.attempts, 4))) if retry else None
+        row.updated_at = app_now()
+        session.commit()
+        return {**result, "outbox_id": str(row.id), "attempts": row.attempts, "retry": retry}
+    finally:
+        session.close()
 
 
 def _headers() -> dict[str, str]:

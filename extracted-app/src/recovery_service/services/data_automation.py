@@ -4,6 +4,7 @@ import asyncio
 import fnmatch
 import hashlib
 import json
+import logging
 import re
 import threading
 import uuid
@@ -43,6 +44,7 @@ from recovery_service.settings import get_settings
 _SCHEDULER_LOCK = threading.Lock()
 _SCHEDULER_STOP = threading.Event()
 _SCHEDULER_THREAD: threading.Thread | None = None
+logger = logging.getLogger(__name__)
 _TERMINAL_BATCH_STATES = {"completed", "blocked", "failed", "partial", "cancelled"}
 
 
@@ -370,6 +372,15 @@ def advance_batches() -> dict[str, int]:
         session.close()
 
 
+def _enqueue_openmetadata_snapshot(*, batch_id: uuid.UUID | None = None) -> None:
+    try:
+        from recovery_service.services.openmetadata import enqueue_snapshot
+
+        enqueue_snapshot(batch_id=batch_id)
+    except Exception as exc:  # noqa: BLE001 - metadata dispatch is best-effort and must not block asset writes
+        logger.warning("OpenMetadata outbox enqueue failed: %s", exc)
+
+
 def register_asset(data: dict[str, Any], batch_id: uuid.UUID | None = None) -> dict[str, Any]:
     session = get_sync_session_factory()()
     try:
@@ -398,7 +409,9 @@ def register_asset(data: dict[str, Any], batch_id: uuid.UUID | None = None) -> d
             row.updated_at = app_now()
         session.commit()
         session.refresh(row)
-        return _asset_dict(row)
+        result = _asset_dict(row)
+        _enqueue_openmetadata_snapshot(batch_id=batch_id)
+        return result
     finally:
         session.close()
 
@@ -575,7 +588,9 @@ def create_lineage_edge(data: dict[str, Any]) -> dict[str, Any]:
         session.add(row)
         session.commit()
         session.refresh(row)
-        return _lineage_dict(row)
+        result = _lineage_dict(row)
+        _enqueue_openmetadata_snapshot(batch_id=row.batch_id)
+        return result
     finally:
         session.close()
 
@@ -709,6 +724,7 @@ def ingest_openlineage_event(data: dict[str, Any]) -> dict[str, Any]:
                     if created:
                         created_edges.append(created)
         session.commit()
+        _enqueue_openmetadata_snapshot()
         return {
             "event": _openlineage_event_dict(row),
             "duplicate": False,
