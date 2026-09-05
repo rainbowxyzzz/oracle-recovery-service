@@ -83,6 +83,14 @@ class DataLineageCreate(BaseModel):
     review_required: bool | None = None
 
 
+class OpenMetadataSyncRequest(BaseModel):
+    search: str | None = Field(default=None, max_length=255)
+    layer: Literal["restored", "raw", "standard", "secured"] | None = None
+    database_key: str | None = Field(default=None, max_length=512)
+    batch_id: UUID | None = None
+    limit: int = Field(default=500, ge=1, le=1000)
+
+
 class OpenLineageRunEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

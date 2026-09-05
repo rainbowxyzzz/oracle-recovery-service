@@ -1374,20 +1374,28 @@ def _openmetadata_entity(asset: dict[str, Any]) -> dict[str, Any]:
             tags.append({"tagFQN": f"{field['classification']}.{field['field']}", "source": "Classification"})
     fqn = ".".join(str(value or "") for value in (asset.get("engine"), asset.get("catalog"), asset.get("database"), asset.get("table_name"), asset.get("layer"))).casefold()
     service_name = asset.get("connection_name") or asset.get("engine")
+    native_parts = [str(value).strip() for value in (service_name, asset.get("catalog"), asset.get("database"), asset.get("table_name")) if str(value or "").strip()]
+    native_fqn = ".".join(native_parts).casefold()
+    native_database_schema = ".".join(native_parts[:-1]).casefold()
     return {
         "id": asset["asset_id"],
         "entityType": "table",
         "name": asset.get("table_name"),
         "displayName": asset.get("table_name"),
         "fullyQualifiedName": fqn,
+        "openMetadataFqn": native_fqn,
         "serviceName": service_name,
         "serviceType": asset.get("engine"),
         "databaseSchema": asset.get("database"),
+        "openMetadataDatabaseSchema": native_database_schema,
         "tableName": asset.get("table_name"),
         "columns": columns,
         "tags": tags,
         "updatedAt": _iso_value(asset.get("updated_at")),
         "customProperties": {
+            "assetId": asset.get("asset_id"),
+            "firstBatchId": asset.get("first_batch_id"),
+            "lastBatchId": asset.get("last_batch_id"),
             "layer": asset.get("layer"),
             "businessDomain": asset.get("business_domain"),
             "schemaSignature": asset.get("schema_signature"),
@@ -1404,8 +1412,8 @@ def _openmetadata_relationship(edge: dict[str, Any], source: dict[str, Any], tar
             "transformer": edge.get("expression") or edge.get("transformation_type"),
         })
     return {
-        "fromEntity": {"id": source["id"], "type": source["entityType"], "fullyQualifiedName": source["fullyQualifiedName"]},
-        "toEntity": {"id": target["id"], "type": target["entityType"], "fullyQualifiedName": target["fullyQualifiedName"]},
+        "fromEntity": {"id": source["id"], "type": source["entityType"], "fullyQualifiedName": source["fullyQualifiedName"], "openMetadataFqn": source.get("openMetadataFqn")},
+        "toEntity": {"id": target["id"], "type": target["entityType"], "fullyQualifiedName": target["fullyQualifiedName"], "openMetadataFqn": target.get("openMetadataFqn")},
         "lineageDetails": {
             "source": edge.get("source"),
             "confidence": edge.get("confidence"),

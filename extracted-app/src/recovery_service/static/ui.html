@@ -3174,6 +3174,12 @@
     .data-automation-page-head h2, .data-automation-card-head h3 { margin: 2px 0 0; }
     .data-automation-config-card, .data-automation-database-card, .lineage-database-panel { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }
     .data-automation-config-card { display: grid; gap: 10px; }
+    .native-metadata-shell { display: grid; gap: 16px; }
+    .native-metadata-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .native-metadata-grid > div { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--background-subtle, #f8fafc); }
+    .native-metadata-grid h4 { margin: 0 0 6px; font-size: 14px; }
+    .native-metadata-grid p { margin: 0; line-height: 1.6; }
+    .metadata-sync-details { max-height: 260px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #0f172a; color: #dbeafe; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
     .data-automation-metrics { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 9px; }
     .data-automation-metrics > div { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
     .data-automation-metrics span, .data-automation-metrics small { display: block; color: var(--muted); }
@@ -3310,7 +3316,7 @@
         <button type="button" data-nav-module="dataPlatform">离线开发</button>
         <button type="button" data-nav-module="dataAutomation">数据自动化流水线</button>
         <a href="/static/assistant.html" target="_blank" rel="noopener" style="display:block;padding:10px 12px;color:inherit;text-decoration:none">Harness 智能助手</a>
-        <button type="button" data-nav-module="dataLineage">数据血缘中心</button>
+        <button type="button" data-nav-module="dataLineage">OpenMetadata 数据目录</button>
         <button type="button" data-nav-module="cleanup">数据库清理</button>
         <button type="button" data-nav-module="helpArchitecture">帮助与架构中心</button>
       </nav>
@@ -5804,39 +5810,19 @@
         <div><label><input id="dataAutomationWatch" type="checkbox"> 保存后启用持续监听</label><button id="dataAutomationCreateBtn" class="primary" type="button" style="margin-left:12px">创建流水线</button></div>
       </div></div>
       <div id="dataAutomationMessage" class="message"></div>
-      <div class="data-automation-metrics"><div><span>流水线</span><strong id="dataAutomationPipelineCount">0</strong><small>已保存定义</small></div><div><span>在途批次</span><strong id="dataAutomationRunningCount">0</strong><small>需要关注的运行</small></div><div><span>数据资产</span><strong id="dataAutomationAssetCount">0</strong><small>四层资产</small></div><div><span>数据库</span><strong id="dataAutomationDatabaseCount">0</strong><small>按连接与库统计</small></div></div>
+      <div class="data-automation-metrics"><div><span>流水线</span><strong id="dataAutomationPipelineCount">0</strong><small>已保存定义</small></div><div><span>在途批次</span><strong id="dataAutomationRunningCount">0</strong><small>需要关注的运行</small></div><div><span>数据资产</span><strong id="dataAutomationAssetCount">0</strong><small>四层资产</small></div><div><span>目录治理</span><strong>OpenMetadata</strong><small>原生搜索、血缘与质量</small></div></div>
       <h3>流水线与监听状态</h3><div class="table-wrap"><table><thead><tr><th>名称</th><th>监听</th><th>间隔</th><th>最近/下次扫描</th><th>绑定能力</th><th>操作</th></tr></thead><tbody id="dataAutomationPipelines"><tr><td colspan="6" class="muted">暂无流水线。</td></tr></tbody></table></div>
       <h3>批次运行链路</h3><div class="table-wrap"><table><thead><tr><th>发现时间</th><th>文件</th><th>当前阶段</th><th>恢复/同步/标准化/加密</th><th>说明</th><th>操作</th></tr></thead><tbody id="dataAutomationBatches"><tr><td colspan="6" class="muted">暂无批次。</td></tr></tbody></table></div>
-      <h3>数据资产</h3><div class="table-wrap"><table><thead><tr><th>层级</th><th>引擎</th><th>库.表</th><th>库业务层级</th><th>Schema 指纹</th><th>分级摘要</th><th>最近批次</th><th>操作</th></tr></thead><tbody id="dataAutomationAssets"><tr><td colspan="8" class="muted">暂无资产。</td></tr></tbody></table></div>
-      <section class="data-automation-database-card"><div class="data-automation-card-head"><div><span class="section-kicker">DATABASE GOVERNANCE</span><h3>数据库分组与库业务层级</h3></div><span class="hint">人工配置只影响统计和展示</span></div><div class="data-automation-db-grid"><form id="dataAutomationDbForm" class="data-automation-db-form"><input id="dataAutomationDbKey" type="hidden"><input id="dataAutomationDbConnectionId" type="hidden"><div class="data-automation-form-grid"><div><label for="dataAutomationDbEngine">引擎</label><input id="dataAutomationDbEngine" value="doris"></div><div><label for="dataAutomationDbConnection">连接名称</label><input id="dataAutomationDbConnection" placeholder="连接或实例名称"></div></div><div class="data-automation-form-grid"><div><label for="dataAutomationDbCatalog">Catalog</label><input id="dataAutomationDbCatalog"></div><div><label for="dataAutomationDbDatabase">Database</label><input id="dataAutomationDbDatabase" required></div></div><div><label for="dataAutomationDbBusinessLayer">库业务层级</label><input id="dataAutomationDbBusinessLayer" placeholder="例如 ODS、DWD、客户域"></div><div><label for="dataAutomationDbDescription">备注</label><input id="dataAutomationDbDescription" placeholder="层级归属说明"></div><div class="actions"><button id="dataAutomationDbSaveBtn" class="primary" type="submit">保存库配置</button><button id="dataAutomationDbResetBtn" type="button">清空</button></div></form><div class="table-wrap data-automation-db-table"><table><thead><tr><th>连接 / Catalog / Database</th><th>业务层级</th><th>资产</th><th>关系</th><th>操作</th></tr></thead><tbody id="dataAutomationDatabaseLayers"><tr><td colspan="5" class="muted">暂无数据库。</td></tr></tbody></table></div></div></section>
+      <h3>数据资产</h3><div class="table-wrap"><table><thead><tr><th>层级</th><th>引擎</th><th>库.表</th><th>OpenMetadata</th><th>Schema 指纹</th><th>分级摘要</th><th>最近批次</th><th>操作</th></tr></thead><tbody id="dataAutomationAssets"><tr><td colspan="8" class="muted">暂无资产。</td></tr></tbody></table></div>
     </section>
 
     <section class="module-panel" data-module="dataLineage">
-      <div class="lineage-shell">
-        <div class="toolbar"><div><span class="eyebrow">LINEAGE EXPLORER</span><h2 style="margin:0">数据血缘中心</h2><div class="hint">按数据库分组观察数据从恢复层、原始层、标准层到安全层的表级与字段级流向</div></div><div class="actions"><button id="dataLineageDatabaseConfigBtn" type="button">配置库业务层级</button><button id="dataLineageRefreshBtn" type="button">刷新</button></div></div>
-        <div class="lineage-filters">
-          <div><label for="dataLineageSearch">资产或字段</label><input id="dataLineageSearch" placeholder="搜索库、表、字段、业务域或指纹"></div>
-          <div><label for="dataLineageLayer">数据层级</label><select id="dataLineageLayer"><option value="">全部层级</option><option value="restored">恢复层</option><option value="raw">原始层</option><option value="standard">标准层</option><option value="secured">安全层</option></select></div>
-          <div><label for="dataLineageBatch">数据批次</label><select id="dataLineageBatch"><option value="">全部批次</option></select></div>
-          <div><label for="dataLineageDatabase">数据库分组</label><select id="dataLineageDatabase"><option value="">全部数据库</option></select></div>
-          <div><label for="dataLineageDirection">追踪方向</label><select id="dataLineageDirection"><option value="upstream">查看上游</option><option value="downstream">查看下游</option></select></div>
-          <div><label for="dataLineageDepth">追踪深度</label><input id="dataLineageDepth" type="number" min="1" max="20" value="8"></div>
-          <div class="lineage-filter-action"><button id="dataLineageQueryBtn" class="primary" type="button">查询</button><button id="dataLineageResetBtn" type="button">重置</button></div>
-        </div>
-        <div id="dataLineageMessage" class="message"></div>
-        <div class="lineage-metrics">
-          <div class="lineage-metric"><span>当前资产</span><strong id="dataLineageAssetCount">0</strong></div>
-          <div class="lineage-metric"><span>血缘关系</span><strong id="dataLineageEdgeCount">0</strong></div>
-          <div class="lineage-metric"><span>字段级关系</span><strong id="dataLineageFieldEdgeCount">0</strong></div>
-          <div class="lineage-metric"><span>待人工确认</span><strong id="dataLineageReviewCount">0</strong></div>
-          <div class="lineage-metric"><span>SM4 传播关系</span><strong id="dataLineageSm4Count">0</strong></div>
-        </div>
-        <section class="lineage-database-panel"><div class="lineage-panel-head"><div><span class="section-kicker">DATABASE GROUPS</span><h3>数据库统计</h3></div><span class="hint">同名库按连接与 Catalog 分开</span></div><div class="table-wrap"><table><thead><tr><th>连接 / Catalog / Database</th><th>库业务层级</th><th>资产</th><th>关系</th><th>字段关系</th><th>待确认</th><th>SM4</th></tr></thead><tbody id="dataLineageDatabaseGroups"><tr><td colspan="7" class="muted">暂无数据库统计。</td></tr></tbody></table></div></section>
-        <div class="lineage-layout">
-          <div class="lineage-panel"><div class="lineage-panel-head"><h3>资产目录</h3><span id="dataLineageAssetListHint" class="muted">0 项</span></div><div id="dataLineageAssetList" class="lineage-asset-list"><div class="muted" style="padding:10px">暂无资产。</div></div></div>
-          <div class="lineage-panel lineage-main"><div class="lineage-panel-head"><div><h3>上下游图谱</h3><span id="dataLineageTraceHint" class="muted">请选择左侧资产</span></div></div><div id="dataLineageBoard" class="lineage-board"></div><div class="lineage-edge-section"><h3>字段与表关系</h3><div class="lineage-edge-table"><table><thead><tr><th>来源</th><th>目标</th><th>转换</th><th>可信度</th><th>采集来源</th><th>证据</th></tr></thead><tbody id="dataLineageEdges"><tr><td colspan="6" class="muted">请选择资产查看关系。</td></tr></tbody></table></div></div></div>
-          <div class="lineage-panel"><div class="lineage-panel-head"><h3>资产详情</h3><button id="dataLineageFieldsBtn" type="button" disabled>完整字段合同</button></div><div id="dataLineageAssetDetail" class="lineage-detail"><div class="muted">选择资产后显示引擎、位置、字段分级及上下游摘要。</div></div></div>
-        </div>
+      <div class="native-metadata-shell">
+        <div class="toolbar"><div><span class="eyebrow">OPENMETADATA NATIVE</span><h2 style="margin:0">OpenMetadata 数据目录</h2><div class="hint">血缘、搜索、字段详情、质量、标签、术语和 AI 上下文统一使用 OpenMetadata 原生能力</div></div><div class="actions"><button id="openMetadataRefreshBtn" type="button">刷新连接状态</button><button id="openMetadataOpenBtn" class="primary" type="button" disabled>打开 OpenMetadata</button></div></div>
+        <div id="openMetadataMessage" class="message"></div>
+        <div class="data-automation-metrics"><div><span>UI 地址</span><strong id="openMetadataUiUrl">未配置</strong><small>原生目录入口</small></div><div><span>API 状态</span><strong id="openMetadataApiStatus">未配置</strong><small>资产与血缘同步桥接</small></div><div><span>同步开关</span><strong id="openMetadataSyncStatus">关闭</strong><small>失败不阻塞业务任务</small></div><div><span>事件来源</span><strong id="openMetadataProducer">-</strong><small>OpenLineage / 当前任务</small></div></div>
+        <section class="data-automation-config-card"><div class="data-automation-card-head"><div><span class="section-kicker">CURRENT SYSTEM INTEGRATION</span><h3>当前系统任务集成</h3></div><span class="hint">任务、批次、运行日志仍在本系统；目录治理交给 OpenMetadata</span></div><div class="native-metadata-grid"><div><h4>本系统保留</h4><p class="hint">流水线定义、批次状态、恢复/同步/标准化/加密执行、调度、日志与审计。</p></div><div><h4>OpenMetadata 原生</h4><p class="hint">连接器采集、目录搜索、表/字段血缘、Profiler、质量、标签、Glossary、Domain 与 AI 上下文。</p></div><div><h4>同步方式</h4><p class="hint">当前资产快照通过 OpenMetadata API upsert；任务运行继续产生 OpenLineage 事件，后续可接入异步 outbox。</p></div></div><div class="actions"><button id="openMetadataSyncBtn" class="primary" type="button">同步当前资产与血缘</button><span class="hint">仅在配置地址和同步开关开启时执行</span></div></section>
+        <section id="openMetadataSyncResult" class="data-automation-config-card" hidden><div class="data-automation-card-head"><div><span class="section-kicker">LAST SYNC</span><h3>最近同步结果</h3></div><span id="openMetadataSyncSummary" class="hint">-</span></div><pre id="openMetadataSyncDetails" class="metadata-sync-details"></pre></section>
       </div>
     </section>
 
@@ -5987,13 +5973,6 @@
       <div class="actions">
         <button id="noticeCloseBtn" class="primary" type="button">知道了</button>
       </div>
-    </div>
-  </div>
-
-  <div id="dataLineageEvidenceModal" class="modal-backdrop" hidden>
-    <div class="modal lineage-evidence-modal" role="dialog" aria-modal="true" aria-labelledby="dataLineageEvidenceTitle">
-      <div class="toolbar"><div><h2 id="dataLineageEvidenceTitle" style="margin:0">血缘证据详情</h2><div class="hint">完整字段合同、转换表达式和可审计证据</div></div><button id="dataLineageEvidenceCloseBtn" type="button">关闭</button></div>
-      <div id="dataLineageEvidenceBody" class="modal-body lineage-evidence-body"></div>
     </div>
   </div>
 
@@ -7261,7 +7240,7 @@
         { id:"dorisSm3Logs", name:"SM3 日志审计", prefix:["/doris-sm3-decrypt"], risk:"中", purpose:"查询 SM3 任务与映射处理审计记录。", steps:"设置条件 → 查询 → 查看摘要和详情", permission:"dorisSm3Logs:read", impact:"只读审计；展示仍受权限和脱敏约束。", upstream:"SM3 运行", downstream:"审计核查" },
         { id:"dataPlatform", name:"离线开发", prefix:["/data-platform"], risk:"高", purpose:"将组件编排为版本化流程并配置生产调度。", steps:"创建流程 → 绑定组件 → 保存开发版 → 提交/发布 → 调度或运行", permission:"dataPlatform:read/design/publish/execute/monitor", impact:"发布快照隔离后续编辑；运行影响由各节点决定。", upstream:"同步、触发器、SM4/SM3、SQL 组件", downstream:"调度、Worker、运行日志" },
         { id:"dataAutomation", name:"数据自动化流水线", prefix:["/data-automation/pipelines","/data-automation/batches","/data-automation/blueprints","/data-automation/assets"], risk:"高", purpose:"持续发现 DMP 并串联恢复、同步、标准化、血缘、分级和加密。", steps:"绑定已验证模板与组件 → 保存 → 启用监听 → 查看批次状态 → 处理阻断项", permission:"dataPlatform:read/design/execute + dorisEncrypt", impact:"自动恢复和同步会写入业务库；复杂血缘和加密默认阻断并要求确认。", upstream:"DMP 目录、恢复模板、同步组件、离线发布版本", downstream:"Oracle 隔离库、Doris 原始/标准/加密表、血缘资产" },
-        { id:"dataLineage", name:"数据血缘中心", prefix:["/data-automation/lineage"], risk:"低", purpose:"只读检索四层数据资产，并追踪表级、字段级及 SM4 传播关系。", steps:"筛选资产或批次 → 选择根资产 → 切换上下游与深度 → 查看资产或关系证据", permission:"dataPlatform:read", impact:"只读取资产、字段合同和血缘证据，不修改任务、调度、业务表或密钥。", upstream:"自动化批次、同步映射、离线工作流、SM4 运行", downstream:"影响分析、审计核查、问题定位" },
+        { id:"dataLineage", name:"OpenMetadata 数据目录", prefix:["/data-automation/openmetadata", "/data-automation/lineage"], risk:"低", purpose:"打开 OpenMetadata 原生目录，统一使用采集、搜索、表/字段血缘、质量、标签、术语和 AI 上下文能力。", steps:"检查连接状态 → 打开 OpenMetadata → 按需同步当前资产与血缘快照", permission:"dataPlatform:read / execute", impact:"目录同步失败不阻塞当前任务；任务、批次、运行日志仍由本系统负责。", upstream:"自动化批次、OpenLineage 事件、连接器采集", downstream:"影响分析、质量治理、AI 上下文" },
         { id:"cleanup", name:"数据库清理", prefix:["/database-cleanup"], risk:"高", purpose:"生成和执行数据库对象清理计划。", steps:"选择连接 → 读取目录 → 生成计划 → 二次确认 → 执行", permission:"cleanup:read/execute", impact:"可能删除数据库对象或数据，属于破坏性操作。", upstream:"数据库连接、对象目录", downstream:"目标业务库" }
       ];
       let helpCenterOpenApi = null;
@@ -7391,7 +7370,7 @@
           refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error"));
         }
         if (next === "dataLineage" && hasAction("dataPlatform:read")) {
-          refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error"));
+          refreshOpenMetadata().catch((e) => setMessage("openMetadataMessage", e.message, "error"));
         }
         if (next === "dataSyncCenter" && hasAction("dataPlatform:read")) {
           refreshDataPlatformComponentTasks().catch((e) => setMessage("dataSyncTaskMessage", e.message, "error"));
@@ -21710,6 +21689,58 @@
         setMessage("dataLineageMessage", catalog.truncated ? "结果已达到安全展示上限，请缩小筛选范围。" : `已加载 ${catalog.summary?.asset_count || 0} 个资产和 ${catalog.summary?.edge_count || 0} 条关系。`, catalog.truncated ? "warning" : "ok");
       }
 
+      let openMetadataState = null;
+
+      async function refreshOpenMetadata() {
+        const state = await api("/api/v1/data-automation/openmetadata/status");
+        openMetadataState = state;
+        $("openMetadataUiUrl").textContent = state.ui_url || "未配置";
+        $("openMetadataApiStatus").textContent = state.configured ? "已配置" : "未配置";
+        $("openMetadataSyncStatus").textContent = state.enabled ? (state.sync_ready ? "已开启" : "待配置") : "关闭";
+        $("openMetadataProducer").textContent = state.producer || "-";
+        const openButton = $("openMetadataOpenBtn");
+        openButton.disabled = !state.ui_url;
+        openButton.dataset.url = state.ui_url || "";
+        const syncButton = $("openMetadataSyncBtn");
+        syncButton.disabled = !state.sync_ready;
+        if (!state.configured) setMessage("openMetadataMessage", "尚未配置 OPENMETADATA_URL / OPENMETADATA_API_URL；当前系统仍可继续执行任务。", "warn");
+        else if (!state.enabled) setMessage("openMetadataMessage", "OpenMetadata 地址已配置，但同步开关未开启。", "warn");
+        else setMessage("openMetadataMessage", "OpenMetadata 原生目录已就绪。", "ok");
+        return state;
+      }
+
+      function openOpenMetadata() {
+        const url = openMetadataState?.ui_url || $("openMetadataOpenBtn")?.dataset.url;
+        if (!url) {
+          setMessage("openMetadataMessage", "尚未配置 OpenMetadata UI 地址。", "warn");
+          return;
+        }
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+
+      async function syncOpenMetadata() {
+        const button = $("openMetadataSyncBtn");
+        button.disabled = true;
+        setMessage("openMetadataMessage", "正在将当前资产与血缘快照同步到 OpenMetadata……", "info");
+        try {
+          const result = await api("/api/v1/data-automation/openmetadata/sync", {method:"POST", body:JSON.stringify({limit:500})});
+          $("openMetadataSyncResult").hidden = false;
+          $("openMetadataSyncSummary").textContent = JSON.stringify(result.summary || {});
+          $("openMetadataSyncDetails").textContent = JSON.stringify(result, null, 2);
+          setMessage("openMetadataMessage", result.status === "success" ? "资产与血缘已同步。" : (result.message || "同步完成，但存在失败项。"), result.status === "success" ? "ok" : "warn");
+        } catch (error) {
+          setMessage("openMetadataMessage", error.message, "error");
+        } finally {
+          await refreshOpenMetadata().catch(() => {});
+        }
+      }
+
+      function bindOpenMetadataEvents() {
+        $("openMetadataRefreshBtn")?.addEventListener("click", () => refreshOpenMetadata().catch((e) => setMessage("openMetadataMessage", e.message, "error")));
+        $("openMetadataOpenBtn")?.addEventListener("click", openOpenMetadata);
+        $("openMetadataSyncBtn")?.addEventListener("click", () => syncOpenMetadata());
+      }
+
       function bindDataLineageEvents() {
         $("dataLineageRefreshBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
         $("dataLineageQueryBtn")?.addEventListener("click", () => refreshDataLineage().catch((e) => setMessage("dataLineageMessage", e.message, "error")));
@@ -21753,54 +21784,25 @@
       }
 
       async function refreshDataAutomation() {
-        const [pipelineData, batchData, assetData, databaseData] = await Promise.all([
+        const [pipelineData, batchData, assetData] = await Promise.all([
           api("/api/v1/data-automation/pipelines"),
           api("/api/v1/data-automation/batches?limit=100"),
-          api("/api/v1/data-automation/assets?limit=200"),
-          api("/api/v1/data-automation/database-layers?limit=500")
+          api("/api/v1/data-automation/assets?limit=200")
         ]);
         const pipelines = pipelineData.pipelines || [];
         const runningStates = new Set(["discovered", "stabilizing", "restore_queued", "restoring", "restored", "asset_registered", "sync_queued", "syncing", "raw_ready", "path_matching", "standardize_queued", "standardizing", "standard_ready", "lineage_ready", "classified", "encryption_planned", "encrypting"]);
         $("dataAutomationPipelineCount").textContent = pipelines.length;
         $("dataAutomationRunningCount").textContent = (batchData.batches || []).filter((item) => runningStates.has(item.state)).length;
         $("dataAutomationAssetCount").textContent = (assetData.assets || []).length;
-        $("dataAutomationDatabaseCount").textContent = (databaseData.database_layers || []).length;
-        renderDataAutomationDatabaseLayers(databaseData.database_layers || []);
         $("dataAutomationPipelines").innerHTML = pipelines.length ? pipelines.map((item) => `<tr><td><strong>${escapeHtml(item.name)}</strong><br><span class="muted">${escapeHtml(item.pipeline_id)}</span></td><td>${item.auto_watch_enabled ? '<span class="status success">监听中</span>' : '<span class="status muted">已关闭</span>'}</td><td>${item.watch_interval_minutes} 分钟<br><span class="muted">稳定 ${item.stable_wait_seconds} 秒</span></td><td>${formatTime(item.last_scan_at) || "尚未扫描"}<br><span class="muted">${formatTime(item.next_scan_at) || "-"}</span></td><td>${item.restore_template_task_id ? "恢复" : "-"} / ${item.data_sync_node_id ? "同步" : "-"} / ${item.standard_workflow_version_id ? "标准化" : "-"} / ${item.sm4_task_definition_id ? "SM4" : "-"}</td><td><button type="button" data-data-auto-scan="${item.pipeline_id}">立即扫描</button><button type="button" data-data-auto-toggle="${item.pipeline_id}" data-enabled="${item.auto_watch_enabled}">${item.auto_watch_enabled ? "关闭监听" : "开启监听"}</button></td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无流水线。</td></tr>';
         const batches = batchData.batches || [];
         $("dataAutomationBatches").innerHTML = batches.length ? batches.map((item) => `<tr><td>${formatTime(item.created_at)}</td><td>${escapeHtml((item.source_files || []).map((file) => file.relative_path).join(", ") || item.source_path)}</td><td><strong>${escapeHtml(item.state)}</strong></td><td>${item.restore_task_id ? "✓" : "-"} / ${item.sync_run_id ? "✓" : "-"} / ${item.standard_run_id ? "✓" : "-"} / ${item.encryption_batch_id ? "✓" : "-"}</td><td>${escapeHtml(item.error_message || item.message || "-")}</td><td><button type="button" data-data-auto-detail="${item.batch_id}">查看阶段日志</button>${["failed","blocked","discovered"].includes(item.state) ? `<button type="button" data-data-auto-resume="${item.batch_id}">继续</button>` : ""}</td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无批次。</td></tr>';
         const assets = assetData.assets || [];
-        $("dataAutomationAssets").innerHTML = assets.length ? assets.map((item) => `<tr><td>${escapeHtml(item.layer)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.database)}.${escapeHtml(item.table_name)}</td><td>${escapeHtml(item.database_business_layer || "未配置")}</td><td><span class="muted">${escapeHtml((item.schema_signature || "-").slice(0, 16))}</span></td><td>${((item.classification_summary || {}).fields || []).filter((field) => field.protection_action !== "none").length} 个保护字段</td><td>${escapeHtml(item.last_batch_id || "-")}</td><td><button type="button" data-data-auto-lineage="${escapeHtml(item.asset_id)}">查看血缘</button></td></tr>`).join("") : '<tr><td colspan="8" class="muted">暂无资产。</td></tr>';
+        $("dataAutomationAssets").innerHTML = assets.length ? assets.map((item) => `<tr><td>${escapeHtml(item.layer)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.database)}.${escapeHtml(item.table_name)}</td><td><span class="status muted">由 OpenMetadata 管理</span></td><td><span class="muted">${escapeHtml((item.schema_signature || "-").slice(0, 16))}</span></td><td>${((item.classification_summary || {}).fields || []).filter((field) => field.protection_action !== "none").length} 个保护字段</td><td>${escapeHtml(item.last_batch_id || "-")}</td><td><button type="button" data-data-auto-lineage="${escapeHtml(item.asset_id)}">打开目录</button></td></tr>`).join("") : '<tr><td colspan="8" class="muted">暂无资产。</td></tr>';
       }
 
       function bindDataAutomationEvents() {
         $("dataAutomationRefreshBtn")?.addEventListener("click", () => refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error")));
-        $("dataAutomationDbForm")?.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          try {
-            await api("/api/v1/data-automation/database-layers", {method:"PUT", body:JSON.stringify({connection_id:$("dataAutomationDbConnectionId").value.trim() || null, engine:$("dataAutomationDbEngine").value.trim(), connection_name:$("dataAutomationDbConnection").value.trim() || null, catalog:$("dataAutomationDbCatalog").value.trim(), database:$("dataAutomationDbDatabase").value.trim(), business_layer:$("dataAutomationDbBusinessLayer").value.trim() || null, description:$("dataAutomationDbDescription").value.trim() || null})});
-            setMessage("dataAutomationMessage", "库业务层级已保存，血缘统计会按该配置展示。", "ok");
-            resetDataAutomationDatabaseForm();
-            await refreshDataAutomation();
-          } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
-        });
-        $("dataAutomationDbResetBtn")?.addEventListener("click", resetDataAutomationDatabaseForm);
-        $("dataAutomationDatabaseLayers")?.addEventListener("click", (event) => {
-          const button = event.target.closest("[data-data-auto-db-edit]");
-          if (!button) return;
-          const item = dataAutomationDatabaseLayers.find((row) => row.database_key === button.dataset.dataAutoDbEdit);
-          if (!item) return;
-          $("dataAutomationDbKey").value = item.database_key || "";
-          $("dataAutomationDbConnectionId").value = item.connection_id || "";
-          $("dataAutomationDbEngine").value = item.engine || "doris";
-          $("dataAutomationDbConnection").value = item.connection_name || "";
-          $("dataAutomationDbCatalog").value = item.catalog || "";
-          $("dataAutomationDbDatabase").value = item.database || "";
-          $("dataAutomationDbBusinessLayer").value = item.business_layer || "";
-          $("dataAutomationDbDescription").value = item.description || "";
-          $("dataAutomationDbBusinessLayer").focus();
-        });
-        $("dataLineageDatabaseConfigBtn")?.addEventListener("click", () => { showModule("dataAutomation"); $("dataAutomationDbDatabase")?.focus(); });
         $("dataAutomationCreateBtn")?.addEventListener("click", async () => {
           try {
             const optionalId = (id) => $(id).value.trim() || null;
@@ -21827,18 +21829,15 @@
         $("dataAutomationAssets")?.addEventListener("click", (event) => {
           const button = event.target.closest("[data-data-auto-lineage]");
           if (!button) return;
-          dataLineageSelectedAssetId = button.dataset.dataAutoLineage || "";
-          $("dataLineageSearch").value = "";
-          $("dataLineageLayer").value = "";
-          $("dataLineageDatabase").value = "";
           showModule("dataLineage");
+          openOpenMetadata();
         });
       }
 
       async function init() {
         initNavigation();
         bindDataAutomationEvents();
-        bindDataLineageEvents();
+        bindOpenMetadataEvents();
         bindApiOrchestrationEvents();
         initDorisEncryptKeywords();
         setDorisEncryptTableMode("drop_recreate");

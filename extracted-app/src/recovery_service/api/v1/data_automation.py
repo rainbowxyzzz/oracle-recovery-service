@@ -13,9 +13,11 @@ from recovery_service.api.schemas.data_automation import (
     DataDatabaseLayerUpsert,
     DataLineageCreate,
     OpenLineageRunEvent,
+    OpenMetadataSyncRequest,
     ReverseEncryptionExecuteRequest,
 )
 from recovery_service.services import data_automation as service
+from recovery_service.services import openmetadata as openmetadata_service
 from recovery_service.services.auth import AuthContext
 
 router = APIRouter(prefix="/data-automation", tags=["data-automation"])
@@ -128,6 +130,23 @@ async def openmetadata_lineage(
 @router.post("/lineage/openlineage/events", status_code=201)
 async def ingest_openlineage_event(body: OpenLineageRunEvent, _: None = Depends(require_permission("dataPlatform:design"))):
     return await asyncio.to_thread(service.ingest_openlineage_event, body.model_dump(by_alias=True, exclude_none=True))
+
+
+@router.get("/openmetadata/status")
+async def openmetadata_status(_: None = Depends(require_permission("dataPlatform:read"))):
+    return await asyncio.to_thread(openmetadata_service.status)
+
+
+@router.post("/openmetadata/sync")
+async def sync_openmetadata(body: OpenMetadataSyncRequest, _: None = Depends(require_permission("dataPlatform:execute"))):
+    return await asyncio.to_thread(
+        openmetadata_service.sync_snapshot,
+        search=body.search,
+        layer=body.layer,
+        database_key=body.database_key,
+        batch_id=body.batch_id,
+        limit=body.limit,
+    )
 
 
 @router.get("/lineage/openlineage/events")

@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # Optional isolated Harness planner. No model or database credentials are exchanged.
     harness_bridge_url: str = ""
     harness_bridge_token: str = ""
+    openmetadata_url: str = ""
+    openmetadata_api_url: str = ""
+    openmetadata_api_token: str = ""
+    openmetadata_sync_enabled: bool = False
+    openmetadata_request_timeout_seconds: int = 20
+    openmetadata_producer: str = "oracle-recovery-service"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     app_timezone: str = "Asia/Shanghai"

@@ -82,6 +82,8 @@
 
 本文档用于汇总当前项目已经确认、已经开发和已经验证的主要功能需求，作为后续开发、验收、打包和现场沟通的统一入口。
 
+2026-09-05 血缘架构重构进入开发：正式方案改为“OpenMetadata 原生 UI + 当前系统任务集成”。当前系统撤出自研血缘图、数据库分组统计和库业务层级治理 UI，保留任务、批次、运行日志、资产/血缘审计和 OpenLineage 事件；通过 OpenMetadata Database Service Connector 负责采集，通过 OpenMetadata API Bridge 同步表实体、字段血缘和任务上下文。未配置 OpenMetadata 时，任务执行和本地事件审计保持兼容，不伪造同步成功。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 9.4 节。
+
 2026-07-31 已生成接口编排中心最新完整 Docker Run 包 `20260731-api-orchestration-complete-r1-no-business-db`。该包以生产正在使用的 `20260729-resource-data-permissions-r1` 完整包为结构基线，包含最新 API、角色删除 Resource Provisioning Worker、独立 API Orchestration Worker及其余既有业务 Worker，共 9 个应用镜像标签；启动脚本统一执行系统库迁移并启动 API 与 8 个 Worker。该完整包修正了此前增量包错误假设生产已存在接口编排 Worker的问题，生产不得再使用该不兼容增量包跨基线升级。详细结果见 `docs/RELEASE_VALIDATION_20260731_API_ORCHESTRATION_COMPLETE_PACKAGE.md`。
 
 2026-07-30 接口编排中心进入下一轮 UI 改造：SQL API 以本机实际 DBeaver `26.1.1` 为参照，采用数据连接导航树、脚本标签/工具栏、主 SQL 编辑器和底部参数/结果工作区，并用细分隔线和连续层级替代多层硬边框；流程设计复用离线开发画布的上下端口拖连、曲线预览、目标高亮、自动排布、选中删除和未保存状态。现有接口、字段、权限、发布快照和 Worker 执行语义保持不变，详细规则见 `docs/API_ORCHESTRATION_CENTER_PRD.md` 第 25 节。
