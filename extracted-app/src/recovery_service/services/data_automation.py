@@ -1391,6 +1391,11 @@ def _openmetadata_entity(asset: dict[str, Any]) -> dict[str, Any]:
     fqn = ".".join(str(value or "") for value in (asset.get("engine"), asset.get("catalog"), asset.get("database"), asset.get("table_name"), asset.get("layer"))).casefold()
     service_name = asset.get("connection_name") or asset.get("engine")
     native_parts = [str(value).strip() for value in (service_name, asset.get("catalog"), asset.get("database"), asset.get("table_name")) if str(value or "").strip()]
+    # OpenMetadata tables always belong to service.database.schema.  Some
+    # Doris projections have no physical schema, so keep them under a stable
+    # native ``default`` schema instead of producing a 3-part FQN.
+    if len(native_parts) == 3:
+        native_parts.insert(-1, "default")
     native_fqn = ".".join(native_parts).casefold()
     native_database_schema = ".".join(native_parts[:-1]).casefold()
     return {

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -19,6 +20,58 @@ from recovery_service.services import data_automation
 from recovery_service.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+_OPENMETADATA_SERVICE_TYPES = {
+    "bigquery": "BigQuery",
+    "clickhouse": "Clickhouse",
+    "doris": "Doris",
+    "mysql": "Mysql",
+    "oracle": "Oracle",
+    "postgres": "Postgres",
+    "postgresql": "Postgres",
+    "sqlserver": "Mssql",
+    "mssql": "Mssql",
+}
+
+_OPENMETADATA_DATA_TYPES = {
+    "array": "ARRAY",
+    "bigint": "BIGINT",
+    "binary": "BINARY",
+    "bit": "BIT",
+    "blob": "BLOB",
+    "boolean": "BOOLEAN",
+    "bool": "BOOLEAN",
+    "char": "CHAR",
+    "clob": "CLOB",
+    "date": "DATE",
+    "datetime": "DATETIME",
+    "datetime64": "DATETIME",
+    "datetimev2": "DATETIME",
+    "decimal": "DECIMAL",
+    "double": "DOUBLE",
+    "float": "FLOAT",
+    "geometry": "GEOMETRY",
+    "int": "INT",
+    "int64": "BIGINT",
+    "integer": "INT",
+    "json": "JSON",
+    "long": "LONG",
+    "largeint": "BIGINT",
+    "map": "MAP",
+    "number": "NUMBER",
+    "numeric": "NUMERIC",
+    "smallint": "SMALLINT",
+    "string": "STRING",
+    "text": "TEXT",
+    "time": "TIME",
+    "timestamp": "TIMESTAMP",
+    "timestampz": "TIMESTAMPZ",
+    "tinyint": "TINYINT",
+    "uuid": "UUID",
+    "varbinary": "VARBINARY",
+    "varchar": "VARCHAR",
+}
 
 
 def _base_url(value: str) -> str:
@@ -166,32 +219,160 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
-def _custom_properties(entity: dict[str, Any]) -> list[dict[str, str]]:
+def _custom_properties(entity: dict[str, Any]) -> dict[str, str]:
     values = entity.get("customProperties") or {}
-    return [
-        {"name": str(key), "value": str(value)}
+    return {
+        str(key): str(value)
         for key, value in values.items()
         if value is not None and str(value).strip()
-    ]
+    }
+
+
+def _native_data_type(value: Any) -> str:
+    raw = str(value or "UNKNOWN").strip()
+    normalized = raw.split("(", 1)[0].strip().casefold()
+    if normalized in _OPENMETADATA_DATA_TYPES:
+        return _OPENMETADATA_DATA_TYPES[normalized]
+    if normalized.startswith("varchar"):
+        return "VARCHAR"
+    if normalized.startswith("timestamp"):
+        return "TIMESTAMP"
+    if normalized.startswith("number"):
+        return "NUMBER"
+    if normalized.startswith("decimal"):
+        return "DECIMAL"
+    return "STRING"
+
+
+def _native_hierarchy(entity: dict[str, Any]) -> dict[str, str]:
+    schema_fqn = str(entity.get("openMetadataDatabaseSchema") or "").strip().casefold()
+    parts = [part for part in schema_fqn.split(".") if part]
+    if len(parts) < 2:
+        raise ValueError("OpenMetadata database schema FQN 至少需要 service.database.schema")
+    service_name = parts[0]
+    database_name = parts[1]
+    schema_name = ".".join(parts[2:]) or "default"
+    return {
+        "service": service_name,
+        "service_type": _OPENMETADATA_SERVICE_TYPES.get(str(entity.get("serviceType") or "").casefold(), "CustomDatabase"),
+        "database": database_name,
+        "schema": schema_name,
+        "database_fqn": f"{service_name}.{database_name}",
+        "schema_fqn": f"{service_name}.{database_name}.{schema_name}",
+    }
 
 
 def _table_payload(entity: dict[str, Any]) -> dict[str, Any]:
-    native_fqn = entity.get("openMetadataFqn") or entity.get("fullyQualifiedName")
+    hierarchy = _native_hierarchy(entity)
+    columns = []
+    for column in entity.get("columns") or []:
+        item = {
+            "name": column.get("name"),
+            "dataType": _native_data_type(column.get("dataType") or column.get("data_type")),
+            "dataTypeDisplay": str(column.get("dataType") or column.get("data_type") or "UNKNOWN"),
+        }
+        type_display = item["dataTypeDisplay"]
+        type_match = re.search(r"\((\d+)(?:\s*,\s*(\d+))?\)", type_display)
+        if type_match and item["dataType"] in {"CHAR", "VARCHAR", "VARBINARY", "BINARY"}:
+            item["dataLength"] = int(type_match.group(1))
+        if type_match and item["dataType"] in {"NUMBER", "DECIMAL", "NUMERIC"}:
+            item["precision"] = int(type_match.group(1))
+            if type_match.group(2):
+                item["scale"] = int(type_match.group(2))
+        if column.get("constraint"):
+            item["constraint"] = column["constraint"]
+        elif column.get("required"):
+            item["constraint"] = "NOT_NULL"
+        columns.append({key: value for key, value in item.items() if value not in (None, "")})
     payload: dict[str, Any] = {
         "name": entity.get("name"),
         "displayName": entity.get("displayName") or entity.get("name"),
-        "fullyQualifiedName": native_fqn,
-        "service": entity.get("serviceName"),
-        "serviceType": entity.get("serviceType"),
-        "databaseSchema": entity.get("openMetadataDatabaseSchema") or entity.get("databaseSchema"),
+        "databaseSchema": hierarchy["schema_fqn"],
         "tableType": "Regular",
-        "columns": entity.get("columns") or [],
-        "tags": entity.get("tags") or [],
+        "columns": columns,
+        "tags": [
+            {
+                **tag,
+                "labelType": tag.get("labelType") or "Automated",
+                "state": tag.get("state") or "Confirmed",
+            }
+            for tag in entity.get("tags") or []
+        ],
     }
     properties = _custom_properties(entity)
     if properties:
-        payload["customProperties"] = properties
+        context = "；".join(f"{key}={value}" for key, value in properties.items())
+        payload["description"] = f"当前系统血缘资产；{context}"
     return {key: value for key, value in payload.items() if value not in (None, "")}
+
+
+def _ensure_native_tags(client: httpx.Client, entities: list[dict[str, Any]]) -> None:
+    seen: set[str] = set()
+    for entity in entities:
+        for tag in entity.get("tags") or []:
+            fqn = str(tag.get("tagFQN") or "").strip()
+            if not fqn or fqn in seen:
+                continue
+            seen.add(fqn)
+            classification, separator, name = fqn.partition(".")
+            if not separator or not name:
+                continue
+            client.put(
+                "/v1/classifications",
+                json={
+                    "name": classification,
+                    "displayName": classification,
+                    "description": "由当前系统血缘桥接维护的数据分类",
+                },
+            ).raise_for_status()
+            client.put(
+                "/v1/tags",
+                json={
+                    "name": name,
+                    "displayName": name,
+                    "description": "由当前系统血缘桥接维护的数据分类标签",
+                    "classification": classification,
+                },
+            ).raise_for_status()
+
+
+def _ensure_native_hierarchy(client: httpx.Client, entities: list[dict[str, Any]]) -> set[str]:
+    ready: set[str] = set()
+    seen: set[str] = set()
+    for entity in entities:
+        hierarchy = _native_hierarchy(entity)
+        if hierarchy["schema_fqn"] in seen:
+            continue
+        seen.add(hierarchy["schema_fqn"])
+        client.put(
+            "/v1/services/databaseServices",
+            json={
+                "name": hierarchy["service"],
+                "displayName": hierarchy["service"],
+                "serviceType": hierarchy["service_type"],
+                "description": "由当前系统血缘桥接维护的 OpenMetadata 数据服务",
+            },
+        ).raise_for_status()
+        client.put(
+            "/v1/databases",
+            json={
+                "name": hierarchy["database"],
+                "displayName": hierarchy["database"],
+                "service": hierarchy["service"],
+                "description": "由当前系统血缘桥接维护的 OpenMetadata 数据库",
+            },
+        ).raise_for_status()
+        client.put(
+            "/v1/databaseSchemas",
+            json={
+                "name": hierarchy["schema"],
+                "displayName": hierarchy["schema"],
+                "database": hierarchy["database_fqn"],
+                "description": "由当前系统血缘桥接维护的 OpenMetadata 数据库 Schema",
+            },
+        ).raise_for_status()
+        ready.add(hierarchy["schema_fqn"])
+    return ready
 
 
 def _lineage_payload(
@@ -269,8 +450,17 @@ def sync_snapshot(
         headers={"Content-Type": "application/json", **_headers()},
         timeout=settings.openmetadata_request_timeout_seconds,
     ) as client:
+        try:
+            _ensure_native_tags(client, entities)
+            ready_schemas = _ensure_native_hierarchy(client, entities)
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            summary["failed"] += len(entities)
+            failures.append({"kind": "hierarchy", "error": str(exc)[:300]})
+            ready_schemas = set()
         for entity in entities:
             try:
+                if _native_hierarchy(entity)["schema_fqn"] not in ready_schemas:
+                    raise ValueError("未能创建 OpenMetadata service/database/schema 层级")
                 response = client.put("/v1/tables", json=_table_payload(entity))
                 response.raise_for_status()
                 result = response.json()

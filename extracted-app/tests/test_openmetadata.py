@@ -56,9 +56,11 @@ def test_table_payload_uses_native_fqn_and_keeps_task_context_as_properties() ->
         "tags": [],
         "customProperties": {"pipeline": "p-1", "layer": "standard"},
     })
-    assert payload["fullyQualifiedName"] == "doris.hive.dwd.customer"
     assert payload["databaseSchema"] == "doris.hive.dwd"
-    assert {item["name"] for item in payload["customProperties"]} == {"pipeline", "layer"}
+    assert "fullyQualifiedName" not in payload
+    assert "pipeline=p-1" in payload["description"]
+    assert "layer=standard" in payload["description"]
+    assert payload["columns"][0]["dataType"] == "BIGINT"
 
 
 def test_sync_snapshot_upserts_tables_and_lineage_without_persisting_credentials() -> None:
@@ -95,8 +97,8 @@ def test_sync_snapshot_upserts_tables_and_lineage_without_persisting_credentials
             return Response({"id": path.rsplit("/", 1)[-1]})
 
     entities = [
-        {"name": "source", "fullyQualifiedName": "legacy.source", "openMetadataFqn": "doris.dwd.source", "columns": [], "customProperties": {}},
-        {"name": "target", "fullyQualifiedName": "legacy.target", "openMetadataFqn": "doris.dwd.target", "columns": [], "customProperties": {}},
+        {"name": "source", "fullyQualifiedName": "legacy.source", "openMetadataFqn": "doris.dwd.default.source", "openMetadataDatabaseSchema": "doris.dwd.default", "columns": [], "customProperties": {}},
+        {"name": "target", "fullyQualifiedName": "legacy.target", "openMetadataFqn": "doris.dwd.default.target", "openMetadataDatabaseSchema": "doris.dwd.default", "columns": [], "customProperties": {}},
     ]
     projection = {
         "entities": entities,
@@ -112,7 +114,8 @@ def test_sync_snapshot_upserts_tables_and_lineage_without_persisting_credentials
         result = openmetadata.sync_snapshot(limit=10)
     assert result["status"] == "success"
     assert result["summary"] == {"entities": 2, "lineage": 1, "failed": 0}
-    assert Client.last_calls[0][1] == "/v1/tables"
+    assert Client.last_calls[0][1] == "/v1/services/databaseServices"
+    assert any(call[1] == "/v1/tables" for call in Client.last_calls)
     assert Client.last_calls[-1][1] == "/v1/lineage"
     assert Client.last_calls[-1][2]["edge"]["lineageDetails"]["columnsLineage"][0]["toColumn"] == "id"
     assert "secret" not in str(Client.last_calls)
