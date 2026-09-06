@@ -3160,7 +3160,8 @@
       .help-toolbar, .help-manual-grid, .help-coupling-grid, .help-metrics, .help-architecture-flow { grid-template-columns: 1fr; }
     }
     .eyebrow, .section-kicker { display: block; color: #6b7f95; font-size: 10px; font-weight: 750; letter-spacing: .12em; line-height: 1.4; }
-    .data-automation-module { display: grid; gap: 12px; }
+    .module-panel.data-automation-module { display: none; gap: 12px; }
+    .module-panel.data-automation-module.active { display: grid; }
     .data-automation-page-head, .data-automation-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .data-automation-page-head h2, .data-automation-card-head h3 { margin: 2px 0 0; }
     .data-automation-config-card { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }

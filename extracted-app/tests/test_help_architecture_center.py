@@ -36,3 +36,9 @@ def test_help_center_keeps_swagger_as_developer_supplement() -> None:
     html = UI.read_text(encoding="utf-8")
     assert 'href="/docs" target="_blank"' in html
     assert "打开原始 Swagger" in html
+
+
+def test_data_automation_panel_honors_module_visibility_switching() -> None:
+    html = UI.read_text(encoding="utf-8")
+    assert ".module-panel.data-automation-module { display: none;" in html
+    assert ".module-panel.data-automation-module.active { display: grid; }" in html
