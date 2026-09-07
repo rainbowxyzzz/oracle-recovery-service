@@ -3186,7 +3186,10 @@
   </style>
   <link rel='stylesheet' href='/static/ui-unified.css'>
 </head>
-<body class="auth-checking">
+<body class="auth-checking phase-one-static phase-two-interactive">
+  <div class="global-bar" aria-label="全局导航">
+    <div class="global-bar-left"><strong>数据恢复与治理平台</strong></div>
+  </div>
   <header>
     <h1>数据库恢复与清理控制台</h1>
     <div class="header-actions">
@@ -3223,28 +3226,65 @@
     <aside class="side-nav">
       <div class="tree-title">功能模块</div>
       <nav class="tree" aria-label="功能模块">
-        <button type="button" data-nav-module="connections">数据连接</button>
-        <button type="button" data-nav-module="restore">数据导入 / 恢复</button>
-        <button type="button" data-nav-module="dorisCsv">Doris CSV 导入</button>
-        <button type="button" data-nav-module="dorisSqlEtl">Doris SQL 开发工作台</button>
-        <button type="button" data-nav-module="dataSyncCenter">数据同步</button>
-        <button type="button" data-nav-module="dataChangeTriggerCenter">数据变化触发器</button>
-        <button type="button" data-nav-module="batchAuthorization">批量授权中心</button>
-        <button type="button" data-nav-module="approvalAuthorization">审批流自动授权</button>
-        <button type="button" data-nav-module="resourceProvisioning">数据空间批量开通</button>
-        <button type="button" data-nav-module="apiOrchestration">接口编排中心</button>
-        <button type="button" data-nav-module="dorisEncrypt">Doris SM4 加密中心</button>
-        <button type="button" data-nav-module="dorisEncryptDispatch">SM4 调度中心</button>
-        <button type="button" data-nav-module="dorisSm3">Doris SM3 映射脱敏</button>
-        <button type="button" data-nav-module="dorisSm3Logs">SM3 日志审计</button>
-        <button type="button" data-nav-module="dataPlatform">离线开发</button>
-        <button type="button" data-nav-module="dataAutomation">数据自动化流水线</button>
-        <a href="/static/assistant.html" target="_blank" rel="noopener" style="display:block;padding:10px 12px;color:inherit;text-decoration:none">Harness 智能助手</a>
-        <button type="button" data-nav-module="dataLineage">OpenMetadata 数据目录</button>
-        <button type="button" data-nav-module="cleanup">数据库清理</button>
-        <button type="button" data-nav-module="helpArchitecture">帮助与架构中心</button>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">数据接入</button>
+          <div class="nav-domain-menu" role="menu">
+            <button type="button" data-nav-module="connections">数据连接</button>
+            <button type="button" data-nav-module="restore">数据导入 / 恢复</button>
+            <button type="button" data-nav-module="dorisCsv">Doris CSV 导入</button>
+          </div>
+        </div>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">数据开发</button>
+          <div class="nav-domain-menu" role="menu">
+            <button type="button" data-nav-module="dorisSqlEtl">Doris SQL 开发工作台</button>
+            <button type="button" data-nav-module="dataPlatform">离线开发</button>
+            <button type="button" data-nav-module="dataAutomation">数据自动化流水线</button>
+          </div>
+        </div>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">数据流转</button>
+          <div class="nav-domain-menu" role="menu">
+            <button type="button" data-nav-module="dataSyncCenter">数据同步</button>
+            <button type="button" data-nav-module="dataChangeTriggerCenter">数据变化触发器</button>
+          </div>
+        </div>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">权限服务</button>
+          <div class="nav-domain-menu" role="menu">
+            <button type="button" data-nav-module="batchAuthorization">批量授权中心</button>
+            <button type="button" data-nav-module="approvalAuthorization">审批流自动授权</button>
+            <button type="button" data-nav-module="resourceProvisioning">数据空间批量开通</button>
+          </div>
+        </div>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">数据安全</button>
+          <div class="nav-domain-menu" role="menu">
+            <button type="button" data-nav-module="dorisEncrypt">Doris SM4 加密中心</button>
+            <button type="button" data-nav-module="dorisEncryptDispatch">SM4 调度中心</button>
+            <button type="button" data-nav-module="dorisSm3">Doris SM3 映射脱敏</button>
+            <button type="button" data-nav-module="dorisSm3Logs">SM3 日志审计</button>
+          </div>
+        </div>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">服务与治理</button>
+          <div class="nav-domain-menu" role="menu">
+            <button type="button" data-nav-module="apiOrchestration">接口编排中心</button>
+            <button type="button" data-nav-module="dataLineage">OpenMetadata 数据目录</button>
+            <button type="button" data-nav-module="cleanup">数据库清理</button>
+            <button type="button" data-nav-module="helpArchitecture">帮助与架构中心</button>
+          </div>
+        </div>
+        <div class="nav-domain-group">
+          <button class="nav-domain-trigger" type="button" aria-haspopup="true" aria-expanded="false">系统与助手</button>
+          <div class="nav-domain-menu" role="menu">
+            <a href="/static/assistant.html" target="_blank" rel="noopener">Harness 智能助手</a>
+          </div>
+        </div>
       </nav>
     </aside>
+
+    <div id="megaMenuOverlay" class="mega-menu-overlay" aria-hidden="true"></div>
 
     <div class="content">
     <section class="module-panel active" data-module="system">
@@ -6582,6 +6622,166 @@
         return (currentPermissions().actions || []).includes(actionId);
       }
 
+      let phaseTwoPreviewGroup = null;
+      let phaseTwoLockedGroup = null;
+      let phaseTwoVisualDomain = null;
+      let phaseTwoVisualModule = "";
+      let phaseTwoCloseTimer = null;
+      const phaseTwoDescriptions = {
+        connections: "新增与维护目标数据源",
+        restore: "执行 Oracle 与异构库恢复",
+        dorisCsv: "以任务化方式导入文件",
+        dorisSqlEtl: "编写、校验与运行 SQL",
+        dataPlatform: "编排批处理与调度任务",
+        dataAutomation: "构建可复用的数据流转链路",
+        dataSyncCenter: "管理全量与增量同步任务",
+        dataChangeTriggerCenter: "监听数据变更并触发动作",
+        batchAuthorization: "按对象与角色批量授权",
+        approvalAuthorization: "根据审批结果自动执行授权",
+        resourceProvisioning: "快速开通团队数据空间",
+        dorisEncrypt: "字段与文件加密处理",
+        dorisEncryptDispatch: "管理加密批次与运行",
+        dorisSm3: "维护映射与脱敏规则",
+        dorisSm3Logs: "查询脱敏运行日志",
+        apiOrchestration: "设计与运行接口流程",
+        dataLineage: "管理资产、血缘与质量",
+        cleanup: "执行可控的数据清理",
+        helpArchitecture: "查看能力地图与指引",
+        assistant: "打开独立的智能助手工作台",
+      };
+      const phaseTwoDomainDescriptions = {
+        数据接入: "统一管理连接、导入与恢复入口。",
+        数据开发: "构建 SQL、离线任务与自动化流程。",
+        数据流转: "编排同步任务与数据变更触发。",
+        权限服务: "集中处理授权、审批和数据空间开通。",
+        数据安全: "覆盖加密、脱敏、调度与审计。",
+        服务与治理: "管理接口、元数据、清理和架构指引。",
+        系统与助手: "进入平台智能助手。",
+      };
+
+      function phaseTwoModules(group) {
+        return Array.from(group.querySelectorAll(".nav-domain-menu > [data-nav-module], .nav-domain-menu > a[href]"))
+          .filter((item) => !item.hidden)
+          .map((item) => ({
+            id: item.getAttribute("data-nav-module") || "assistant",
+            name: item.textContent.trim(),
+            description: phaseTwoDescriptions[item.getAttribute("data-nav-module") || "assistant"] || "",
+            href: item.getAttribute("href") || "",
+          }));
+      }
+
+      function syncTopNavigation() {
+        const activeModule = document.querySelector("[data-nav-module].active")?.getAttribute("data-nav-module") || "";
+        document.querySelectorAll(".nav-domain-group").forEach((group) => {
+          const trigger = group.querySelector(".nav-domain-trigger");
+          const modules = phaseTwoModules(group);
+          if (!trigger) return;
+          const active = group === phaseTwoVisualDomain || (!phaseTwoVisualDomain && modules.some((module) => module.id === activeModule));
+          group.hidden = modules.length === 0;
+          trigger.classList.toggle("active", active);
+          trigger.classList.toggle("preview", group === phaseTwoPreviewGroup);
+          trigger.setAttribute("aria-expanded", String(group === phaseTwoPreviewGroup));
+        });
+      }
+
+      function renderPhaseTwoMegaMenu(group) {
+        const overlay = $("megaMenuOverlay");
+        const trigger = group.querySelector(".nav-domain-trigger");
+        const domainName = trigger?.textContent.trim() || "";
+        const modules = phaseTwoModules(group);
+        const activeModule = document.querySelector("[data-nav-module].active")?.getAttribute("data-nav-module") || "";
+        const moduleCards = modules.map((module) => `<button class="mega-menu-module${module.id === activeModule || (!activeModule && module.id === phaseTwoVisualModule) ? " current" : ""}" type="button" data-phase-two-module="${escapeHtml(module.id)}"><strong>${escapeHtml(module.name)}</strong><span>${escapeHtml(module.description)}</span></button>`).join("");
+        overlay.innerHTML = `<div class="mega-menu-panel" role="dialog" aria-label="${escapeHtml(domainName)} 模块">
+          <section class="mega-menu-intro"><span>BUSINESS DOMAIN</span><h2>${escapeHtml(domainName)}</h2><p>${escapeHtml(phaseTwoDomainDescriptions[domainName] || "")}</p><small>${modules.length} 个模块</small></section>
+          <section class="mega-menu-grid" role="menu">${moduleCards}</section>
+        </div>`;
+        overlay.querySelectorAll("[data-phase-two-module]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const moduleId = button.getAttribute("data-phase-two-module") || "";
+            const module = modules.find((item) => item.id === moduleId);
+            if (!module) return;
+            phaseTwoVisualModule = moduleId;
+            phaseTwoVisualDomain = null;
+            if (module.href) {
+              window.open(module.href, "_blank", "noopener");
+            } else {
+              if (moduleId === "dorisEncrypt") {
+                showDorisEncryptTaskEditor(false);
+                showDorisEncryptTab("tasks");
+              }
+              showModule(moduleId);
+              closeSystemUserMenu();
+            }
+            closePhaseTwoMegaMenu();
+          });
+        });
+      }
+
+      function showPhaseTwoMegaMenu(group) {
+        if (!group || group.hidden) return;
+        const overlay = $("megaMenuOverlay");
+        phaseTwoPreviewGroup = group;
+        renderPhaseTwoMegaMenu(group);
+        overlay.classList.add("is-open");
+        overlay.setAttribute("aria-hidden", "false");
+        syncTopNavigation();
+      }
+
+      function closePhaseTwoMegaMenu() {
+        const overlay = $("megaMenuOverlay");
+        phaseTwoPreviewGroup = null;
+        phaseTwoLockedGroup = null;
+        overlay.classList.remove("is-open");
+        overlay.setAttribute("aria-hidden", "true");
+        syncTopNavigation();
+      }
+
+      function cancelPhaseTwoClose() {
+        if (phaseTwoCloseTimer) window.clearTimeout(phaseTwoCloseTimer);
+        phaseTwoCloseTimer = null;
+      }
+
+      function deferPhaseTwoClose() {
+        cancelPhaseTwoClose();
+        phaseTwoCloseTimer = window.setTimeout(() => {
+          if (phaseTwoLockedGroup) showPhaseTwoMegaMenu(phaseTwoLockedGroup);
+          else closePhaseTwoMegaMenu();
+        }, 100);
+      }
+
+      function initTopNavigation() {
+        const overlay = $("megaMenuOverlay");
+        document.querySelectorAll(".nav-domain-group").forEach((group) => {
+          const trigger = group.querySelector(".nav-domain-trigger");
+          if (!trigger) return;
+          trigger.addEventListener("click", (event) => {
+            event.stopPropagation();
+            cancelPhaseTwoClose();
+            phaseTwoLockedGroup = group;
+            showPhaseTwoMegaMenu(group);
+          });
+          group.addEventListener("mouseenter", () => {
+            cancelPhaseTwoClose();
+            showPhaseTwoMegaMenu(group);
+          });
+          group.addEventListener("mouseleave", deferPhaseTwoClose);
+          group.addEventListener("focusin", () => {
+            cancelPhaseTwoClose();
+            showPhaseTwoMegaMenu(group);
+          });
+          group.addEventListener("focusout", deferPhaseTwoClose);
+        });
+        overlay.addEventListener("mouseenter", cancelPhaseTwoClose);
+        overlay.addEventListener("mouseleave", deferPhaseTwoClose);
+        overlay.addEventListener("focusin", cancelPhaseTwoClose);
+        overlay.addEventListener("focusout", deferPhaseTwoClose);
+        document.addEventListener("click", (event) => {
+          if (event.target.closest(".side-nav, #megaMenuOverlay")) return;
+          cancelPhaseTwoClose();
+          closePhaseTwoMegaMenu();
+        });
+      }
+
       function applyPermissionView() {
         const visibleModules = [];
         document.querySelectorAll("[data-nav-module]").forEach((button) => {
@@ -6600,6 +6800,7 @@
         if (!visibleModules.includes(active)) {
           showModule(visibleModules[0] || "system");
         }
+        syncTopNavigation();
         updateSystemUserMenu();
         setPermissionVisibility("newConnectionBtn", hasAction("connections:manage"));
         setPermissionVisibility("saveConnectionBtn", hasAction("connections:manage"));
@@ -7339,6 +7540,7 @@
         document.querySelectorAll(".module-panel[data-module]").forEach((panel) => {
           panel.classList.toggle("active", panel.getAttribute("data-module") === next);
         });
+        syncTopNavigation();
         localStorage.setItem(MODULE_STORAGE_KEY, next);
         if (next === "dorisEncrypt" && hasAction("dorisEncrypt:read")) {
           updateDorisEncryptTabActions();
@@ -7407,6 +7609,8 @@
 
       function initNavigation() {
         splitDorisEncryptPanels();
+        initTopNavigation();
+        syncTopNavigation();
         $("systemAdminNavTrigger")?.addEventListener("click", (event) => {
           event.stopPropagation();
           toggleSystemUserMenu();
