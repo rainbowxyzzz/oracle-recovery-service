@@ -334,6 +334,32 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class OpenMetadataUserBinding(Base):
+    """Desired OpenMetadata native authorization for a local user.
+
+    The binding is intentionally separate from ``User.permissions``.  The
+    latter is enforced by this application, while OpenMetadata remains the
+    source of truth for its own Role/Team/Policy evaluation.
+    """
+
+    __tablename__ = "openmetadata_user_bindings"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_openmetadata_binding_user"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    openmetadata_username: Mapped[str] = mapped_column(String(128), index=True)
+    role_names: Mapped[list] = mapped_column(JSON, default=list)
+    team_names: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    sync_status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    sync_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    openmetadata_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
+
+
 class ApiKeyCredential(Base):
     __tablename__ = "api_key_credentials"
 

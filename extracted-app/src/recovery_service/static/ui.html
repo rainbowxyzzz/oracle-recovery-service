@@ -6109,6 +6109,8 @@
       let users = [];
       let apiKeys = [];
       let permissionCatalog = [];
+      let openmetadataBindings = new Map();
+      let openmetadataPermissionCatalog = { configured: false, token_configured: false, roles: [], teams: [] };
       let batchAuthDepartments = [];
       let batchAuthGrantBatches = [];
       let batchAuthInitPreviewData = null;
@@ -6846,7 +6848,12 @@
       async function loadUsers() {
         if (!currentAuth?.is_admin) return;
         if (!permissionCatalog.length) await loadPermissionCatalog();
-        users = await api("/api/v1/users");
+        [users, openmetadataPermissionCatalog] = await Promise.all([
+          api("/api/v1/users"),
+          api("/api/v1/users/openmetadata/catalog").catch(() => ({ configured: false, token_configured: false, roles: [], teams: [] }))
+        ]);
+        const bindings = await api("/api/v1/users/openmetadata/bindings").catch(() => []);
+        openmetadataBindings = new Map(bindings.map((item) => [item.user_id, item]));
         renderUsers();
       }
 
@@ -6863,6 +6870,10 @@
         }
         box.innerHTML = users.map((user) => {
           const boxId = permissionBoxId("user", user.id);
+          const binding = openmetadataBindings.get(user.id) || {};
+          const omUsernameId = `om-username-${user.id}`;
+          const omRolesId = `om-roles-${user.id}`;
+          const omTeamsId = `om-teams-${user.id}`;
           return `
           <div class="list-item">
             <div class="toolbar" style="margin-bottom: 4px">
@@ -6877,6 +6888,20 @@
               <div id="${boxId}" class="selected-list" style="margin-top: 8px"></div>
               <div class="actions" style="margin-top: 8px">
                 <button type="button" data-user-save-permissions="${escapeHtml(user.id)}">保存权限</button>
+              </div>
+            </details>
+            <details style="margin-top: 8px">
+              <summary>OpenMetadata 原生权限</summary>
+              <div class="hint" style="margin-top: 8px">这里配置 OpenMetadata 的原生 Role / Team。实际资源权限仍由 OpenMetadata Policy 评估；用户需先使用统一认证登录过 OpenMetadata。</div>
+              <label for="${omUsernameId}">OpenMetadata 用户名</label>
+              <input id="${omUsernameId}" value="${escapeHtml(binding.openmetadata_username || user.username)}" placeholder="与 OIDC preferred_username 一致">
+              <label for="${omRolesId}">Role 名称（逗号分隔）</label>
+              <input id="${omRolesId}" value="${escapeHtml((binding.role_names || []).join(","))}" placeholder="例如 DataConsumer">
+              <label for="${omTeamsId}">Team 名称（逗号分隔）</label>
+              <input id="${omTeamsId}" value="${escapeHtml((binding.team_names || []).join(","))}" placeholder="例如 LineageReaders">
+              <div class="muted">同步状态：${escapeHtml(binding.sync_status || "未配置")}${binding.sync_message ? ` / ${escapeHtml(binding.sync_message)}` : ""}</div>
+              <div class="actions" style="margin-top: 8px">
+                <button type="button" data-user-save-openmetadata="${escapeHtml(user.id)}">保存并同步 OpenMetadata 权限</button>
               </div>
             </details>
             <div class="actions" style="margin-top: 8px">
@@ -6940,6 +6965,20 @@
         });
         await loadUsers();
         setMessage("userMessage", "用户权限已保存。", "ok");
+      }
+
+      async function updateUserOpenMetadata(userId) {
+        const username = $(`om-username-${userId}`)?.value.trim();
+        const roles = ($(`om-roles-${userId}`)?.value || "").split(",").map((item) => item.trim()).filter(Boolean);
+        const teams = ($(`om-teams-${userId}`)?.value || "").split(",").map((item) => item.trim()).filter(Boolean);
+        if (!username) throw new Error("请输入 OpenMetadata 用户名。");
+        const binding = await api(`/api/v1/users/${encodeURIComponent(userId)}/openmetadata`, {
+          method: "PUT",
+          body: JSON.stringify({ openmetadata_username: username, role_names: roles, team_names: teams, sync: true })
+        });
+        openmetadataBindings.set(userId, binding);
+        renderUsers();
+        setMessage("userMessage", `OpenMetadata 权限已${binding.sync_status === "succeeded" ? "同步" : "保存"}。`, binding.sync_status === "succeeded" ? "ok" : "error");
       }
 
       async function resetUserPassword(userId) {
@@ -19909,10 +19948,12 @@
           const role = event.target.closest("[data-user-role]");
           const reset = event.target.closest("[data-user-reset]");
           const savePermissions = event.target.closest("[data-user-save-permissions]");
+          const saveOpenMetadata = event.target.closest("[data-user-save-openmetadata]");
           if (toggle) toggleUserStatus(toggle.getAttribute("data-user-toggle") || "").catch((e) => setMessage("userMessage", e.message, "error"));
           if (role) toggleUserRole(role.getAttribute("data-user-role") || "").catch((e) => setMessage("userMessage", e.message, "error"));
           if (reset) resetUserPassword(reset.getAttribute("data-user-reset") || "").catch((e) => setMessage("userMessage", e.message, "error"));
           if (savePermissions) updateUserPermissions(savePermissions.getAttribute("data-user-save-permissions") || "").catch((e) => setMessage("userMessage", e.message, "error"));
+          if (saveOpenMetadata) updateUserOpenMetadata(saveOpenMetadata.getAttribute("data-user-save-openmetadata") || "").catch((e) => setMessage("userMessage", e.message, "error"));
         });
         $("userList").addEventListener("change", syncPermissionPickerChange);
         $("apiKeyList").addEventListener("click", (event) => {
@@ -21543,13 +21584,15 @@
         $("openMetadataProducer").textContent = state.producer || "-";
         const setupCard = $("openMetadataSetupCard");
         const setupText = $("openMetadataSetupText");
-        setupCard.hidden = state.configured && state.enabled;
+        setupCard.hidden = state.configured && state.sync_ready;
         if (setupText) {
           setupText.innerHTML = state.message || "请先部署 OpenMetadata Server，再配置系统连接地址。";
           if (!state.configured) {
             setupText.innerHTML += "<br>配置 <code>OPENMETADATA_URL</code>（UI 地址）和 <code>OPENMETADATA_API_URL</code>（默认是 UI 地址加 <code>/api</code>），再重启 API/Worker。";
           } else if (!state.enabled) {
             setupText.innerHTML += "<br>如需自动同步，请将 <code>OPENMETADATA_SYNC_ENABLED=true</code> 后重启 API/Worker。";
+          } else if (!state.token_configured) {
+            setupText.innerHTML += "<br>请在 API/Worker 运行环境配置 <code>OPENMETADATA_API_TOKEN</code>；建议使用 OpenMetadata Settings → Bots 生成的 bot token。";
           }
         }
         const openButton = $("openMetadataOpenBtn");
@@ -21559,6 +21602,7 @@
         syncButton.disabled = !state.sync_ready;
         if (!state.configured) setMessage("openMetadataMessage", state.message || "OpenMetadata 尚未配置；当前系统任务仍可继续执行。", "warn");
         else if (!state.enabled) setMessage("openMetadataMessage", state.message || "OpenMetadata 地址已配置，但同步开关未开启。", "warn");
+        else if (!state.sync_ready) setMessage("openMetadataMessage", state.message || "OpenMetadata 目录可打开，但自动同步尚未就绪。", "warn");
         else setMessage("openMetadataMessage", "OpenMetadata 原生目录已就绪。", "ok");
         return state;
       }

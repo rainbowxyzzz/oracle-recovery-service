@@ -69,6 +69,31 @@ class PermissionCatalogItem(BaseModel):
     actions: list[dict[str, str]] = Field(default_factory=list)
 
 
+class OpenMetadataBindingRequest(BaseModel):
+    openmetadata_username: str = Field(min_length=1, max_length=128)
+    role_names: list[str] = Field(default_factory=list, max_length=20)
+    team_names: list[str] = Field(default_factory=list, max_length=20)
+    status: UserStatus = "active"
+    sync: bool = True
+
+
+class OpenMetadataBindingResponse(BaseModel):
+    id: UUID | None = None
+    user_id: UUID
+    openmetadata_username: str
+    role_names: list[str] = Field(default_factory=list)
+    team_names: list[str] = Field(default_factory=list)
+    status: UserStatus
+    sync_status: str
+    sync_message: str | None = None
+    openmetadata_user_id: str | None = None
+    last_synced_at: datetime | None = None
+
+
+class OpenMetadataBindingListItem(OpenMetadataBindingResponse):
+    username: str
+
+
 class ApiKeyCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     permissions: dict[str, list[str]] = Field(default_factory=dict)

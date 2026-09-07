@@ -26,7 +26,8 @@ def test_status_derives_api_url_from_native_ui_url() -> None:
     with patch.object(openmetadata, "get_settings", return_value=_settings()):
         result = openmetadata.status()
     assert result["configured"] is True
-    assert result["sync_ready"] is True
+    assert result["sync_ready"] is False
+    assert result["token_configured"] is False
     assert result["api_url"] == "http://openmetadata.test:8585/api"
     assert result["configuration"]["api_env"] == "OPENMETADATA_API_URL"
 
@@ -42,6 +43,17 @@ def test_status_explains_unconfigured_openmetadata_without_claiming_ready() -> N
     assert result["sync_ready"] is False
     assert "OPENMETADATA_URL" in result["message"]
     assert result["configuration"]["default_api_suffix"] == "/api"
+
+
+def test_status_requires_api_token_before_claiming_sync_ready() -> None:
+    with patch.object(
+        openmetadata,
+        "get_settings",
+        return_value=_settings(openmetadata_api_token="secret"),
+    ):
+        result = openmetadata.status()
+    assert result["sync_ready"] is True
+    assert result["token_configured"] is True
 
 
 def test_table_payload_uses_native_fqn_and_keeps_task_context_as_properties() -> None:
@@ -126,7 +138,7 @@ def test_enqueue_snapshot_is_idempotent_and_outbox_worker_records_success() -> N
     Base.metadata.create_all(engine)
     factory = sessionmaker(engine, expire_on_commit=False)
     with (
-        patch.object(openmetadata, "get_settings", return_value=_settings()),
+        patch.object(openmetadata, "get_settings", return_value=_settings(openmetadata_api_token="secret")),
         patch.object(openmetadata, "get_sync_session_factory", return_value=factory),
         patch("recovery_service.workers.celery_app.celery_app.send_task") as send_task,
     ):
