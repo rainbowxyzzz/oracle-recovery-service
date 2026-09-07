@@ -3213,6 +3213,8 @@
     <label for="loginPassword">密码</label>
     <input id="loginPassword" type="password" placeholder="请输入密码" autocomplete="current-password">
     <button id="loginBtn" class="primary" type="button" style="width: 100%; margin-top: 14px">登录</button>
+    <button id="oidcLoginBtn" type="button" style="width: 100%; margin-top: 10px" hidden>统一认证登录</button>
+    <div id="oidcLoginHint" class="hint" hidden>当前系统与 OpenMetadata 使用同一身份源；通过统一认证登录后，打开数据目录无需再次输入密码。</div>
     <div id="loginStatus" class="hint">请输入用户名和密码登录系统。</div>
     <div id="systemMessage" class="message"></div>
   </section>
@@ -6420,6 +6422,68 @@
         updateAuthUi();
       }
 
+      async function refreshOidcConfig() {
+        const button = $("oidcLoginBtn");
+        const hint = $("oidcLoginHint");
+        if (!button) {
+          oidcConfigState = { enabled: false };
+          return oidcConfigState;
+        }
+        try {
+          const response = await fetch("/api/v1/auth/oidc/config", { cache: "no-store" });
+          const config = await response.json();
+          const enabled = Boolean(response.ok && config.enabled);
+          oidcConfigState = {...config, enabled};
+          button.hidden = !enabled;
+          if (hint) hint.hidden = !enabled;
+          if (enabled) button.textContent = `${config.provider || "统一认证"}登录`;
+          return oidcConfigState;
+        } catch {
+          oidcConfigState = { enabled: false };
+          button.hidden = true;
+          if (hint) hint.hidden = true;
+          return oidcConfigState;
+        }
+      }
+
+      async function restoreOidcSession() {
+        if (getAuthToken()) return false;
+        const response = await fetch("/api/v1/auth/oidc/session", { cache: "no-store", credentials: "same-origin" });
+        if (response.status === 401) return false;
+        const text = await response.text();
+        const result = text ? JSON.parse(text) : null;
+        if (!response.ok || !result?.access_token) return false;
+        saveAuthSession(result.access_token, result.expires_at);
+        currentAuth = {
+          auth_type: "user",
+          user: result.user,
+          username: result.user.username,
+          role: result.user.role,
+          is_admin: result.user.role === "admin",
+          permissions: result.user.permissions || emptyPermissions()
+        };
+        updateAuthUi();
+        return true;
+      }
+
+      function startOidcLogin(next = "/ui") {
+        window.location.href = `/api/v1/auth/oidc/login?next=${encodeURIComponent(next)}`;
+      }
+
+      function applyLoginResult(result) {
+        saveAuthSession(result.access_token, result.expires_at);
+        $("loginPassword").value = "";
+        currentAuth = {
+          auth_type: "user",
+          user: result.user,
+          username: result.user.username,
+          role: result.user.role,
+          is_admin: result.user.role === "admin",
+          permissions: result.user.permissions || emptyPermissions()
+        };
+        updateAuthUi();
+      }
+
       function updateAuthUi() {
         const user = currentAuth?.user;
         const isLoggedIn = currentAuth?.auth_type === "user" && user;
@@ -6731,17 +6795,7 @@
           method: "POST",
           body: JSON.stringify({ username, password })
         });
-        saveAuthSession(result.access_token, result.expires_at);
-        $("loginPassword").value = "";
-        currentAuth = {
-          auth_type: "user",
-          user: result.user,
-          username: result.user.username,
-          role: result.user.role,
-          is_admin: result.user.role === "admin",
-          permissions: result.user.permissions || emptyPermissions()
-        };
-        updateAuthUi();
+        applyLoginResult(result);
         await loadInitialData();
         setMessage("systemMessage", "登录成功，后续操作会自动绑定当前用户。", "ok");
       }
@@ -19825,6 +19879,7 @@
         $("loginBtn").addEventListener("click", () => {
           loginUser().catch((e) => setMessage("systemMessage", e.message, "error"));
         });
+        $("oidcLoginBtn")?.addEventListener("click", () => startOidcLogin("/ui"));
         $("loginPassword").addEventListener("keydown", (event) => {
           if (event.key === "Enter") {
             event.preventDefault();
@@ -21464,6 +21519,20 @@
       }
 
       let openMetadataState = null;
+      let oidcConfigState = { enabled: false };
+
+      async function openPendingOpenMetadata() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("openmetadata") !== "1") return;
+        window.history.replaceState({}, document.title, window.location.pathname);
+        try {
+          const state = await refreshOpenMetadata();
+          if (state.ui_url) window.location.replace(state.ui_url);
+          else setMessage("openMetadataMessage", "OpenMetadata UI 地址尚未配置。", "warn");
+        } catch (error) {
+          setMessage("openMetadataMessage", error.message, "error");
+        }
+      }
 
       async function refreshOpenMetadata() {
         const state = await api("/api/v1/data-automation/openmetadata/status");
@@ -21498,6 +21567,11 @@
         const url = openMetadataState?.ui_url || $("openMetadataOpenBtn")?.dataset.url;
         if (!url) {
           setMessage("openMetadataMessage", "尚未配置 OpenMetadata UI 地址。", "warn");
+          return;
+        }
+        if (oidcConfigState.enabled) {
+          const next = `${window.location.pathname}?openmetadata=1`;
+          window.open(`/api/v1/auth/oidc/login?next=${encodeURIComponent(next)}`, "_blank", "noopener,noreferrer");
           return;
         }
         window.open(url, "_blank", "noopener,noreferrer");
@@ -21591,6 +21665,8 @@
         bindEvents();
         renderApiWorkflowIcons();
         updateRestoreSourceMode();
+        await refreshOidcConfig();
+        await restoreOidcSession();
         await refreshCurrentAuth();
         if (currentAuth?.user) {
           scheduleAuthTimers();
@@ -21601,6 +21677,7 @@
             setMessage("systemMessage", e.message, "error");
           }
         }
+        await openPendingOpenMetadata();
       }
 
       init();

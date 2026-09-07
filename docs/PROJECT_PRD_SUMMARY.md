@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-09-07 统一认证：当前系统与 OpenMetadata 采用同一 OIDC 身份源；当前系统保留本地账号回退，OIDC 用户只允许映射已有系统账号（可显式开启观察员自动开通），OpenMetadata 通过 Custom OIDC 登录。目录入口不得透传服务端 PAT，统一认证回调使用短时状态 Cookie 和一次性本地会话 Cookie。目录按钮在启用 OIDC 时先完成当前系统统一认证，再跳转 OpenMetadata。详见 `docs/OPENMETADATA_SSO_PRD.md`。
+
 2026-09-05 OpenMetadata 原生目录改造完成异步 outbox：资产登记、血缘提交和 OpenLineage 事件落库后，按时间桶幂等写入 outbox 并复用 data-platform Worker 派发；失败最多重试 5 次并保留状态，不阻塞原任务。详见 docs/DATA_AUTOMATION_PIPELINE_PRD.md 第 9.4 节。
 2026-09-06 OpenMetadata 目录入口收敛为连接状态、部署引导、打开入口和最近同步结果；任务工作区不再复用数据目录卡片，模块切换限定为独立 `.module-panel`，避免数据库清理和架构中心显示任务工作区。128 当前尚无 OpenMetadata 服务，页面明确显示未配置，不伪造已连接状态。
 
