@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-09-11 一级优先级交互强化：数据库清理计划与连接、目标及删除选项绑定，任一输入变化立即作废旧计划；数据流业务引用改为按名称和版本选择并保留历史引用；SM4 安全访问覆盖合同、离线开发节点参数和同步字段映射改为结构化维护，同时继续写回原有 UUID、`coverage_contracts`、节点 `config` 和 `column_mapping` 结构，不改变后台执行规则。详见 `docs/PRIORITY_ONE_UI_HARDENING_PRD_20260911.md`。
+
 2026-09-09 双服务器离线交付：A 服务器固定使用 Docker 17.03 兼容的业务 Docker Run 包，复用已验证的 `20260909-data-automation-reliable-dispatch-r1` 镜像并离线携带系统 MySQL 8.4、Redis 7-alpine；B 服务器固定使用 Docker Engine 20.10+、Docker Compose 2.2.3+ 独立运行 OpenMetadata 1.13.0、其独立元数据库和 Elasticsearch 9.3.0。两台服务器通过 B 的 `8585` 宿主机地址和服务端 Token 通信，不共享 Docker 网络，不打包 Airflow，也不重新构建业务镜像。详见 `docs/OPENMETADATA_SSO_PRD.md`。
 
 2026-09-08 业务数据流编排与运行台账：以既有数据自动化流水线为唯一事实来源，聚合业务流的冻结引用、批次、阶段事件、资产、字段血缘、SM4 覆盖合同和安全访问映射。Oracle 固定作为自动还原与全表同步来源，反向加密源头固定为受限 Doris ODS 明文落地区；当前平台登录者均为超级管理员，安全访问限制面向平台外部的 Doris 下游普通账号。首次建模批次先完成 DWD SQL 与血缘再生成 ODS 加密合同，后续批次必须先完成 ODS SM4 与安全别名激活，再以 `protected_etl` 安全数据加工模式运行 DWD 工作流并同步 OpenMetadata；该模式允许受控的 DWD 写入，同时将冻结合同中的 ODS 来源解析到安全别名，任何漂移均阻断且不允许下游账号访问明文。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 6.2 节。
