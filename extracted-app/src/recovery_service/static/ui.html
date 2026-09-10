@@ -1930,6 +1930,34 @@
     .modal.ok { border-top: 4px solid var(--ok); }
     .modal.error { border-top: 4px solid var(--bad); }
     .modal .actions { justify-content: flex-end; margin-top: 14px; }
+    .structured-config-hidden { display: none; }
+    .structured-config-summary {
+      min-height: 54px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--background-subtle, #f8fafc);
+      color: var(--muted);
+    }
+    .structured-config-summary strong { color: var(--text); }
+    .structured-config-modal {
+      width: min(1120px, calc(100vw - 36px));
+      max-height: calc(100vh - 36px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .structured-config-scroll {
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .structured-config-table { min-width: 940px; }
+    .structured-config-table input,
+    .structured-config-table select { min-width: 120px; }
+    .structured-config-table .structured-config-action { width: 72px; }
+    .structured-config-json { margin-top: 12px; }
+    .structured-config-json summary { cursor: pointer; color: var(--primary); font-weight: 650; }
     .approval-auth-run-modal {
       width: min(1180px, calc(100vw - 36px));
       height: min(780px, calc(100vh - 36px));
@@ -5169,8 +5197,12 @@
           <input id="dorisEncryptTaskDefinitionName" maxlength="128" placeholder="例如：客户信息月度 SM4 加密">
           <div id="dorisEncryptTaskReferenceImpact" class="hint">新任务尚未被离线开发引用。</div>
 
-          <label for="dorisEncryptCoverageContracts">安全访问覆盖合同（JSON）</label>
-          <textarea id="dorisEncryptCoverageContracts" rows="5" placeholder='[{"standard_database":"DWD","standard_table":"CUSTOMER","standard_field":"PHONE","source_database":"ODS","source_table":"CUSTOMER_RAW","source_field":"PHONE","access_database":"ACCESS"}]'></textarea>
+          <label>安全访问覆盖合同</label>
+          <div id="dorisEncryptCoverageContractSummary" class="structured-config-summary">尚未配置覆盖合同。</div>
+          <div class="actions" style="margin-top: 8px">
+            <button id="dorisEncryptCoverageContractOpenBtn" type="button">配置覆盖合同</button>
+          </div>
+          <textarea id="dorisEncryptCoverageContracts" class="structured-config-hidden" aria-hidden="true"></textarea>
           <div class="hint">启用安全访问流水线时必填；只允许已发布 SQL 血缘、SM4 字段和安全别名完全一致的映射自动执行。</div>
 
           <label for="dorisEncryptConnection">Doris 连接</label>
@@ -5328,6 +5360,37 @@
             <button id="dorisEncryptRefreshBatchesBtn" type="button">刷新任务</button>
           </div>
           <div id="dorisEncryptBatches" class="step-list"></div>
+        </div>
+      </div>
+      <div id="dorisEncryptCoverageContractModal" class="modal-backdrop" hidden>
+        <div class="modal structured-config-modal" role="dialog" aria-modal="true" aria-labelledby="dorisEncryptCoverageContractTitle">
+          <div class="toolbar">
+            <div>
+              <h2 id="dorisEncryptCoverageContractTitle">安全访问覆盖合同</h2>
+              <div class="hint">逐项定义标准字段、ODS 来源字段与安全访问库的对应关系；保存后仍按原 JSON 数组提交。</div>
+            </div>
+            <button id="dorisEncryptCoverageContractCloseBtn" type="button" title="关闭">×</button>
+          </div>
+          <div class="structured-config-scroll table-wrap">
+            <table class="structured-config-table">
+              <thead><tr><th>标准库</th><th>标准表</th><th>标准字段</th><th>ODS 来源库</th><th>ODS 来源表</th><th>ODS 来源字段</th><th>安全访问库</th><th class="structured-config-action">操作</th></tr></thead>
+              <tbody id="dorisEncryptCoverageContractRows"></tbody>
+            </table>
+          </div>
+          <div class="actions">
+            <button id="dorisEncryptCoverageContractAddBtn" type="button">新增映射</button>
+          </div>
+          <details class="structured-config-json">
+            <summary>高级 JSON（兼容旧配置）</summary>
+            <div class="hint">仅在需要批量粘贴或保留扩展字段时使用；应用后会同步到上方表格。</div>
+            <textarea id="dorisEncryptCoverageContractJson" rows="8" spellcheck="false"></textarea>
+            <div class="actions"><button id="dorisEncryptCoverageContractApplyJsonBtn" type="button">应用 JSON</button></div>
+          </details>
+          <div id="dorisEncryptCoverageContractMessage" class="message"></div>
+          <div class="actions">
+            <button id="dorisEncryptCoverageContractCancelBtn" type="button">取消</button>
+            <button id="dorisEncryptCoverageContractSaveBtn" class="primary" type="button">保存覆盖合同</button>
+          </div>
         </div>
       </div>
     </section>
@@ -12714,15 +12777,110 @@
         </div>`).join("");
       }
 
+      function parseDorisEncryptCoverageContracts(text = $("dorisEncryptCoverageContracts")?.value || "") {
+        const value = String(text || "").trim();
+        if (!value) return [];
+        let contracts;
+        try { contracts = JSON.parse(value); } catch (_) { throw new Error("安全访问覆盖合同必须是 JSON 数组。"); }
+        if (!Array.isArray(contracts)) throw new Error("安全访问覆盖合同必须是 JSON 数组。");
+        return contracts;
+      }
+
+      function renderDorisEncryptCoverageContractSummary() {
+        const box = $("dorisEncryptCoverageContractSummary");
+        if (!box) return;
+        try {
+          const contracts = parseDorisEncryptCoverageContracts();
+          if (!contracts.length) {
+            box.textContent = "尚未配置覆盖合同。";
+            return;
+          }
+          const sources = new Set(contracts.map((item) => `${item.source_database || ""}.${item.source_table || ""}`));
+          const fields = contracts.map((item) => item.source_field).filter(Boolean);
+          box.innerHTML = `<strong>${contracts.length} 条字段映射</strong><div>${sources.size} 张 ODS 来源表；保护字段：${escapeHtml(fields.slice(0, 5).join("、") || "未填写")}${fields.length > 5 ? ` 等 ${fields.length} 个字段` : ""}</div>`;
+        } catch (error) {
+          box.innerHTML = `<strong>旧配置待检查</strong><div>${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      function renderDorisEncryptCoverageContractRows(contracts) {
+        const box = $("dorisEncryptCoverageContractRows");
+        if (!contracts.length) {
+          box.innerHTML = '<tr data-structured-empty><td colspan="8" class="muted">暂无映射，请点击“新增映射”。</td></tr>';
+          return;
+        }
+        box.innerHTML = contracts.map((item) => `<tr data-coverage-contract-row data-original="${escapeHtml(encodeURIComponent(JSON.stringify(item || {})))}">
+          <td><input data-contract-field="standard_database" value="${escapeHtml(item.standard_database || "")}" placeholder="DWD"></td>
+          <td><input data-contract-field="standard_table" value="${escapeHtml(item.standard_table || "")}" placeholder="标准表"></td>
+          <td><input data-contract-field="standard_field" value="${escapeHtml(item.standard_field || "")}" placeholder="标准字段"></td>
+          <td><input data-contract-field="source_database" value="${escapeHtml(item.source_database || "")}" placeholder="ODS"></td>
+          <td><input data-contract-field="source_table" value="${escapeHtml(item.source_table || "")}" placeholder="来源表"></td>
+          <td><input data-contract-field="source_field" value="${escapeHtml(item.source_field || "")}" placeholder="来源字段"></td>
+          <td><input data-contract-field="access_database" value="${escapeHtml(item.access_database || "")}" placeholder="ACCESS"></td>
+          <td><button class="danger" type="button" data-contract-remove>删除</button></td>
+        </tr>`).join("");
+      }
+
+      function addDorisEncryptCoverageContractRow(contract = {}) {
+        const contracts = collectDorisEncryptCoverageContractRows(false);
+        contracts.push(contract);
+        renderDorisEncryptCoverageContractRows(contracts);
+      }
+
+      function collectDorisEncryptCoverageContractRows(validate = true) {
+        const fields = ["standard_database", "standard_table", "standard_field", "source_database", "source_table", "source_field", "access_database"];
+        const contracts = Array.from(document.querySelectorAll("[data-coverage-contract-row]")).map((row, index) => {
+          let original = {};
+          try { original = JSON.parse(decodeURIComponent(row.dataset.original || "%7B%7D")); } catch (_) {}
+          const contract = { ...original };
+          fields.forEach((field) => { contract[field] = row.querySelector(`[data-contract-field="${field}"]`).value.trim(); });
+          if (validate && fields.some((field) => !contract[field])) throw new Error(`第 ${index + 1} 条覆盖合同存在未填写项。`);
+          return contract;
+        });
+        if (validate) {
+          const sourceKeys = contracts.map((item) => `${item.source_database}.${item.source_table}.${item.source_field}`.toLowerCase());
+          if (new Set(sourceKeys).size !== sourceKeys.length) throw new Error("覆盖合同存在重复的 ODS 来源字段。");
+        }
+        return contracts;
+      }
+
+      function openDorisEncryptCoverageContractEditor() {
+        try {
+          const contracts = parseDorisEncryptCoverageContracts();
+          renderDorisEncryptCoverageContractRows(contracts);
+          $("dorisEncryptCoverageContractJson").value = contracts.length ? JSON.stringify(contracts, null, 2) : "[]";
+          setMessage("dorisEncryptCoverageContractMessage", "", "");
+          $("dorisEncryptCoverageContractModal").hidden = false;
+        } catch (error) {
+          setMessage("dorisEncryptMessage", error.message, "error");
+        }
+      }
+
+      function closeDorisEncryptCoverageContractEditor() {
+        $("dorisEncryptCoverageContractModal").hidden = true;
+      }
+
+      function applyDorisEncryptCoverageContractJson() {
+        const contracts = parseDorisEncryptCoverageContracts($("dorisEncryptCoverageContractJson").value);
+        renderDorisEncryptCoverageContractRows(contracts);
+        setMessage("dorisEncryptCoverageContractMessage", `已将 ${contracts.length} 条 JSON 配置应用到表格，点击保存后生效。`, "ok");
+      }
+
+      function saveDorisEncryptCoverageContractEditor() {
+        try {
+          const contracts = collectDorisEncryptCoverageContractRows();
+          $("dorisEncryptCoverageContracts").value = contracts.length ? JSON.stringify(contracts, null, 2) : "";
+          renderDorisEncryptCoverageContractSummary();
+          closeDorisEncryptCoverageContractEditor();
+        } catch (error) {
+          setMessage("dorisEncryptCoverageContractMessage", error.message, "error");
+        }
+      }
+
       function buildDorisEncryptTaskDefinitionBody(name) {
         const draft = buildDorisEncryptOfflineDraft();
         if (!draft.tables.length) throw new Error("请至少选择一张表和字段后再保存任务。");
-        const text = ($("dorisEncryptCoverageContracts")?.value || "").trim();
-        let coverage_contracts = [];
-        if (text) {
-          try { coverage_contracts = JSON.parse(text); } catch (_) { throw new Error("安全访问覆盖合同必须是 JSON 数组。"); }
-          if (!Array.isArray(coverage_contracts)) throw new Error("安全访问覆盖合同必须是 JSON 数组。");
-        }
+        const coverage_contracts = parseDorisEncryptCoverageContracts();
         return {
           name,
           connection_id: draft.connection_id,
@@ -12864,6 +13022,7 @@
         dorisEncryptEditingTaskReferences = null;
         $("dorisEncryptTaskDefinitionName").value = task.name || "";
         $("dorisEncryptCoverageContracts").value = (task.coverage_contracts || []).length ? JSON.stringify(task.coverage_contracts, null, 2) : "";
+        renderDorisEncryptCoverageContractSummary();
         $("dorisEncryptConnection").value = task.connection_id;
         await refreshDorisEncryptSourceDatabases().catch(() => {});
         setDorisEncryptSourceDatabase(task.database);
@@ -18155,6 +18314,7 @@
         dorisEncryptEditingTaskReferences = null;
         if ($("dorisEncryptTaskDefinitionName")) $("dorisEncryptTaskDefinitionName").value = "";
         if ($("dorisEncryptCoverageContracts")) $("dorisEncryptCoverageContracts").value = "";
+        renderDorisEncryptCoverageContractSummary();
         dorisEncryptCatalog = null;
         dorisEncryptSelections = new Map();
         dorisEncryptSelectedTables = new Set();
@@ -21822,6 +21982,24 @@
         });
         ["cleanupDropStorage", "cleanupFiles"].forEach((id) => {
           $(id).addEventListener("change", () => invalidateCleanupPlan());
+        });
+        $("dorisEncryptCoverageContractOpenBtn").addEventListener("click", openDorisEncryptCoverageContractEditor);
+        $("dorisEncryptCoverageContractAddBtn").addEventListener("click", () => addDorisEncryptCoverageContractRow());
+        $("dorisEncryptCoverageContractSaveBtn").addEventListener("click", saveDorisEncryptCoverageContractEditor);
+        $("dorisEncryptCoverageContractCancelBtn").addEventListener("click", closeDorisEncryptCoverageContractEditor);
+        $("dorisEncryptCoverageContractCloseBtn").addEventListener("click", closeDorisEncryptCoverageContractEditor);
+        $("dorisEncryptCoverageContractApplyJsonBtn").addEventListener("click", () => {
+          try { applyDorisEncryptCoverageContractJson(); }
+          catch (error) { setMessage("dorisEncryptCoverageContractMessage", error.message, "error"); }
+        });
+        $("dorisEncryptCoverageContractRows").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-contract-remove]");
+          if (!button) return;
+          button.closest("[data-coverage-contract-row]")?.remove();
+          if (!document.querySelector("[data-coverage-contract-row]")) renderDorisEncryptCoverageContractRows([]);
+        });
+        $("dorisEncryptCoverageContractModal").addEventListener("click", (event) => {
+          if (event.target === $("dorisEncryptCoverageContractModal")) closeDorisEncryptCoverageContractEditor();
         });
         $("dorisEncryptAddKeywordBtn").addEventListener("click", addDorisEncryptKeyword);
         $("dorisEncryptKeywordInput").addEventListener("keydown", (event) => {
