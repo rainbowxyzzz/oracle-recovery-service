@@ -126,6 +126,7 @@ class OracleAutoImportResilienceTests(unittest.TestCase):
         )
 
         command = " ".join(plan.commands[0])
+        self.assertIn("docker exec -u 54321:54321 -i", command)
         self.assertIn("DIRECTORY=DIR_TASK_WORK", command)
         self.assertIn("DUMPFILE=RECOVERY_DMP_DIR:sample_%U.dmp", command)
         self.assertIn("JOB_NAME=ORS_IMPORT_JOB", command)
@@ -161,6 +162,40 @@ class OracleAutoImportResilienceTests(unittest.TestCase):
             "ORACLE_HOME",
             runner._remote_command(["python3", "/tmp/tool.py"], "/configured/but/missing"),
         )
+
+    def test_oracle_container_commands_use_numeric_user(self):
+        completed = subprocess.CompletedProcess([], 0, "ok")
+        with patch.object(tool, "run_process", return_value=completed) as run:
+            tool.docker_exec("oracle-test", "true")
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[:6], ["docker", "exec", "-u", "54321:54321", "-i", "oracle-test"])
+        self.assertIn("docker exec -u 54321:54321 -i", OracleAutoImportRunner()._docker_exec("oracle-test", "true"))
+
+    def test_oracle_log_archive_does_not_use_docker_cp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "probe.log"
+            completed = subprocess.CompletedProcess([], 0, "probe output")
+            logger = tool.RunLogger(Path(directory), "system", "secret")
+            with patch.object(tool, "docker_exec", return_value=completed) as docker_exec:
+                tool.docker_copy_text_from("oracle-test", "/tmp/probe.log", target, logger)
+
+            self.assertEqual(target.read_text(encoding="utf-8"), "probe output\n")
+            self.assertNotIn("docker cp", str(docker_exec.call_args))
+
+    def test_dump_stream_to_container_does_not_use_docker_cp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "sample.dmp"
+            source.write_bytes(b"sample")
+            completed = subprocess.CompletedProcess([], 0, "")
+            logger = tool.RunLogger(Path(directory), "system", "secret")
+            with patch.object(tool, "run_process", return_value=completed) as run:
+                tool.docker_stream_file_to("oracle-test", source, "/tmp/sample.dmp", logger)
+
+            command = run.call_args.args[0]
+            self.assertEqual(command[:2], ["sh", "-c"])
+            self.assertIn("docker exec -u 54321:54321 -i", command[2])
+            self.assertNotIn("docker cp", command[2])
 
     def test_oracle_tool_check_rejects_sqlplus_message_initialization_error(self):
         result = SimpleNamespace(
@@ -341,6 +376,7 @@ class OracleAutoImportResilienceTests(unittest.TestCase):
 
     def test_probe_failure_classification(self):
         cases = {
+            "unable to find user oracle: no matching entries in passwd file": "docker_user_resolution_failed",
             "ORA-39087: directory name is invalid": "directory_invalid",
             "ORA-39054: missing or invalid SQLFILE": "sqlfile_invalid",
             "ORA-39059: dump file set is incomplete": "dump_set_incomplete",

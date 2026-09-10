@@ -13,10 +13,10 @@ from pymysql.cursors import DictCursor
 from sqlalchemy import desc, select
 
 from recovery_service.api.schemas.doris_sql_etl import (
+    DorisSqlDdlResponse,
     DorisSqlEtlColumnMapping,
     DorisSqlEtlRunStatus,
     DorisSqlEtlTaskStatus,
-    DorisSqlDdlResponse,
     DorisSqlExecuteResponse,
     DorisSqlObjectItem,
     DorisSqlObjectListResponse,
@@ -25,7 +25,11 @@ from recovery_service.api.schemas.doris_sql_etl import (
 )
 from recovery_service.common.security import decrypt_secret
 from recovery_service.common.time import app_now
-from recovery_service.core.models.task import DatabaseConnectionProfile, DorisSqlEtlRun, DorisSqlEtlTaskDefinition
+from recovery_service.core.models.task import (
+    DatabaseConnectionProfile,
+    DorisSqlEtlRun,
+    DorisSqlEtlTaskDefinition,
+)
 from recovery_service.db.session import get_sync_session_factory
 from recovery_service.services.auth import AuthContext
 from recovery_service.settings import get_settings
@@ -46,11 +50,19 @@ def preview_oracle_query(profile: DatabaseConnectionProfile, *, sql: str, limit:
     return SqlPreviewResponse(columns=[SqlColumn(name=item["name"], type=item.get("type")) for item in columns], rows=rows, row_count=len(rows), message=f"Oracle 查询预览完成，共返回 {len(rows)} 行。")
 
 
-def execute_doris_sql(profile: DatabaseConnectionProfile, *, database: str | None, sql: str, limit: int = 200, confirm_dangerous: bool = False) -> DorisSqlExecuteResponse:
+def execute_doris_sql(profile: DatabaseConnectionProfile, *, database: str | None, sql: str, limit: int = 200, confirm_dangerous: bool = False, security_access_mode: str = "trusted", security_access_context: dict[str, Any] | None = None) -> DorisSqlExecuteResponse:
     _ensure_doris_profile(profile)
     clean_sql = _normalize_single_statement(sql)
     if not clean_sql:
         raise ValueError("请填写 Doris SQL。")
+    if security_access_mode == "restricted":
+        from recovery_service.services.security_access import resolve_security_sql
+        clean_sql = resolve_security_sql(connection_id=profile.id, default_database=database, sql=clean_sql)["sql"]
+    elif security_access_mode == "protected_etl":
+        from recovery_service.services.security_access import resolve_protected_etl_sql
+        clean_sql = resolve_protected_etl_sql(connection_id=profile.id, default_database=database, sql=clean_sql, security_context=security_access_context or {})["sql"]
+    elif security_access_mode != "trusted":
+        raise ValueError("security_access_mode 仅支持 trusted、restricted 或 protected_etl。")
     sql_type = _sql_type(clean_sql)
     # Retained only for backward compatibility with historical API requests and task snapshots.
     _ = confirm_dangerous

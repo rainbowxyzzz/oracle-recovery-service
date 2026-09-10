@@ -1,6 +1,22 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
-2026-09-07 统一认证：当前系统与 OpenMetadata 采用同一 OIDC 身份源；当前系统保留本地账号回退，OIDC 用户只允许映射已有系统账号（可显式开启观察员自动开通），OpenMetadata 通过 Custom OIDC 登录。目录入口不得透传服务端 PAT，统一认证回调使用短时状态 Cookie 和一次性本地会话 Cookie。目录按钮在启用 OIDC 时先完成当前系统统一认证，再跳转 OpenMetadata。新增当前用户到 OpenMetadata 原生 User/Role/Team 的服务端绑定与同步状态，不复制 OpenMetadata Policy 判定。详见 `docs/OPENMETADATA_SSO_PRD.md`。
+2026-09-09 双服务器离线交付：A 服务器固定使用 Docker 17.03 兼容的业务 Docker Run 包，复用已验证的 `20260909-data-automation-reliable-dispatch-r1` 镜像并离线携带系统 MySQL 8.4、Redis 7-alpine；B 服务器固定使用 Docker Engine 20.10+、Docker Compose 2.2.3+ 独立运行 OpenMetadata 1.13.0、其独立元数据库和 Elasticsearch 9.3.0。两台服务器通过 B 的 `8585` 宿主机地址和服务端 Token 通信，不共享 Docker 网络，不打包 Airflow，也不重新构建业务镜像。详见 `docs/OPENMETADATA_SSO_PRD.md`。
+
+2026-09-08 业务数据流编排与运行台账：以既有数据自动化流水线为唯一事实来源，聚合业务流的冻结引用、批次、阶段事件、资产、字段血缘、SM4 覆盖合同和安全访问映射。Oracle 固定作为自动还原与全表同步来源，反向加密源头固定为受限 Doris ODS 明文落地区；当前平台登录者均为超级管理员，安全访问限制面向平台外部的 Doris 下游普通账号。首次建模批次先完成 DWD SQL 与血缘再生成 ODS 加密合同，后续批次必须先完成 ODS SM4 与安全别名激活，再以 `protected_etl` 安全数据加工模式运行 DWD 工作流并同步 OpenMetadata；该模式允许受控的 DWD 写入，同时将冻结合同中的 ODS 来源解析到安全别名，任何漂移均阻断且不允许下游账号访问明文。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 6.2 节。
+
+2026-09-08 数据流编排与运行台账已按发布验证模式热更新到 `192.168.150.128`：发布前所有相关队列均无在途任务，备份后仅更新 API、数据平台 Worker 和数据同步 Worker 中 5 个差异文件，无数据库迁移；线上 UI 哈希与候选一致，6 个编排路由和真实台账只读查询通过，三个容器健康且日志无关键错误。可见浏览器已打开页面但状态抓取超时，未把点击和响应式验收标记为通过。详见 `docs/RELEASE_VALIDATION_20260908_DATA_FLOW_ORCHESTRATION_LEDGER.md`。
+
+2026-09-07 安全访问层：在既有“标准字段反向 SM4”基础上，新增以安全视图/逻辑别名供平台外部 Doris 下游普通账号读取的契约。明文源表不自动覆盖；只有已上线 SQL 集合/生产工作流、冻结字段血缘和 SM4 覆盖合同完整匹配时，才能生成或刷新 `secured` 表并激活安全别名。平台登录者均为超级管理员并保留明文治理能力；下游普通账号必须由 Doris 数据库授权限制为仅访问安全对象。安全映射失效时拒绝下游账号访问明文。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 6.1 节。
+
+2026-09-07 主工作台导航调整：保留既有模块入口和 `data-nav-module` 语义，顶部默认只展示业务域；鼠标悬停或键盘聚焦业务域时动画展开二级模块，点击业务域可锁定下拉，点击二级模块后进入原模块并高亮所属业务域；点击外部区域关闭锁定菜单。该调整只影响前端导航展示和交互，不改变 API URL、请求字段、权限判断、任务调度、数据结构或既有模块业务流程。验收覆盖顶部导航默认态、悬停移入菜单、点击锁定、二级模块切换、权限隐藏和窄屏内部滚动。
+
+2026-09-07 Mega Menu 视觉基线：以 `docs/UI_SPEC.md` 为唯一规范，生产页面固定顶部采用 `42px` 深色 Global bar 加 `66px` 白色 Main nav，分 Phase 1 静态 UI、Phase 2 交互动画、Phase 3 既有业务接入实施；每个阶段完成后必须停止，未确认不得进入下一阶段。Phase 2 仅以单一覆盖面板实现悬停/键盘预览、点击锁定、菜单外关闭和规范动画；模块卡片点击只更新视觉选中态，不调用 `showModule()` 或业务接口。Phase 3 复用既有 `showModule()`、权限隐藏和 Harness 链接完成模块进入与域 active 高亮，不改变 API、请求、保存、任务或权限语义。
+
+2026-09-07 顶部 Mega Menu 已按发布验证模式热更新到 `192.168.150.128`：更新前 9 个 Worker 无在途任务，API 健康和 MySQL 连接通过；只覆盖 API 容器中的 `ui.html`、`ui-unified.css`，未重启容器、未迁移数据。线上资源 HTTP 200、容器文件哈希和候选一致、API `RestartCount=0`，近 20 分钟无关键错误。浏览器自动化读取页面超时，hover/点击和多窗口可见验收未标记通过。详见 `docs/RELEASE_VALIDATION_20260907_MEGA_NAVIGATION.md`。
+
+2026-09-07 顶部 Mega Menu 二次视觉修正已热更新到 `192.168.150.128`：删除无功能的 Global bar 占位项和与模块卡片重复的“常用入口”；菜单外层改为全宽白色底板，内部为业务域说明与模块卡片双栏。发布前 9 个 Worker 无在途任务；线上 UI/CSS HTTP 200，候选与容器文件 SHA-256 一致，API 未重启、无关键错误。详见 `docs/RELEASE_VALIDATION_20260907_MEGA_NAVIGATION.md`。
+
+2026-09-07 统一认证：当前系统与 OpenMetadata 采用同一 OIDC 身份源；当前系统保留隐藏的本地账号应急回退，OIDC 用户只允许映射已有系统账号（可显式开启观察员自动开通），OpenMetadata 通过 Custom OIDC 登录。目录入口不得透传服务端 PAT，统一认证回调使用短时状态 Cookie 和一次性本地会话 Cookie。OIDC 启用时当前系统登录主入口必须走统一认证，目录按钮在启用 OIDC 时先完成当前系统统一认证，再跳转 OpenMetadata，避免正常登录绕过 Keycloak 后再次出现登录页。新增当前用户到 OpenMetadata 原生 User/Role/Team 的服务端绑定与同步状态，不复制 OpenMetadata Policy 判定。详见 `docs/OPENMETADATA_SSO_PRD.md`。
 
 2026-09-05 OpenMetadata 原生目录改造完成异步 outbox：资产登记、血缘提交和 OpenLineage 事件落库后，按时间桶幂等写入 outbox 并复用 data-platform Worker 派发；失败最多重试 5 次并保留状态，不阻塞原任务。详见 docs/DATA_AUTOMATION_PIPELINE_PRD.md 第 9.4 节。
 2026-09-06 OpenMetadata 目录入口收敛为连接状态、部署引导、打开入口和最近同步结果；任务工作区不再复用数据目录卡片，模块切换限定为独立 `.module-panel`，避免数据库清理和架构中心显示任务工作区。128 当前尚无 OpenMetadata 服务，页面明确显示未配置，不伪造已连接状态。
@@ -8,6 +24,10 @@
 2026-09-05 数据血缘数据库治理与任务工作区 UI 已完成并热更新到 `192.168.150.128`：按引擎、连接、Catalog、Database 分组统计血缘，新增库业务层级手动配置和血缘筛选，任务工作区同步展示数据库治理与运行指标；系统库新增 `data_database_layers`、`data_lineage_events` 表。128 发布前 9 个 Worker 的 active/reserved/scheduled 均为空，完成系统库备份、API 热更新、鉴权 API 闭环、配置保存回读、血缘筛选、OpenMetadata 投影、UI 资源标识和健康日志检查；临时配置已恢复原值。详见 `docs/RELEASE_VALIDATION_20260905_DATA_LINEAGE_DB_GOVERNANCE.md`。
 
 2026-09-04 Doris SQL 开发工作台新增“SQL 集合”治理：复用现有数据平台工作流、组件任务、开发/生产版本、运行和调度模型，把多个已保存 Doris SQL 任务按顺序纳入集合，支持集合级保存、测试运行、不可变发布、生产运行和引用关系展示；未分组及历史 SQL 任务保持原行为。详见 `docs/DORIS_SQL_ETL_CENTER_PRD.md` 第 21 节。
+
+2026-09-07 SQL 集合界面改为宽工作台弹窗：左侧集合搜索/选择，右侧按“集合配置 / SQL 编排 / 运行记录”切换，底部固定全量操作；仅改善字段与操作可达性，不改变现有集合 API、权限、版本快照、运行、调度或归档语义。
+
+2026-09-07 SQL 集合宽工作台已按模式二热更新到 `192.168.150.128`：仅替换 API 容器内 `ui.html`，未重启容器、未迁移数据；更新前 SQL 集合所属数据平台无在途运行，候选、容器文件和线上 `/ui` 响应 SHA-256 一致，API 健康与 MySQL 连接正常。详见 `docs/RELEASE_VALIDATION_20260907_SQL_COLLECTION_WORKBENCH.md`。
 
 2026-09-01 Oracle 导入字符集约束补齐：所有 Oracle CLI 导入/探测/挂起任务控制路径在执行 `imp`/`impdp`/`sqlplus` 前必须默认设置 `NLS_LANG=AMERICAN_AMERICA.AL32UTF8`、`LANG=C.UTF-8`、`LC_ALL=C.UTF-8`，避免 Excel/WPS、中文姓名、中文字段值等内容在自动还原或探测阶段因客户端环境缺失退化为 `????`。该修正只改变 CLI 进程环境，不改变 DMP 内容、任务状态机、REMAP_SCHEMA、同步、DWD 或 SM4 语义。
 
@@ -998,3 +1018,6 @@ Doris connection_id
 6. 同一用户不同表、同一表不同用户互不影响。
 7. Chrome 页面可创建批次、查看明细、下线和回读结果；页面无非预期控制台错误，接口返回与 Doris `SHOW GRANTS` 结果一致。
 8. 发布前无在途任务，发布后 API 健康、迁移成功、权限租约唯一约束存在，测试结束后清理隔离对象和元数据。
+2026-09-09 数据自动化阶段可靠派发：恢复、同步、DWD 标准化和 ODS SM4 阶段必须把业务批次状态、下游执行实体和阶段派发记录放在同一系统库事务中。统一阶段派发表按业务批次、阶段和目标运行生成唯一幂等键；派发采用“至少一次投递、同一执行实体只允许一次有效抢占”，服务重启或消息结果不确定时自动补发，执行器必须忽略重复消息。运行台账展示待派发、已派发、运行中、成功和失败状态。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 6.3 节。
+
+2026-09-10 Oracle 自动还原 Docker 17 兼容：Oracle 容器命令固定使用数值身份 `54321:54321`，自动还原不再调用会触发旧版 Docker 用户解析异常的 `docker cp`；日志采用容器内流式归档，非直读 DMP 采用标准输入流传输，并将用户解析异常单独分类为 `docker_user_resolution_failed`。详见 `docs/ORACLE_RESTORE_CAPABILITY_IMPROVEMENT_PRD_20260714.md` 第 18 节。

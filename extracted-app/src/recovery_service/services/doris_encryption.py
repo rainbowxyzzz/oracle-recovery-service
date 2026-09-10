@@ -268,7 +268,8 @@ def create_sm4_batch_task(
         return _create_sm4_batch_task(profile, **kwargs)
 
 
-def _create_sm4_batch_task(
+def prepare_sm4_batch_task(
+    session: Session,
     profile: DatabaseConnectionProfile,
     *,
     database: str,
@@ -284,7 +285,7 @@ def _create_sm4_batch_task(
     auto_snapshot: bool = False,
     auto_snapshot_config: dict[str, Any] | None = None,
     actor: AuthContext | None = None,
-) -> DorisSm4BatchStatus:
+) -> DorisSm4BatchJob:
     _ensure_doris_profile(profile)
     clean_database = (database or "").strip()
     if not clean_database:
@@ -352,33 +353,46 @@ def _create_sm4_batch_task(
         created_at=now,
         updated_at=now,
     )
+    session.add(job)
+    session.flush()
+    session.add(
+        DorisSm3TaskLog(
+            task_id=job.id,
+            level="INFO",
+            stage="queued",
+            message="SM4 batch job queued.",
+            database_engine="doris",
+            connection_id=profile.id,
+            database_name=job.database,
+            payload={
+                "algorithm": "SM4",
+                "table_count": len(job.tables or []),
+                "schedule_id": str(job.schedule_id) if job.schedule_id else None,
+                "sm4_key_version_id": str(job.sm4_key_version_id) if job.sm4_key_version_id else None,
+                "sm4_key_fingerprint": job.sm4_key_fingerprint,
+                "execution_window_enabled": job.execution_window_enabled,
+                "execution_window_start": job.execution_window_start,
+                "execution_window_end": job.execution_window_end,
+                "auto_snapshot": bool(job.auto_snapshot),
+            },
+        )
+    )
+    session.flush()
+    return job
+
+
+def _create_sm4_batch_task(
+    profile: DatabaseConnectionProfile,
+    **kwargs: Any,
+) -> DorisSm4BatchStatus:
     session = get_sync_session_factory()()
     try:
-        session.add(job)
+        job = prepare_sm4_batch_task(session, profile, **kwargs)
         session.commit()
         session.refresh(job)
         status = _sm4_batch_to_status(job)
     finally:
         session.close()
-
-    _add_sm4_log(
-        job.id,
-        "INFO",
-        "queued",
-        "SM4 batch job queued.",
-        connection_id=profile.id,
-        database=clean_database,
-        payload={
-            "table_count": len(clean_tables),
-            "schedule_id": str(schedule_id) if schedule_id else None,
-            "sm4_key_version_id": str(key_version.key_id) if key_version else None,
-            "sm4_key_fingerprint": key_version.key_fingerprint if key_version else None,
-            "execution_window_enabled": clean_window_enabled,
-            "execution_window_start": clean_window_start,
-            "execution_window_end": clean_window_end,
-            "auto_snapshot": bool(auto_snapshot),
-        },
-    )
     return status
 
 
@@ -927,6 +941,7 @@ def sm4_task_definition_snapshot(task: DorisSm4TaskDefinition) -> dict[str, Any]
         "tables": deepcopy(task.tables or []),
         "table_strategy": task.table_strategy,
         "target_suffix": task.target_suffix,
+        "coverage_contracts": deepcopy(task.coverage_contracts or []),
     }
 
 
@@ -1081,6 +1096,7 @@ def create_sm4_task_definition(
     tables: list[dict[str, Any]],
     table_strategy: str,
     target_suffix: str | None,
+    coverage_contracts: list[dict[str, Any]] | None = None,
     actor: AuthContext | None = None,
 ) -> DorisSm4TaskDefinitionResponse:
     _ensure_doris_profile(profile)
@@ -1104,6 +1120,7 @@ def create_sm4_task_definition(
         tables=clean_tables,
         table_strategy=_clean_sm4_table_strategy(table_strategy),
         target_suffix=_clean_optional_identifier(target_suffix, "target suffix"),
+        coverage_contracts=_normalize_sm4_coverage_contracts(coverage_contracts),
         created_by_user_id=_auth_user_uuid(actor),
         created_by_username=actor.username if actor else None,
         created_by_auth_type=actor.auth_type if actor else "api-key",
@@ -1163,6 +1180,8 @@ def update_sm4_task_definition(
             task.table_strategy = _clean_sm4_table_strategy(updates["table_strategy"])
         if "target_suffix" in updates:
             task.target_suffix = _clean_optional_identifier(updates["target_suffix"], "target suffix")
+        if "coverage_contracts" in updates and updates["coverage_contracts"] is not None:
+            task.coverage_contracts = _normalize_sm4_coverage_contracts(updates["coverage_contracts"])
         if not task.name:
             raise ValueError("Task name is required.")
         if not task.tables:
@@ -1286,6 +1305,26 @@ def run_sm4_batch_job(batch_id: uuid.UUID) -> dict[str, Any]:
         job = session.get(DorisSm4BatchJob, batch_id)
         if not job:
             return {"state": "failed", "message": "SM4 batch job not found."}
+        now = app_now()
+        claimed = session.execute(
+            update(DorisSm4BatchJob)
+            .where(
+                DorisSm4BatchJob.id == batch_id,
+                DorisSm4BatchJob.state == "reserved",
+            )
+            .values(
+                state="running",
+                message="SM4 worker claimed batch job.",
+                started_at=now,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        session.commit()
+        if int(getattr(claimed, "rowcount", 0) or 0) != 1:
+            session.refresh(job)
+            return {"state": job.state, "message": "Duplicate SM4 delivery ignored."}
+        session.refresh(job)
         profile = session.get(DatabaseConnectionProfile, job.connection_id)
         if not profile:
             job.state = "failed"
@@ -2002,7 +2041,12 @@ def _enqueue_sm4_worker(batch_id: uuid.UUID) -> str | None:
     from recovery_service.workers.celery_app import celery_app
 
     settings = get_settings()
-    result = celery_app.send_task("doris.sm4_batch", args=[str(batch_id)], queue=settings.celery_sm4_queue)
+    result = celery_app.send_task(
+        "doris.sm4_batch",
+        args=[str(batch_id)],
+        queue=settings.celery_sm4_queue,
+        task_id=f"doris-sm4-{batch_id}",
+    )
     return result.id
 
 
@@ -2648,6 +2692,30 @@ def _auto_snapshot_column_signature(table_payload: dict[str, Any]) -> list[tuple
     ]
 
 
+def _normalize_sm4_coverage_contracts(contracts: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+    normalized: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str, str, str]] = set()
+    for item in contracts or []:
+        values = {
+            key: _required_contract_identifier(item.get(key), key)
+            for key in ("standard_database", "standard_table", "standard_field", "source_database", "source_table", "source_field", "access_database")
+        }
+        values["access_table"] = _required_contract_identifier(item.get("access_table") or values["source_table"], "access_table")
+        key = tuple(values[name].casefold() for name in ("standard_database", "standard_table", "standard_field", "source_database", "source_table", "source_field"))
+        if key in seen:
+            raise ValueError("SM4 加密覆盖合同存在重复字段映射。")
+        seen.add(key)
+        normalized.append(values)
+    return normalized
+
+
+def _required_contract_identifier(value: Any, label: str) -> str:
+    clean = _clean_optional_identifier(value, label)
+    if not clean:
+        raise ValueError(f"{label}不能为空。")
+    return clean
+
+
 def _normalize_batch_tables(tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -3104,6 +3172,7 @@ def _sm4_task_definition_to_response(task: DorisSm4TaskDefinition) -> DorisSm4Ta
         tables=[DorisSm4BatchTableSpec.model_validate(item) for item in (task.tables or [])],
         table_strategy=task.table_strategy,  # type: ignore[arg-type]
         target_suffix=task.target_suffix,
+        coverage_contracts=deepcopy(task.coverage_contracts or []),
         created_by_username=task.created_by_username,
         created_by_auth_type=task.created_by_auth_type,
         archived_at=task.archived_at,

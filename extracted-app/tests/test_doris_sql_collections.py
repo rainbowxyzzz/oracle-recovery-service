@@ -1,6 +1,7 @@
 import unittest
 import uuid
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -172,6 +173,7 @@ class DorisSqlCollectionTests(unittest.TestCase):
 
         with patch("recovery_service.services.data_platform.execute_doris_sql", side_effect=execute_sql):
             run_queued_workflow(queued.run_id)
+            run_queued_workflow(queued.run_id)
 
         self.assertEqual(calls, ["SELECT 1", "SELECT 2", "SELECT 3"])
         with self.factory() as session:
@@ -195,6 +197,18 @@ class DorisSqlCollectionTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(KeyError, "SQL 集合不存在"):
             get_doris_sql_collection(created["collection_id"])
+
+    def test_collection_workbench_keeps_existing_controls_visible(self) -> None:
+        ui = (Path(__file__).parents[1] / "src" / "recovery_service" / "static" / "ui.html").read_text(encoding="utf-8")
+        self.assertIn('.modal.sql-collection-modal', ui)
+        self.assertIn('class="modal sql-collection-modal"', ui)
+        self.assertIn('id="dorisSqlCollectionSearch"', ui)
+        self.assertIn('data-sql-collection-tab="settings"', ui)
+        self.assertIn('data-sql-collection-tab="members"', ui)
+        self.assertIn('data-sql-collection-tab="runs"', ui)
+        self.assertIn('function setDorisSqlCollectionActiveTab(tab)', ui)
+        for control_id in ("dorisSqlCollectionArchiveBtn", "dorisSqlCollectionTestBtn", "dorisSqlCollectionPublishBtn", "dorisSqlCollectionRunProdBtn", "dorisSqlCollectionSaveBtn"):
+            self.assertIn(f'id="{control_id}"', ui)
 
 
 if __name__ == "__main__":

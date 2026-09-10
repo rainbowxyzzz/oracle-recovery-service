@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import threading
 import time
 import uuid
-import hashlib
-import json
 from calendar import monthrange
 from copy import deepcopy
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
-from recovery_service.common.logging import get_logger
 from recovery_service.api.schemas.data_platform import (
     DataPlatformComponentRunLogResponse,
     DataPlatformComponentRunResponse,
@@ -28,25 +28,34 @@ from recovery_service.api.schemas.data_platform import (
     DataPlatformVersionResponse,
     DataPlatformWorkflowResponse,
 )
+from recovery_service.common.logging import get_logger
 from recovery_service.common.time import app_now
 from recovery_service.core.models.task import (
-    DataAutomationPipeline,
     DataAutomationBatch,
-    DataPlatformFolder,
+    DataAutomationPipeline,
+    DatabaseConnectionProfile,
     DataPlatformChangeTriggerState,
-    DataPlatformComponentRunLog,
     DataPlatformComponentRun,
+    DataPlatformComponentRunLog,
     DataPlatformComponentRunTable,
+    DataPlatformFolder,
     DataPlatformNode,
     DataPlatformNodeRun,
     DataPlatformWorkflow,
     DataPlatformWorkflowRun,
     DataPlatformWorkflowVersion,
-    DatabaseConnectionProfile,
     RecoveryTask,
 )
 from recovery_service.db.session import get_sync_session_factory
 from recovery_service.services.auth import AuthContext
+from recovery_service.services.data_change_trigger import (
+    finalize_change_trigger_run,
+    probe_change_trigger_now,
+    retire_change_triggers,
+    run_due_change_triggers,
+    synchronize_change_triggers,
+)
+from recovery_service.services.data_sync import execute_data_sync, recognize_data_sync_mappings
 from recovery_service.services.doris_encryption import (
     create_sm4_batch_task,
     dispatch_queued_sm4_jobs_once,
@@ -56,20 +65,12 @@ from recovery_service.services.doris_encryption import (
     sm4_task_definition_snapshot,
 )
 from recovery_service.services.doris_sm3_mapping import (
+    get_sm3_task_status_sync,
     run_sm3_task_definition_sync,
     run_sm3_task_snapshot_sync,
     sm3_task_definition_snapshot,
-    get_sm3_task_status_sync,
 )
 from recovery_service.services.doris_sql_etl import execute_doris_sql
-from recovery_service.services.data_sync import execute_data_sync
-from recovery_service.services.data_change_trigger import (
-    finalize_change_trigger_run,
-    probe_change_trigger_now,
-    retire_change_triggers,
-    run_due_change_triggers,
-    synchronize_change_triggers,
-)
 
 _SCHEDULER_STOP = threading.Event()
 _SCHEDULER_THREAD: threading.Thread | None = None
@@ -558,6 +559,69 @@ def _table_run_summary(row: DataPlatformComponentRunTable) -> dict[str, Any]:
     }
 
 
+def prepare_component_task_run(
+    session,
+    node_id: uuid.UUID,
+    overrides: dict[str, Any] | None = None,
+    actor: AuthContext | None = None,
+    *,
+    run_id: uuid.UUID | None = None,
+) -> DataPlatformComponentRun:
+    """Create a queued data-sync run in the caller's transaction."""
+    node = session.get(DataPlatformNode, node_id)
+    if not node or node.status != "active":
+        raise KeyError("Component task does not exist.")
+    if node.node_type != "data_sync":
+        raise ValueError("Only data sync component runs can be queued.")
+
+    from recovery_service.services.assistant_execution import sync_config_for_batch
+
+    frozen_config = sync_config_for_batch(session, (overrides or {}).get("pipeline_batch_id"), node.id, node.config or {})
+    config = _normalize_component_task_config(node.node_type, frozen_config)
+    if isinstance(overrides, dict) and overrides.get("selected_tables") is not None:
+        config["selected_tables"] = list(overrides.get("selected_tables") or [])
+    if isinstance(overrides, dict) and overrides.get("sync_all_tables"):
+        config["selected_tables"] = []
+    selected_items = list(config.get("selected_tables") or [])
+    now = app_now()
+    component_run = DataPlatformComponentRun(
+        id=run_id or uuid.uuid4(),
+        node_id=node.id,
+        node_type=node.node_type,
+        node_name=node.name,
+        node_revision=int(node.revision or 1),
+        trigger_type="manual",
+        selected_items=selected_items or None,
+        status="queued",
+        message="Data sync task has been queued.",
+        result={
+            "status": "queued",
+            "message": "Data sync task has been queued.",
+            "selected_tables": selected_items,
+            "runtime_overrides": {
+                "pipeline_batch_id": str(overrides.get("pipeline_batch_id")) if isinstance(overrides, dict) and overrides.get("pipeline_batch_id") else None,
+                "restored_target": dict(overrides.get("restored_target") or {}) if isinstance(overrides, dict) else {},
+                "sync_all_tables": bool(isinstance(overrides, dict) and overrides.get("sync_all_tables")),
+            },
+            "logs": [
+                {
+                    "level": "INFO",
+                    "stage": "queued",
+                    "message": "Data sync task has been queued.",
+                    "created_at": now.isoformat(),
+                }
+            ],
+        },
+        created_by_user_id=_actor_uuid(actor),
+        created_by_username=actor.username if actor else None,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(component_run)
+    session.flush()
+    return component_run
+
+
 def submit_component_task_run(
     node_id: uuid.UUID,
     overrides: dict[str, Any] | None = None,
@@ -569,49 +633,10 @@ def submit_component_task_run(
         if not node or node.status != "active":
             raise KeyError("Component task does not exist.")
         if node.node_type != "data_sync":
-            session.close()
             return run_component_task_once(node_id, overrides, actor)
 
-        from recovery_service.services.assistant_execution import sync_config_for_batch
-        frozen_config = sync_config_for_batch(session, (overrides or {}).get("pipeline_batch_id"), node.id, node.config or {})
-        config = _normalize_component_task_config(node.node_type, frozen_config)
-        if isinstance(overrides, dict) and overrides.get("selected_tables") is not None:
-            config["selected_tables"] = list(overrides.get("selected_tables") or [])
-        selected_items = list(config.get("selected_tables") or [])
-        now = app_now()
-        component_run = DataPlatformComponentRun(
-            id=uuid.uuid4(),
-            node_id=node.id,
-            node_type=node.node_type,
-            node_name=node.name,
-            node_revision=int(node.revision or 1),
-            trigger_type="manual",
-            selected_items=selected_items or None,
-            status="queued",
-            message="Data sync task has been queued.",
-            result={
-                "status": "queued",
-                "message": "Data sync task has been queued.",
-                "selected_tables": selected_items,
-                "runtime_overrides": {
-                    "pipeline_batch_id": str(overrides.get("pipeline_batch_id")) if isinstance(overrides, dict) and overrides.get("pipeline_batch_id") else None,
-                    "restored_target": dict(overrides.get("restored_target") or {}) if isinstance(overrides, dict) else {},
-                },
-                "logs": [
-                    {
-                        "level": "INFO",
-                        "stage": "queued",
-                        "message": "Data sync task has been queued.",
-                        "created_at": now.isoformat(),
-                    }
-                ],
-            },
-            created_by_user_id=_actor_uuid(actor),
-            created_by_username=actor.username if actor else None,
-            created_at=now,
-            updated_at=now,
-        )
-        session.add(component_run)
+        component_run = prepare_component_task_run(session, node_id, overrides, actor)
+        selected_items = list(component_run.selected_items or [])
         session.commit()
 
         from recovery_service.settings import get_settings
@@ -680,6 +705,42 @@ def run_queued_component_task(component_run_id: uuid.UUID) -> dict[str, Any]:
         component_run = session.get(DataPlatformComponentRun, component_run_id)
         if not component_run:
             raise KeyError("Component run does not exist.")
+        now = app_now()
+        claimed = session.execute(
+            update(DataPlatformComponentRun)
+            .where(
+                DataPlatformComponentRun.id == component_run_id,
+                DataPlatformComponentRun.status == "queued",
+            )
+            .values(
+                status="running",
+                message="Data sync task is running.",
+                started_at=now,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        session.commit()
+        if int(getattr(claimed, "rowcount", 0) or 0) != 1:
+            session.refresh(component_run)
+            logger.warning(
+                "data sync task ignored because component run is not queued",
+                component_run_id=str(component_run_id),
+                status=component_run.status,
+            )
+            return {
+                "status": component_run.status,
+                "message": "Duplicate data sync delivery ignored.",
+                "component_run_id": str(component_run.id),
+                "run_id": str(component_run.id),
+            }
+        session.refresh(component_run)
+        component_run.result = {
+            **(component_run.result or {}),
+            "status": "running",
+            "message": "Data sync task is running.",
+        }
+        session.commit()
         node = session.get(DataPlatformNode, component_run.node_id)
         if not node or node.status != "active":
             message = "Component task does not exist."
@@ -734,23 +795,22 @@ def run_queued_component_task(component_run_id: uuid.UUID) -> dict[str, Any]:
                         {**dict(item), "source_catalog": "local_oracle"}
                         for item in config.get("table_mappings") or []
                     ]
+                    if runtime_overrides.get("sync_all_tables"):
+                        recognized = recognize_data_sync_mappings(
+                            source,
+                            target,
+                            source_catalog="local_oracle",
+                            source_schema=restored_schema,
+                            target_database=str(config.get("target_database") or ""),
+                            schema_policy=str(config.get("schema_policy") or "source"),
+                        )
+                        config["table_mappings"] = list(recognized["table_mappings"])
+                        config["selected_tables"] = []
                 else:
                     raise ValueError("恢复任务缺少 Oracle 目标连接快照或生成用户口令，无法直连同步。")
         except Exception as exc:
             _mark_component_run_failed(session, component_run, str(exc))
             raise
-
-        now = app_now()
-        component_run.status = "running"
-        component_run.message = "Data sync task is running."
-        component_run.started_at = component_run.started_at or now
-        component_run.updated_at = now
-        component_run.result = {
-            **(component_run.result or {}),
-            "status": "running",
-            "message": "Data sync task is running.",
-        }
-        session.commit()
 
         selected_items = list(config.get("selected_tables") or [])
         recorder = _DataSyncComponentRunRecorder(component_run.id, node.id)
@@ -768,7 +828,7 @@ def run_queued_component_task(component_run_id: uuid.UUID) -> dict[str, Any]:
             component_run.result = _compact_component_run_result(result)
             component_run.finished_at = finished
             component_run.updated_at = finished
-            if isinstance(config_patch, dict):
+            if isinstance(config_patch, dict) and not runtime_overrides.get("sync_all_tables"):
                 updated_config = dict(node.config or {})
                 updated_config.update(config_patch)
                 node.config = updated_config
@@ -836,12 +896,10 @@ def run_component_task_once(
             profile = session.get(DatabaseConnectionProfile, uuid.UUID(str(config["connection_id"])))
             if not profile:
                 raise ValueError("Doris SQL 任务连接不存在。")
-            result = execute_doris_sql(
-                profile,
-                database=config.get("database"),
-                sql=config["sql"],
-                limit=config.get("limit") or 200,
-            )
+            sql_options = {"database": config.get("database"), "sql": config["sql"], "limit": config.get("limit") or 200}
+            if str(config.get("security_access_mode") or "trusted") == "restricted":
+                sql_options["security_access_mode"] = "restricted"
+            result = execute_doris_sql(profile, **sql_options)
             return result.model_dump()
         if node.node_type == "data_sync":
             source = session.get(
@@ -1879,6 +1937,45 @@ def offline_version(version_id: uuid.UUID, actor: AuthContext | None) -> DataPla
         session.close()
 
 
+def prepare_workflow_run(
+    session,
+    version_id: uuid.UUID,
+    *,
+    trigger_type: str = "manual",
+    actor: AuthContext | None = None,
+    trigger_context: dict[str, Any] | None = None,
+    run_id: uuid.UUID | None = None,
+) -> DataPlatformWorkflowRun:
+    """Create a queued workflow run in the caller's transaction."""
+    version = session.get(DataPlatformWorkflowVersion, version_id)
+    if not version:
+        raise KeyError("Workflow version does not exist.")
+    if version.status not in {"draft", "submitted", "online"}:
+        raise ValueError("This version is offline and cannot run.")
+    _validate_component_task_bindings(version.nodes or [])
+    if _has_active_workflow_run(session, version.id):
+        raise ValueError("This workflow version already has an active run. Please wait for it to finish before submitting again.")
+    run = DataPlatformWorkflowRun(
+        id=run_id or uuid.uuid4(),
+        workflow_id=version.workflow_id,
+        version_id=version.id,
+        version_no=version.version_no,
+        channel=version.channel,
+        trigger_type=trigger_type,
+        trigger_context=trigger_context or None,
+        status="queued",
+        message="Waiting for workflow executor.",
+        total_count=len(version.nodes or []),
+        created_by_user_id=_actor_uuid(actor),
+        created_by_username=actor.username if actor else None,
+        created_at=app_now(),
+        updated_at=app_now(),
+    )
+    session.add(run)
+    session.flush()
+    return run
+
+
 def run_version(
     version_id: uuid.UUID,
     *,
@@ -1889,31 +1986,14 @@ def run_version(
 ) -> DataPlatformRunResponse:
     session = get_sync_session_factory()()
     try:
-        version = session.get(DataPlatformWorkflowVersion, version_id)
-        if not version:
-            raise KeyError("Workflow version does not exist.")
-        if version.status not in {"draft", "submitted", "online"}:
-            raise ValueError("This version is offline and cannot run.")
-        _validate_component_task_bindings(version.nodes or [])
-        if _has_active_workflow_run(session, version.id):
-            raise ValueError("This workflow version already has an active run. Please wait for it to finish before submitting again.")
-        run = DataPlatformWorkflowRun(
-            id=run_id or uuid.uuid4(),
-            workflow_id=version.workflow_id,
-            version_id=version.id,
-            version_no=version.version_no,
-            channel=version.channel,
+        run = prepare_workflow_run(
+            session,
+            version_id,
             trigger_type=trigger_type,
-            trigger_context=trigger_context or None,
-            status="queued",
-            message="Waiting for workflow executor.",
-            total_count=len(version.nodes or []),
-            created_by_user_id=_actor_uuid(actor),
-            created_by_username=actor.username if actor else None,
-            created_at=app_now(),
-            updated_at=app_now(),
+            actor=actor,
+            trigger_context=trigger_context,
+            run_id=run_id,
         )
-        session.add(run)
         session.commit()
         session.refresh(run)
         try:
@@ -2254,13 +2334,31 @@ def _execute_run(run_id: uuid.UUID) -> None:
         run = session.get(DataPlatformWorkflowRun, run_id)
         if not run:
             return
-        if run.status != "queued":
+        now = app_now()
+        claimed = session.execute(
+            update(DataPlatformWorkflowRun)
+            .where(
+                DataPlatformWorkflowRun.id == run_id,
+                DataPlatformWorkflowRun.status == "queued",
+            )
+            .values(
+                status="running",
+                message="Workflow is running.",
+                started_at=now,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        session.commit()
+        if int(getattr(claimed, "rowcount", 0) or 0) != 1:
+            session.refresh(run)
             logger.warning(
                 "data platform workflow task ignored because run is not queued",
                 run_id=str(run_id),
                 status=run.status,
             )
             return
+        session.refresh(run)
         version = session.get(DataPlatformWorkflowVersion, run.version_id)
         if not version:
             run.status = "failed"
@@ -2281,11 +2379,6 @@ def _execute_run(run_id: uuid.UUID) -> None:
         if run.trigger_type == "data_change":
             selected_trigger = str((run.trigger_context or {}).get("node_key") or "")
             selected_nodes = _reachable_nodes(selected_trigger, edge_specs)
-        run.status = "running"
-        run.message = "Workflow is running."
-        run.started_at = app_now()
-        run.updated_at = app_now()
-        session.commit()
         results: dict[str, str] = {}
         for spec in order:
             key = str(spec["key"])
@@ -2538,12 +2631,15 @@ def _execute_node(
         profile = session.get(DatabaseConnectionProfile, uuid.UUID(str(connection_id)))
         if not profile:
             raise ValueError("Doris SQL node connection does not exist.")
-        result = execute_doris_sql(
-            profile,
-            database=database,
-            sql=sql,
-            limit=limit,
-        )
+        sql_options = {"database": database, "sql": sql, "limit": limit}
+        run_context = dict(run.trigger_context or {}) if run else {}
+        run_security_mode = str(run_context.get("security_access_mode") or "")
+        if run_security_mode == "protected_etl":
+            sql_options["security_access_mode"] = "protected_etl"
+            sql_options["security_access_context"] = dict(run_context.get("security_orchestration") or {})
+        elif str(config.get("security_access_mode") or "trusted") == "restricted" or run_security_mode == "restricted":
+            sql_options["security_access_mode"] = "restricted"
+        result = execute_doris_sql(profile, **sql_options)
         columns = [
             column.model_dump() if hasattr(column, "model_dump") else dict(column)
             for column in (result.columns or [])

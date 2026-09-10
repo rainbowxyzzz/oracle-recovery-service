@@ -180,7 +180,7 @@ async def preview_oracle_sql(
 async def run_doris_sql(
     body: DorisSqlExecuteRequest,
     db: AsyncSession = Depends(get_db),
-    _: AuthContext = Depends(require_permission("dorisSqlEtl:execute")),
+    actor: AuthContext = Depends(require_permission("dorisSqlEtl:execute")),
 ):
     try:
         profile = await get_profile(db, body.connection_id)
@@ -191,6 +191,7 @@ async def run_doris_sql(
             sql=body.sql,
             limit=body.limit,
             confirm_dangerous=body.confirm_dangerous,
+            security_access_mode="trusted" if actor.is_admin else "restricted",
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

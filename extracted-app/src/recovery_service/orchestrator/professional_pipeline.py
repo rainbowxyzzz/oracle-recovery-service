@@ -1794,7 +1794,7 @@ def _verify_dmp_files_visible_in_container(
         checks.append(f"test -f {shlex.quote(path)} || echo MISSING:{shlex.quote(filename)}")
     inner = " && ".join(checks)
     exec_cmd = (
-        f"{shlex.quote(docker_bin)} exec {shlex.quote(container)} "
+        f"{shlex.quote(docker_bin)} exec -u 54321:54321 {shlex.quote(container)} "
         f"bash -lc {shlex.quote(inner)}"
     )
     settings = get_settings()

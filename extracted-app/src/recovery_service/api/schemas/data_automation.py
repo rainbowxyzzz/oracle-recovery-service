@@ -117,3 +117,17 @@ class DataClassificationRuleCreate(BaseModel):
 class ReverseEncryptionExecuteRequest(BaseModel):
     pipeline_id: UUID
     confirm: bool = False
+
+
+class SecurityOrchestrationEnableRequest(BaseModel):
+    standard_asset_id: UUID
+    confirm: bool = False
+
+
+class SecurityOrchestrationPrepareRequest(BaseModel):
+    standard_asset_id: UUID
+    confirm: bool = False
+
+
+class SecurityOrchestrationActionRequest(BaseModel):
+    confirm: bool = False

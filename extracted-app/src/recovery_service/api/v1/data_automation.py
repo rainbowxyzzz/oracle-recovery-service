@@ -15,17 +15,83 @@ from recovery_service.api.schemas.data_automation import (
     OpenLineageRunEvent,
     OpenMetadataSyncRequest,
     ReverseEncryptionExecuteRequest,
+    SecurityOrchestrationActionRequest,
+    SecurityOrchestrationEnableRequest,
+    SecurityOrchestrationPrepareRequest,
 )
 from recovery_service.services import data_automation as service
 from recovery_service.services import openmetadata as openmetadata_service
 from recovery_service.services.auth import AuthContext
 
 router = APIRouter(prefix="/data-automation", tags=["data-automation"])
+_doris_encrypt_execute = Depends(require_permission("dorisEncrypt:execute"))
 
 
 @router.get("/pipelines")
 async def pipelines(_: None = Depends(require_permission("dataPlatform:read"))):
     return {"pipelines": await asyncio.to_thread(service.list_pipelines)}
+
+
+@router.get("/orchestration/ledger")
+async def orchestration_ledger(_: None = Depends(require_permission("dataPlatform:read"))):
+    return await asyncio.to_thread(service.get_security_orchestration_ledger)
+
+
+@router.get("/orchestration/pipelines/{pipeline_id}/readiness")
+async def orchestration_readiness(
+    pipeline_id: UUID,
+    standard_asset_id: UUID | None = None,
+    _: None = Depends(require_permission("dorisEncrypt:read")),
+):
+    return await asyncio.to_thread(service.get_security_orchestration_readiness, pipeline_id, standard_asset_id)
+
+
+@router.post("/orchestration/pipelines/{pipeline_id}/enable")
+async def enable_security_orchestration(
+    pipeline_id: UUID,
+    body: SecurityOrchestrationEnableRequest,
+    actor: AuthContext = _doris_encrypt_execute,
+):
+    return await asyncio.to_thread(
+        service.enable_security_orchestration,
+        pipeline_id,
+        body.standard_asset_id,
+        confirm=body.confirm,
+        actor=actor,
+    )
+
+
+@router.post("/orchestration/pipelines/{pipeline_id}/prepare-security")
+async def prepare_security_orchestration(
+    pipeline_id: UUID,
+    body: SecurityOrchestrationPrepareRequest,
+    actor: AuthContext = _doris_encrypt_execute,
+):
+    return await asyncio.to_thread(
+        service.prepare_security_orchestration,
+        pipeline_id,
+        body.standard_asset_id,
+        confirm=body.confirm,
+        actor=actor,
+    )
+
+
+@router.post("/orchestration/batches/{batch_id}/submit-encryption")
+async def submit_security_orchestration_encryption(
+    batch_id: UUID,
+    body: SecurityOrchestrationActionRequest,
+    actor: AuthContext = _doris_encrypt_execute,
+):
+    return await asyncio.to_thread(service.submit_security_orchestration_encryption, batch_id, confirm=body.confirm, actor=actor)
+
+
+@router.post("/orchestration/batches/{batch_id}/activate-security-access")
+async def activate_security_orchestration_access(
+    batch_id: UUID,
+    body: SecurityOrchestrationActionRequest,
+    _: AuthContext = _doris_encrypt_execute,
+):
+    return await asyncio.to_thread(service.activate_security_orchestration_access, batch_id, confirm=body.confirm)
 
 
 @router.post("/pipelines", status_code=201)
@@ -185,6 +251,16 @@ async def reverse_encryption_plan(asset_id: UUID, _: None = Depends(require_perm
     return await asyncio.to_thread(service.build_reverse_encryption_plan, asset_id)
 
 
+@router.get("/assets/{asset_id}/security-access-plan")
+async def security_access_plan(asset_id: UUID, pipeline_id: UUID, _: None = Depends(require_permission("dorisEncrypt:read"))):
+    return await asyncio.to_thread(service.build_security_access_plan, asset_id, pipeline_id)
+
+
+@router.get("/security-access-mappings")
+async def security_access_mappings(pipeline_id: UUID | None = None, _: None = Depends(require_permission("dataPlatform:read"))):
+    return {"mappings": await asyncio.to_thread(service.list_security_access_mappings, pipeline_id)}
+
+
 @router.post("/assets/{asset_id}/reverse-encryption-executions")
 async def execute_reverse_encryption(
     asset_id: UUID,
@@ -198,3 +274,12 @@ async def execute_reverse_encryption(
         confirm=body.confirm,
         actor=actor,
     )
+
+
+@router.post("/assets/{asset_id}/security-access-executions")
+async def execute_security_access_plan(
+    asset_id: UUID,
+    body: ReverseEncryptionExecuteRequest,
+    actor: AuthContext = Depends(require_permission("dorisEncrypt:execute")),
+):
+    return await asyncio.to_thread(service.execute_security_access_plan, asset_id, body.pipeline_id, confirm=body.confirm, actor=actor)

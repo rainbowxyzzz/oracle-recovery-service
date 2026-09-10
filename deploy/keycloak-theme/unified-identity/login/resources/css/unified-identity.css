@@ -1,0 +1,130 @@
+:root {
+  --identity-navy: #111a2d;
+  --identity-blue: #1677ff;
+  --identity-blue-hover: #4096ff;
+  --identity-page: #f4f7fb;
+  --identity-text: #16243d;
+  --identity-muted: #6f7e95;
+  --identity-line: #dce5f1;
+}
+
+html,
+body.login-pf {
+  min-height: 100%;
+  background: var(--identity-page);
+  color: var(--identity-text);
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+}
+
+.login-pf { margin: 0; }
+
+.login-pf-page {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  margin: 0;
+  padding: 116px 24px 48px;
+  background: linear-gradient(var(--identity-navy), var(--identity-navy)) top / 100% 68px no-repeat,
+    var(--identity-page);
+}
+
+.login-pf-page::before {
+  position: absolute;
+  top: 23px;
+  left: max(32px, calc((100% - 1200px) / 2));
+  color: #ffffff;
+  content: "统一身份与权限认证";
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.login-pf-page-header { display: none; }
+
+.card-pf {
+  box-sizing: border-box;
+  width: min(100%, 420px);
+  margin: 0;
+  padding: 36px 40px 32px;
+  border: 1px solid var(--identity-line);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(17, 26, 45, 0.1);
+}
+
+.login-pf-header { margin-bottom: 28px; text-align: left; }
+
+#kc-page-title {
+  margin: 0;
+  color: var(--identity-text);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 32px;
+}
+
+#kc-page-title::after {
+  display: block;
+  margin-top: 8px;
+  color: var(--identity-muted);
+  content: "使用授权账号安全访问工作台";
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.pf-v5-c-form__label, .pf-c-form__label {
+  margin-bottom: 8px;
+  color: var(--identity-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pf-v5-c-form-control, .pf-c-form-control {
+  min-height: 38px;
+  border: 1px solid var(--identity-line);
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: 14px;
+}
+
+.pf-v5-c-form-control:focus, .pf-c-form-control:focus {
+  border-color: var(--identity-blue);
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.14);
+}
+
+.pf-v5-c-button.pf-m-primary, .pf-c-button.pf-m-primary {
+  min-height: 38px;
+  border-color: var(--identity-blue);
+  border-radius: 6px;
+  background: var(--identity-blue);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pf-v5-c-button.pf-m-primary:hover, .pf-c-button.pf-m-primary:hover {
+  border-color: var(--identity-blue-hover);
+  background: var(--identity-blue-hover);
+}
+
+#kc-form-options, #kc-registration, #kc-info-wrapper, .login-pf-settings {
+  color: var(--identity-muted);
+  font-size: 13px;
+}
+
+#kc-form-options a, #kc-registration a, #kc-info-wrapper a {
+  color: #3576c7;
+  text-decoration: none;
+}
+
+#kc-form-options a:hover, #kc-registration a:hover, #kc-info-wrapper a:hover {
+  color: var(--identity-blue);
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .login-pf-page { padding: 100px 16px 32px; }
+  .login-pf-page::before { top: 24px; left: 20px; font-size: 15px; }
+  .card-pf { padding: 28px 24px; }
+}

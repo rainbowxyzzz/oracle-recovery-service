@@ -322,6 +322,7 @@ class DorisSm4TaskDefinitionBase(BaseModel):
     tables: list[DorisSm4BatchTableSpec] = Field(default_factory=list)
     table_strategy: DorisSm4TableStrategy = "drop_recreate"
     target_suffix: str | None = None
+    coverage_contracts: list[dict] = Field(default_factory=list)
 
 
 class DorisSm4TaskDefinitionCreateRequest(DorisSm4TaskDefinitionBase):
@@ -335,6 +336,7 @@ class DorisSm4TaskDefinitionUpdateRequest(BaseModel):
     tables: list[DorisSm4BatchTableSpec] | None = None
     table_strategy: DorisSm4TableStrategy | None = None
     target_suffix: str | None = None
+    coverage_contracts: list[dict] | None = None
 
 
 class DorisSm4TaskDefinitionResponse(DorisSm4TaskDefinitionBase):

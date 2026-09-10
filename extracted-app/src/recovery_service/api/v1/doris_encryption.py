@@ -504,6 +504,7 @@ async def create_doris_sm4_task_definition(
             tables=[item.model_dump() for item in body.tables],
             table_strategy=body.table_strategy,
             target_suffix=body.target_suffix,
+            coverage_contracts=body.coverage_contracts,
             actor=actor,
         )
         await record_audit(

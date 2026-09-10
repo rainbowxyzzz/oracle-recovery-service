@@ -124,6 +124,7 @@ def test_script_text_and_shell_syntax():
     raw.decode("utf-8")
     assert not raw.startswith(b"\xef\xbb\xbf")
     assert b"\r" not in raw
+    assert raw.count(b"docker exec -u 54321:54321") == 3
     result = subprocess.run([BASH, "-c", 'sh -n "$1"', "syntax", SCRIPT.as_posix()],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr

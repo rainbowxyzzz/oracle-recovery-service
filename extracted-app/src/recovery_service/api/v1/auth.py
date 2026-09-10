@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,7 @@ from recovery_service.services.auth import (
 from recovery_service.services.oidc import (
     OIDCConfigurationError,
     build_authorization_url,
+    build_logout_url,
     create_state,
     decode_state,
     discover,
@@ -191,6 +192,17 @@ async def oidc_callback(
         secure=settings.oidc_cookie_secure,
         path="/",
     )
+    id_token = str(token_document.get("id_token") or "").strip()
+    if id_token:
+        redirect.set_cookie(
+            "ors_oidc_id_token",
+            id_token,
+            max_age=expires_delta,
+            httponly=True,
+            samesite="lax",
+            secure=settings.oidc_cookie_secure,
+            path="/",
+        )
     redirect.delete_cookie("ors_oidc_state", path="/")
     return redirect
 
@@ -215,7 +227,36 @@ async def oidc_session(
         return LoginResponse(access_token=ors_oidc_session, expires_at=expires_at, user=_user_response(user))
     except (ValueError, KeyError, TypeError):
         response.delete_cookie("ors_oidc_session", path="/")
+        response.delete_cookie("ors_oidc_id_token", path="/")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="OIDC session expired")
+
+
+@router.post("/oidc/logout")
+async def oidc_logout(
+    ors_oidc_id_token: str | None = Cookie(default=None),
+):
+    settings = get_settings()
+    body: dict[str, str | bool | None] = {
+        "logout_url": None,
+        "global_logout": False,
+    }
+    if oidc_is_enabled(settings):
+        try:
+            body["logout_url"] = build_logout_url(
+                settings,
+                await discover(settings),
+                ors_oidc_id_token,
+            )
+            body["global_logout"] = True
+        except (httpx.HTTPError, OIDCConfigurationError, ValueError, KeyError):
+            # Local session cookies are still removed below. The client must not claim
+            # the IdP session ended when the provider cannot supply a logout URL.
+            pass
+    response = JSONResponse(body)
+    response.delete_cookie("ors_oidc_session", path="/")
+    response.delete_cookie("ors_oidc_id_token", path="/")
+    response.delete_cookie("ors_oidc_state", path="/")
+    return response
 
 
 def _user_response(user: User) -> UserResponse:

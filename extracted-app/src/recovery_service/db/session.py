@@ -532,13 +532,19 @@ async def _ensure_doris_sm4_task_definition_columns(conn) -> None:
         )
     )
     columns = {str(row[0]) for row in result.fetchall()}
-    if columns and "revision" not in columns:
-        await conn.execute(
-            text(
-                "ALTER TABLE doris_sm4_task_definitions "
-                "ADD COLUMN revision INT NOT NULL DEFAULT 1 AFTER name"
-            )
-        )
+    migrations = {
+        "revision": (
+            "ALTER TABLE doris_sm4_task_definitions "
+            "ADD COLUMN revision INT NOT NULL DEFAULT 1 AFTER name"
+        ),
+        "coverage_contracts": (
+            "ALTER TABLE doris_sm4_task_definitions "
+            "ADD COLUMN coverage_contracts JSON NULL AFTER tables"
+        ),
+    }
+    for column, sql in migrations.items():
+        if columns and column not in columns:
+            await conn.execute(text(sql))
 
 
 async def _ensure_doris_sm4_key_and_batch_columns(conn) -> None:

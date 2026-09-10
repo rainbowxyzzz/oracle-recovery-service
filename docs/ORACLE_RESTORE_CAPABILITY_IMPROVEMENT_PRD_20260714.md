@@ -791,3 +791,30 @@ flowchart LR
 - 真实 Oracle 19c 验证通过后，结果可作为 Oracle 11g 语法兼容性证据，但不得宣称已完成 Oracle 11g 实机认证。
 
 对应真实验证报告：`docs/test-reports/oracle_export_log_assisted_e2e_20260716.md`。
+
+## 18. Docker 17 Oracle 容器身份解析兼容（2026-09-10）
+
+### 18.1 问题与边界
+
+旧版 Docker 17 在执行 `docker cp` 后可能错误地让后续按用户名执行的 `docker exec` 返回
+`unable to find user oracle: no matching entries in passwd file`，即使容器内 `/etc/passwd` 仍存在
+Oracle 用户且数据库进程仍以该用户运行。该错误属于 Docker 守护进程的用户解析异常，不代表 Oracle
+用户、数据库实例或数据文件损坏。
+
+本次只修复 Oracle 自动还原与 21c 初始化链路的兼容行为，不改变 DMP 探测、导入模式、schema
+映射、表空间、任务状态或结果校验规则。
+
+### 18.2 固定规则
+
+1. Oracle 容器内命令统一使用数值身份 `54321:54321`，不依赖 Docker 按名称解析 `oracle` 用户；禁止改用 root 执行 Oracle 导入。
+2. 自动还原链路不得调用 `docker cp`：文本日志通过容器内 `cat` 归档，非直读模式的 DMP 通过标准输入流写入容器。
+3. `unable to find user ... no matching entries in passwd file` 必须分类为 `docker_user_resolution_failed`，不得误报为 `unknown_dump_type`。
+4. 直读 DMP、复制 DMP、预检、停止任务、正式 `impdp`/`imp`、日志归档和 Oracle 21c 初始化均遵守相同数值身份规则。
+
+### 18.3 验收标准
+
+- 自动化测试证明生成的全部 Oracle `docker exec` 命令包含 `-u 54321:54321`。
+- 自动还原工具源码和生成命令中不存在 `docker cp` 调用。
+- 日志归档内容完整可读，DMP 流式写入失败时任务明确失败。
+- Docker 用户解析错误具有独立错误码；已有 Oracle 探测错误分类保持不变。
+- 真实 Docker 17 验收时，运行还原任务前后均可执行不带 `-u 0` 的容器命令，且 Oracle 实例持续健康。

@@ -435,30 +435,46 @@
     .doris-sql-titlebar { align-items: flex-start; gap: 12px; }
     .doris-sql-titlebar h2 { margin-bottom: 0; line-height: 36px; }
     .doris-sql-titlebar .actions { justify-content: flex-end; }
-    .sql-collection-modal { width: min(1280px, calc(100vw - 40px)); height: min(860px, calc(100vh - 40px)); max-height: calc(100vh - 40px); overflow: hidden; display: flex; flex-direction: column; }
-    .sql-collection-layout { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 14px; min-height: 0; flex: 1 1 auto; overflow: hidden; padding-top: 12px; }
-    .sql-collection-sidebar, .sql-collection-editor { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); min-height: 0; }
-    .sql-collection-sidebar { display: flex; flex-direction: column; }
-    .sql-collection-sidebar-head, .sql-collection-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); }
-    .sql-collection-modal-head { flex: 0 0 auto; padding: 0 0 12px; }
-    .sql-collection-modal-head h2 { margin-bottom: 4px; }
-    .sql-collection-list { overflow: auto; padding: 8px; min-height: 220px; }
-    .sql-collection-item { width: 100%; text-align: left; padding: 10px; margin: 0 0 6px; border: 1px solid transparent; background: transparent; }
-    .sql-collection-item.active { border-color: var(--primary); background: var(--primary-soft); }
-    .sql-collection-editor { display: flex; flex-direction: column; overflow: hidden; }
-    .sql-collection-editor-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px; }
-    .sql-collection-fields { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px 12px; }
-    .sql-collection-fields label { display: grid; gap: 5px; }
+    .modal.sql-collection-modal { width: min(1360px, calc(100vw - 40px)); height: min(860px, calc(100vh - 40px)); max-height: calc(100vh - 40px); padding: 0; overflow: hidden; display: flex; flex-direction: column; border-radius: 12px; }
+    .sql-collection-modal-head { flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+    .sql-collection-modal-head h2 { margin: 0 0 4px; font-size: 20px; }
+    .sql-collection-modal-head .muted { max-width: 720px; }
+    .sql-collection-modal-head-actions { display: flex; align-items: center; gap: 12px; }
+    .sql-collection-state { padding: 4px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; white-space: nowrap; }
+    .sql-collection-close { width: 34px; min-height: 34px; padding: 0; font-size: 20px; line-height: 1; }
+    .sql-collection-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 0; min-height: 0; flex: 1 1 auto; overflow: hidden; color: var(--text); white-space: normal; background: #f8fafc; }
+    .sql-collection-sidebar { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: #fff; }
+    .sql-collection-sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px; border-bottom: 1px solid var(--line); }
+    .sql-collection-sidebar-head strong { font-size: 14px; }
+    .sql-collection-search { display: block; padding: 12px 12px 0; }
+    .sql-collection-search input { width: 100%; }
+    .sql-collection-list { overflow: auto; padding: 10px 12px 16px; min-height: 220px; }
+    .sql-collection-item { width: 100%; text-align: left; padding: 11px 12px; margin: 0 0 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; }
+    .sql-collection-item:hover { border-color: #b9dbff; background: #f7fbff; }
+    .sql-collection-item.active { border-color: #b9dbff; background: var(--primary-soft); }
+    .sql-collection-item strong { display: block; margin-bottom: 4px; color: var(--text); }
+    .sql-collection-editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: #fff; }
+    .sql-collection-tabs { display: flex; align-items: center; gap: 24px; min-height: 48px; padding: 0 24px; border-bottom: 1px solid var(--line); background: #fff; }
+    .sql-collection-tab { position: relative; min-height: 48px; padding: 0; border: 0; border-radius: 0; color: var(--muted); background: transparent; }
+    .sql-collection-tab:hover { color: var(--primary); background: transparent; }
+    .sql-collection-tab.active { color: var(--primary); font-weight: 700; }
+    .sql-collection-tab.active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px 2px 0 0; background: var(--primary); }
+    .sql-collection-editor-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px 24px 24px; }
+    .sql-collection-panel { min-height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; }
+    .sql-collection-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .sql-collection-panel-head h3 { margin: 0 0 4px; font-size: 15px; }
+    .sql-collection-fields { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 14px 16px; }
+    .sql-collection-fields label { display: grid; gap: 6px; color: var(--text); font-size: 13px; }
     .sql-collection-fields .wide { grid-column: 1 / -1; }
-    .sql-collection-taskbar { align-items: flex-start; margin-top: 14px; }
+    .sql-collection-taskbar { align-items: flex-start; margin: 0; }
     .sql-collection-taskbar .actions { flex: 1 1 300px; justify-content: flex-end; min-width: 260px; }
     .sql-collection-taskbar select { flex: 1 1 260px; min-width: 220px; }
-    .sql-collection-members { display: grid; gap: 8px; margin-top: 10px; }
-    .sql-collection-member { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px; border: 1px solid var(--line); border-radius: 8px; }
+    .sql-collection-members { display: grid; gap: 8px; margin-top: 12px; }
+    .sql-collection-member { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
     .sql-collection-member-order { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); font-weight: 700; }
-    .sql-collection-reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-    .sql-collection-reference-grid > div { padding: 9px; border: 1px solid var(--line); border-radius: 8px; }
-    .sql-collection-modal .sql-collection-footer { flex: 0 0 auto; justify-content: flex-end; gap: 8px; margin: 0; padding: 12px 14px; border-top: 1px solid var(--line); background: #fff; }
+    .sql-collection-reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+    .sql-collection-reference-grid > div { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+    .sql-collection-modal .sql-collection-footer { flex: 0 0 auto; justify-content: flex-end; gap: 8px; margin: 0; padding: 12px 24px; border-top: 1px solid var(--line); background: #fff; }
     .sql-task-toolbar button { flex: 0 0 auto; }
     .sql-editor-pane textarea {
       flex: 1 1 260px;
@@ -2906,11 +2922,13 @@
     .orchestration-json { min-height: 90px; font-family: Consolas, monospace; }
     .orchestration-sql { min-height: 180px; font-family: Consolas, monospace; }
     @media (max-width: 900px) {
-      .sql-collection-modal { width: calc(100vw - 24px); height: calc(100vh - 24px); max-height: calc(100vh - 24px); }
+      .modal.sql-collection-modal { width: calc(100vw - 24px); height: calc(100vh - 24px); max-height: calc(100vh - 24px); }
       .sql-collection-layout { grid-template-columns: 1fr; overflow: auto; }
-      .sql-collection-sidebar { max-height: 240px; }
+      .sql-collection-sidebar { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--line); }
       .sql-collection-editor { min-height: 520px; overflow: visible; }
       .sql-collection-editor-scroll { overflow: visible; }
+      .sql-collection-modal-head, .sql-collection-tabs, .sql-collection-editor-scroll { padding-right: 16px; padding-left: 16px; }
+      .sql-collection-tabs { gap: 16px; overflow-x: auto; }
       .sql-collection-fields, .sql-collection-reference-grid { grid-template-columns: 1fr; }
       .sql-collection-taskbar .actions, .sql-collection-taskbar select { min-width: 0; width: 100%; }
       .sql-collection-modal .sql-collection-footer { flex-wrap: wrap; justify-content: flex-start; }
@@ -3160,7 +3178,7 @@
       .help-toolbar, .help-manual-grid, .help-coupling-grid, .help-metrics, .help-architecture-flow { grid-template-columns: 1fr; }
     }
     .eyebrow, .section-kicker { display: block; color: #6b7f95; font-size: 10px; font-weight: 750; letter-spacing: .12em; line-height: 1.4; }
-    .module-panel.data-automation-module { display: none; gap: 12px; }
+    .module-panel.data-automation-module { display: none; gap: 16px; }
     .module-panel.data-automation-module.active { display: grid; }
     .data-automation-page-head, .data-automation-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .data-automation-page-head h2, .data-automation-card-head h3 { margin: 2px 0 0; }
@@ -3172,16 +3190,74 @@
     .native-metadata-grid h4 { margin: 0 0 6px; font-size: 14px; }
     .native-metadata-grid p { margin: 0; line-height: 1.6; }
     .metadata-sync-details { max-height: 260px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #0f172a; color: #dbeafe; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
-    .data-automation-metrics { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 9px; }
-    .data-automation-metrics > div { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+    .data-automation-metrics { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; }
+    .data-automation-metrics > div { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
     .data-automation-metrics span, .data-automation-metrics small { display: block; color: var(--muted); }
     .data-automation-metrics strong { display: block; margin: 3px 0; font-size: 22px; }
+    .data-flow-ledger { display: grid; grid-template-columns: 276px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .data-flow-list, .data-flow-card { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
+    .data-flow-detail { min-width: 0; display: grid; gap: 16px; }
+    .data-flow-list-head, .data-flow-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .data-flow-card-summary .data-flow-detail-head { padding: 18px 18px 14px; }
+    .data-flow-list-head h3, .data-flow-detail-head h3 { margin: 0; font-size: 15px; }
+    .data-flow-list-items { padding: 7px; }
+    .data-flow-item { width: 100%; padding: 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; text-align: left; }
+    .data-flow-item:hover, .data-flow-item.active { border-color: #b9dbff; background: var(--primary-soft); }
+    .data-flow-item-name { display: flex; align-items: center; justify-content: space-between; gap: 7px; font-weight: 650; }
+    .data-flow-item small { display: block; margin-top: 4px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .data-flow-status { display: inline-flex; flex: none; padding: 2px 7px; border-radius: 999px; background: #f2f4f7; color: #475467; font-size: 11px; font-weight: 650; }
+    .data-flow-status.ok { background: #ecfdf3; color: #067647; }
+    .data-flow-status.warn { background: #fffaeb; color: #b54708; }
+    .data-flow-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 18px 18px; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+    .data-flow-summary > div { min-width: 0; padding: 10px 12px; border-right: 1px solid var(--line); }
+    .data-flow-summary > div:last-child { border-right: 0; }
+    .data-flow-summary span, .data-flow-summary small { display: block; color: var(--muted); font-size: 12px; }
+    .data-flow-summary strong { display: block; margin-top: 3px; font-size: 13px; overflow-wrap: anywhere; }
+    .data-flow-block { padding: 16px 18px; }
+    .data-flow-block-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .data-flow-block-title h4 { margin: 0; font-size: 14px; }
+    .data-flow-stages { position: relative; display: grid; grid-template-columns: repeat(7, minmax(88px, 1fr)); gap: 8px; overflow-x: auto; padding: 4px 0 2px; }
+    .data-flow-stages::before { content: ""; position: absolute; top: 31px; left: 6%; right: 6%; height: 2px; background: #d0d5dd; }
+    .data-flow-stage { position: relative; z-index: 1; min-width: 88px; text-align: center; color: var(--muted); font-size: 11px; }
+    .data-flow-stage b { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 8px; border: 2px solid #cfd8e6; border-radius: 50%; background: #fff; color: #667085; font-size: 13px; }
+    .data-flow-stage.done b { border-color: #47cd89; background: #ecfdf3; color: #067647; }
+    .data-flow-stage.current b { border-color: var(--primary); background: var(--primary); color: #fff; }
+    .data-flow-stage.locked b { border-color: #fedf89; background: #fffaeb; color: #b54708; }
+    .data-flow-stage strong, .data-flow-stage small { display: block; }
+    .data-flow-stage strong { color: var(--text); font-size: 12px; }
+    .data-flow-stage small { min-height: 33px; margin-top: 3px; }
+    .data-flow-modes, .data-flow-qualification { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .data-flow-mode, .data-flow-check { padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--background-subtle, #f8fafc); }
+    .data-flow-mode.highlight { border-color: #b9dbff; background: #f8fbff; }
+    .data-flow-mode strong, .data-flow-check strong { display: block; }
+    .data-flow-mode small, .data-flow-check small { display: block; margin-top: 3px; color: var(--muted); }
+    .data-flow-route { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; color: #475467; font-size: 11px; font-weight: 650; }
+    .data-flow-route span { padding: 3px 6px; border: 1px solid #dfe3ea; border-radius: 5px; background: #fff; }
+    .data-flow-route i { color: #98a2b3; font-style: normal; }
+    .data-flow-check { display: flex; gap: 8px; background: #fff; }
+    .data-flow-check-mark { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: #ecfdf3; color: #067647; font-weight: 700; }
+    .data-flow-check.warn .data-flow-check-mark { background: #fffaeb; color: #b54708; }
+    .data-flow-events { margin: 0; padding: 2px 0 0; list-style: none; }
+    .data-flow-events li { display: grid; grid-template-columns: 148px 20px 1fr; gap: 10px; min-height: 48px; padding-top: 10px; }
+    .data-flow-event-line { position: relative; }
+    .data-flow-event-line::before { content: ""; position: absolute; left: 8px; top: 2px; width: 9px; height: 9px; border: 2px solid #47cd89; border-radius: 50%; background: #fff; }
+    .data-flow-event-line::after { content: ""; position: absolute; left: 12px; top: 13px; bottom: -2px; width: 1px; background: #d0d5dd; }
+    .data-flow-events li:last-child .data-flow-event-line::after { display: none; }
+    .data-flow-events time, .data-flow-events span { color: var(--muted); font-size: 12px; }
+    .data-flow-tabs { display: flex; border-bottom: 1px solid var(--line); }
+    .data-flow-tab { padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; background: #fff; color: var(--muted); }
+    .data-flow-tab.active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 650; }
+    .data-flow-tab-content { padding: 0 14px 14px; }
+    .data-flow-tab-content[hidden] { display: none; }
+    .data-flow-card-ledger .data-flow-tabs { padding-left: 4px; }
+    .data-flow-flow-id { color: var(--muted); font: 12px ui-monospace, Consolas, monospace; }
     @media (max-width: 900px) {
       .data-automation-page-head, .data-automation-card-head { flex-wrap: wrap; }
-      .data-automation-metrics, .metadata-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .data-automation-metrics, .metadata-status-grid, .data-flow-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .data-flow-ledger { grid-template-columns: 1fr; }
     }
     @media (max-width: 620px) {
-      .data-automation-metrics, .metadata-status-grid { grid-template-columns: 1fr; }
+      .data-automation-metrics, .metadata-status-grid, .data-flow-summary, .data-flow-modes, .data-flow-qualification { grid-template-columns: 1fr; }
     }
   </style>
   <link rel='stylesheet' href='/static/ui-unified.css'>
@@ -3211,14 +3287,16 @@
 
   <section id="loginScreen" class="login-screen">
     <h2>登录系统</h2>
-    <label for="loginUsername">用户名</label>
-    <input id="loginUsername" placeholder="请输入用户名" autocomplete="username">
-    <label for="loginPassword">密码</label>
-    <input id="loginPassword" type="password" placeholder="请输入密码" autocomplete="current-password">
-    <button id="loginBtn" class="primary" type="button" style="width: 100%; margin-top: 14px">登录</button>
-    <button id="oidcLoginBtn" type="button" style="width: 100%; margin-top: 10px" hidden>统一认证登录</button>
-    <div id="oidcLoginHint" class="hint" hidden>当前系统与 OpenMetadata 使用同一身份源；通过统一认证登录后，打开数据目录无需再次输入密码。</div>
-    <div id="loginStatus" class="hint">请输入用户名和密码登录系统。</div>
+    <div id="localLoginFields" hidden>
+      <label for="loginUsername">用户名</label>
+      <input id="loginUsername" placeholder="请输入用户名" autocomplete="username">
+      <label for="loginPassword">密码</label>
+      <input id="loginPassword" type="password" placeholder="请输入密码" autocomplete="current-password">
+    </div>
+    <button id="loginBtn" class="primary" type="button" style="width: 100%; margin-top: 14px">统一认证登录</button>
+    <button id="localLoginToggle" type="button" style="width: 100%; margin-top: 10px">本地应急登录</button>
+    <div id="oidcLoginHint" class="hint">当前系统与 OpenMetadata 使用同一身份源；正常登录会先进入统一认证，打开数据目录无需再次输入密码。</div>
+    <div id="loginStatus" class="hint">请使用统一认证登录系统。</div>
     <div id="systemMessage" class="message"></div>
   </section>
 
@@ -4834,6 +4912,10 @@
           <input id="dorisEncryptTaskDefinitionName" maxlength="128" placeholder="例如：客户信息月度 SM4 加密">
           <div id="dorisEncryptTaskReferenceImpact" class="hint">新任务尚未被离线开发引用。</div>
 
+          <label for="dorisEncryptCoverageContracts">安全访问覆盖合同（JSON）</label>
+          <textarea id="dorisEncryptCoverageContracts" rows="5" placeholder='[{"standard_database":"DWD","standard_table":"CUSTOMER","standard_field":"PHONE","source_database":"ODS","source_table":"CUSTOMER_RAW","source_field":"PHONE","access_database":"ACCESS"}]'></textarea>
+          <div class="hint">启用安全访问流水线时必填；只允许已发布 SQL 血缘、SM4 字段和安全别名完全一致的映射自动执行。</div>
+
           <label for="dorisEncryptConnection">Doris 连接</label>
           <select id="dorisEncryptConnection"></select>
 
@@ -5761,23 +5843,25 @@
     </section>
 
     <section class="module-panel data-automation-module" data-module="dataAutomation">
-      <div class="data-automation-page-head"><div><span class="eyebrow">DATA OPERATIONS</span><h2>数据自动化任务工作区</h2><div class="hint">以批次为主线观察恢复、同步、标准化、血缘、分级与受控加密。</div></div><div class="actions"><button id="dataAutomationRefreshBtn" type="button">刷新</button></div></div>
-      <div class="data-automation-config-card"><div class="section-kicker">TASK CONFIGURATION</div><div class="hint">新建任务只登记流程引用，不复制凭据；保存后的监听状态仍由原接口控制。</div>
-      <div class="grid">
-        <div><label for="dataAutomationName">流水线名称</label><input id="dataAutomationName" placeholder="例如：客户数据月度自动处理"></div>
+      <div class="data-automation-page-head"><div><span class="eyebrow">DATA OPERATIONS</span><h2>数据流编排与运行台账</h2><div class="hint">以业务流为单位管理“源数据到安全消费”的依赖、资格、批次和可审计运行记录。</div></div><div class="actions"><button id="dataAutomationRefreshBtn" type="button">刷新台账</button><button id="dataAutomationConfigureBtn" type="button">配置业务流</button><button id="dataAutomationShowCreateBtn" class="primary" type="button">新建业务流</button></div></div>
+      <div id="dataAutomationMessage" class="message"></div>
+      <div class="data-automation-metrics"><div><span>已启用业务流</span><strong id="dataAutomationEnabledCount">0</strong><small id="dataAutomationAutoRunCount">0 条自动运行</small></div><div><span>本批次运行中</span><strong id="dataAutomationRunningCount">0</strong><small>ODS 加密资格与任务状态</small></div><div><span>已激活安全映射</span><strong id="dataAutomationActiveMappingCount">0</strong><small>Doris 下游账号仅访问安全别名</small></div><div><span>最近异常</span><strong id="dataAutomationExceptionCount">0</strong><small>合同、Schema 或字段血缘阻断</small></div></div>
+      <div class="data-flow-ledger"><aside class="data-flow-list"><div class="data-flow-list-head"><div><h3>业务数据流</h3><span class="hint">按冻结版本运行</span></div><span id="dataFlowCount" class="hint">0 条</span></div><div id="dataFlowPipelineList" class="data-flow-list-items"><div class="muted">正在加载业务数据流。</div></div></aside><div id="dataFlowDetail" class="data-flow-detail"><div class="data-flow-detail-head"><div><h3>选择一条业务数据流</h3><span class="hint">查看链路、资格和运行台账。</span></div></div></div></div>
+      <details id="dataAutomationCreatePanel" class="data-automation-config-card"><summary><strong id="dataAutomationFormTitle">新建业务数据流</strong> <span class="hint">仅登记既有任务引用，不复制凭据</span></summary><input id="dataAutomationEditingId" type="hidden"><div class="grid" style="margin-top:12px">
+        <div><label for="dataAutomationName">业务流名称</label><input id="dataAutomationName" placeholder="例如：案件登记数据安全流"></div>
+        <div><label for="dataAutomationDomain">业务域</label><input id="dataAutomationDomain" placeholder="例如：审计案件"></div>
         <div><label for="dataAutomationRestoreTemplate">Oracle 恢复模板任务 ID</label><input id="dataAutomationRestoreTemplate" placeholder="UUID"></div>
-        <div><label for="dataAutomationSyncNode">数据同步组件 ID</label><input id="dataAutomationSyncNode" placeholder="可选 UUID"></div>
-        <div><label for="dataAutomationWorkflowVersion">标准化工作流版本 ID</label><input id="dataAutomationWorkflowVersion" placeholder="可选 UUID"></div>
+        <div><label for="dataAutomationSyncNode">Oracle → Doris ODS 全表同步组件 ID</label><input id="dataAutomationSyncNode" placeholder="UUID"></div>
+        <div><label for="dataAutomationWorkflowVersion">DWD 标准化工作流版本 ID</label><input id="dataAutomationWorkflowVersion" placeholder="UUID"></div>
+        <div><label for="dataAutomationSm4Task">ODS SM4 任务定义 ID</label><input id="dataAutomationSm4Task" placeholder="UUID"></div>
+        <div><label for="dataAutomationStandardDatabase">标准资产数据库</label><input id="dataAutomationStandardDatabase" placeholder="例如：DWD"></div>
+        <div><label for="dataAutomationStandardTable">标准资产表名</label><input id="dataAutomationStandardTable" placeholder="例如：CASE_REGISTER_STANDARD"></div>
+        <div><label for="dataAutomationStandardConnection">标准资产 Doris 连接 ID</label><input id="dataAutomationStandardConnection" placeholder="可选 UUID"></div>
         <div><label for="dataAutomationPattern">DMP 文件规则</label><input id="dataAutomationPattern" value="*.dmp"></div>
         <div><label for="dataAutomationInterval">监听间隔（分钟）</label><input id="dataAutomationInterval" type="number" min="1" max="1440" value="5"></div>
         <div><label for="dataAutomationStable">文件稳定等待（秒）</label><input id="dataAutomationStable" type="number" min="10" value="60"></div>
-        <div><label><input id="dataAutomationWatch" type="checkbox"> 保存后启用持续监听</label><button id="dataAutomationCreateBtn" class="primary" type="button" style="margin-left:12px">创建流水线</button></div>
-      </div></div>
-      <div id="dataAutomationMessage" class="message"></div>
-      <div class="data-automation-metrics"><div><span>流水线</span><strong id="dataAutomationPipelineCount">0</strong><small>已保存定义</small></div><div><span>在途批次</span><strong id="dataAutomationRunningCount">0</strong><small>需要关注的运行</small></div><div><span>数据资产</span><strong id="dataAutomationAssetCount">0</strong><small>四层资产</small></div><div><span>目录治理</span><strong>OpenMetadata</strong><small>原生搜索、血缘与质量</small></div></div>
-      <h3>流水线与监听状态</h3><div class="table-wrap"><table><thead><tr><th>名称</th><th>监听</th><th>间隔</th><th>最近/下次扫描</th><th>绑定能力</th><th>操作</th></tr></thead><tbody id="dataAutomationPipelines"><tr><td colspan="6" class="muted">暂无流水线。</td></tr></tbody></table></div>
-      <h3>批次运行链路</h3><div class="table-wrap"><table><thead><tr><th>发现时间</th><th>文件</th><th>当前阶段</th><th>恢复/同步/标准化/加密</th><th>说明</th><th>操作</th></tr></thead><tbody id="dataAutomationBatches"><tr><td colspan="6" class="muted">暂无批次。</td></tr></tbody></table></div>
-      <h3>数据资产</h3><div class="table-wrap"><table><thead><tr><th>层级</th><th>引擎</th><th>库.表</th><th>OpenMetadata</th><th>Schema 指纹</th><th>分级摘要</th><th>最近批次</th><th>操作</th></tr></thead><tbody id="dataAutomationAssets"><tr><td colspan="8" class="muted">暂无资产。</td></tr></tbody></table></div>
+        <div><label><input id="dataAutomationWatch" type="checkbox"> 保存后启用持续监听</label><button id="dataAutomationCreateBtn" class="primary" type="button" style="margin-left:12px">保存业务流</button></div>
+      </div></details>
     </section>
 
     <section class="module-panel" data-module="dataLineage">
@@ -5885,9 +5969,9 @@
       <div class="sql-collection-modal-head">
         <div>
           <h2 id="dorisSqlCollectionModalTitle">SQL 集合</h2>
-          <div class="muted">将多个已保存 SQL 组织成有序开发版，测试后发布为不可变生产版本。</div>
+          <div class="muted">将已保存 SQL 编排为可测试、可发布、可运行的业务集合。</div>
         </div>
-        <button id="dorisSqlCollectionCloseBtn" type="button">关闭</button>
+        <div class="sql-collection-modal-head-actions"><span id="dorisSqlCollectionState" class="sql-collection-state">草稿</span><button id="dorisSqlCollectionCloseBtn" class="sql-collection-close" type="button" aria-label="关闭 SQL 集合">×</button></div>
       </div>
       <div class="modal-body sql-collection-layout">
         <aside class="sql-collection-sidebar">
@@ -5895,28 +5979,42 @@
             <div><strong>集合列表</strong><div id="dorisSqlUngroupedCount" class="muted">未分组 0 个</div></div>
             <button id="dorisSqlCollectionNewBtn" type="button">新建</button>
           </div>
+          <label class="sql-collection-search"><input id="dorisSqlCollectionSearch" type="search" placeholder="搜索集合名称或业务域" aria-label="搜索 SQL 集合"></label>
           <div id="dorisSqlCollectionList" class="sql-collection-list"><div class="muted">暂无 SQL 集合。</div></div>
         </aside>
         <div class="sql-collection-editor">
+          <div class="sql-collection-tabs" role="tablist" aria-label="SQL 集合工作台">
+            <button type="button" class="sql-collection-tab active" role="tab" aria-selected="true" data-sql-collection-tab="settings">集合配置</button>
+            <button type="button" class="sql-collection-tab" role="tab" aria-selected="false" data-sql-collection-tab="members">SQL 编排</button>
+            <button type="button" class="sql-collection-tab" role="tab" aria-selected="false" data-sql-collection-tab="runs">运行记录</button>
+          </div>
           <div class="sql-collection-editor-scroll">
-          <div class="sql-collection-fields">
-            <label>集合名称<input id="dorisSqlCollectionName" maxlength="128" placeholder="例如：自然资源 DWD 月度加工"></label>
-            <label>业务域<input id="dorisSqlCollectionDomain" maxlength="128" placeholder="例如：自然资源"></label>
-            <label>数据层级<select id="dorisSqlCollectionLayer"><option value="">未指定</option><option value="ODS">ODS</option><option value="DWD">DWD</option><option value="DWS">DWS</option><option value="ADS">ADS</option></select></label>
-            <label>标签<input id="dorisSqlCollectionTags" placeholder="多个标签用英文逗号分隔"></label>
-            <label>默认 Doris 连接<select id="dorisSqlCollectionConnection"><option value="">未指定</option></select></label>
-            <label>默认数据库<input id="dorisSqlCollectionDatabase" maxlength="255" placeholder="可为空"></label>
-            <label class="wide">集合说明<textarea id="dorisSqlCollectionDescription" rows="2" placeholder="说明业务目标、输入输出和影响范围"></textarea></label>
-          </div>
-          <div class="toolbar sql-collection-taskbar">
-            <div><h3>有序 SQL 任务</h3><div class="muted">保存集合时冻结当前任务修订；生产版只会在重新发布后变化。</div></div>
-            <div class="actions">
-              <select id="dorisSqlCollectionTaskSelect"><option value="">选择已保存 SQL</option></select>
-              <button id="dorisSqlCollectionAddTaskBtn" type="button">加入集合</button>
+          <section id="dorisSqlCollectionSettingsPanel" class="sql-collection-panel" role="tabpanel">
+            <div class="sql-collection-panel-head"><div><h3>基本信息</h3><div class="muted">保存后生成开发版；生产版本仅会在显式发布后更新。</div></div><span class="muted">发布前必填</span></div>
+            <div class="sql-collection-fields">
+              <label>集合名称<input id="dorisSqlCollectionName" maxlength="128" placeholder="例如：自然资源 DWD 月度加工"></label>
+              <label>业务域<input id="dorisSqlCollectionDomain" maxlength="128" placeholder="例如：自然资源"></label>
+              <label>数据层级<select id="dorisSqlCollectionLayer"><option value="">未指定</option><option value="ODS">ODS</option><option value="DWD">DWD</option><option value="DWS">DWS</option><option value="ADS">ADS</option></select></label>
+              <label>标签<input id="dorisSqlCollectionTags" placeholder="多个标签用英文逗号分隔"></label>
+              <label>默认 Doris 连接<select id="dorisSqlCollectionConnection"><option value="">未指定</option></select></label>
+              <label>默认数据库<input id="dorisSqlCollectionDatabase" maxlength="255" placeholder="可为空"></label>
+              <label class="wide">集合说明<textarea id="dorisSqlCollectionDescription" rows="3" placeholder="说明业务目标、输入输出和影响范围"></textarea></label>
             </div>
-          </div>
-          <div id="dorisSqlCollectionMembers" class="sql-collection-members"><div class="muted">尚未加入 SQL 任务。</div></div>
-          <div id="dorisSqlCollectionStatus" class="detail" style="margin-top: 14px"><div class="muted">新集合尚未保存。</div></div>
+          </section>
+          <section id="dorisSqlCollectionMembersPanel" class="sql-collection-panel" role="tabpanel" hidden>
+            <div class="toolbar sql-collection-taskbar">
+              <div><h3>有序 SQL 任务</h3><div class="muted">按列表顺序串行运行；保存集合时冻结当前任务修订。</div></div>
+              <div class="actions">
+                <select id="dorisSqlCollectionTaskSelect"><option value="">选择已保存 SQL</option></select>
+                <button id="dorisSqlCollectionAddTaskBtn" type="button">加入集合</button>
+              </div>
+            </div>
+            <div id="dorisSqlCollectionMembers" class="sql-collection-members"><div class="muted">尚未加入 SQL 任务。</div></div>
+          </section>
+          <section id="dorisSqlCollectionRunsPanel" class="sql-collection-panel" role="tabpanel" hidden>
+            <div class="sql-collection-panel-head"><div><h3>运行记录与引用</h3><div class="muted">查看集合版本、调度状态、外部引用和最近执行结果。</div></div></div>
+            <div id="dorisSqlCollectionStatus" class="detail" style="margin-top: 0"><div class="muted">新集合尚未保存。</div></div>
+          </section>
           <div id="dorisSqlCollectionMessage" class="message"></div>
           </div>
           <div class="actions sql-collection-footer">
@@ -6031,6 +6129,8 @@
       let dorisSqlUngroupedTaskIds = [];
       let dorisSqlEditingCollectionId = "";
       let dorisSqlCollectionTaskIds = [];
+      let dorisSqlCollectionActiveTab = "settings";
+      let dorisSqlCollectionSearch = "";
       let dataSyncEditingTaskId = "";
       let dataSyncMappings = [];
       let dataSyncEditingMappingId = "";
@@ -6465,7 +6565,9 @@
       }
 
       async function refreshOidcConfig() {
-        const button = $("oidcLoginBtn");
+        const button = $("loginBtn");
+        const localFields = $("localLoginFields");
+        const localToggle = $("localLoginToggle");
         const hint = $("oidcLoginHint");
         if (!button) {
           oidcConfigState = { enabled: false };
@@ -6476,16 +6578,44 @@
           const config = await response.json();
           const enabled = Boolean(response.ok && config.enabled);
           oidcConfigState = {...config, enabled};
-          button.hidden = !enabled;
-          if (hint) hint.hidden = !enabled;
-          if (enabled) button.textContent = `${config.provider || "统一认证"}登录`;
+          if (enabled) {
+            localLoginMode = false;
+            if (localFields) localFields.hidden = true;
+            if (localToggle) {
+              localToggle.hidden = false;
+              localToggle.textContent = "本地应急登录";
+            }
+            button.textContent = `${config.provider || "统一认证"}登录`;
+            if (hint) hint.hidden = false;
+          } else {
+            localLoginMode = true;
+            if (localFields) localFields.hidden = false;
+            if (localToggle) localToggle.hidden = true;
+            button.textContent = "登录";
+            if (hint) hint.hidden = true;
+          }
           return oidcConfigState;
         } catch {
           oidcConfigState = { enabled: false };
-          button.hidden = true;
+          localLoginMode = true;
+          if (localFields) localFields.hidden = false;
+          if (localToggle) localToggle.hidden = true;
+          button.textContent = "登录";
           if (hint) hint.hidden = true;
           return oidcConfigState;
         }
+      }
+
+      function toggleLocalLogin() {
+        if (!oidcConfigState.enabled) return;
+        localLoginMode = !localLoginMode;
+        const localFields = $("localLoginFields");
+        const localToggle = $("localLoginToggle");
+        const button = $("loginBtn");
+        if (localFields) localFields.hidden = !localLoginMode;
+        if (localToggle) localToggle.textContent = localLoginMode ? "返回统一认证登录" : "本地应急登录";
+        if (button) button.textContent = localLoginMode ? "本地账号登录" : `${oidcConfigState.provider || "统一认证"}登录`;
+        if (localLoginMode) $("loginUsername")?.focus();
       }
 
       async function restoreOidcSession() {
@@ -6633,7 +6763,7 @@
         dorisCsv: "以任务化方式导入文件",
         dorisSqlEtl: "编写、校验与运行 SQL",
         dataPlatform: "编排批处理与调度任务",
-        dataAutomation: "构建可复用的数据流转链路",
+        dataAutomation: "管理 Oracle 还原、ODS 全表落地、安全加密与 DWD 开发的业务流台账",
         dataSyncCenter: "管理全量与增量同步任务",
         dataChangeTriggerCenter: "监听数据变更并触发动作",
         batchAuthorization: "按对象与角色批量授权",
@@ -7003,13 +7133,31 @@
         setMessage("systemMessage", "登录成功，后续操作会自动绑定当前用户。", "ok");
       }
 
-      function logoutUser() {
+      async function logoutUser() {
+        let oidcLogout = null;
+        try {
+          const response = await fetch("/api/v1/auth/oidc/logout", {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin"
+          });
+          const text = await response.text();
+          oidcLogout = text ? JSON.parse(text) : null;
+        } catch (_) {
+          // Local client state is cleared below even if the logout API is unavailable.
+        }
         clearAuthSession();
         currentAuth = null;
         stopAuthScopedTimers();
         clearAuthScopedData();
         updateAuthUi();
-        setMessage("systemMessage", "已退出登录。后台任务不受影响。", "ok");
+        if (oidcLogout?.logout_url) {
+          window.location.replace(oidcLogout.logout_url);
+          return;
+        }
+        setMessage("systemMessage", oidcConfigState.enabled
+          ? "已退出本系统；统一认证退出服务暂不可用，请稍后重试。"
+          : "已退出登录。后台任务不受影响。", oidcConfigState.enabled ? "warn" : "ok");
       }
 
       async function loadInitialData() {
@@ -7450,7 +7598,7 @@
         { id:"dorisSm3", name:"Doris SM3 映射脱敏", prefix:["/doris-sm3"], risk:"高", purpose:"使用 SM3 映射规则对 Doris 字段进行不可逆脱敏。", steps:"选择表列 → 配置映射 → 保存任务 → 执行或编排", permission:"dorisSm3:read/execute", impact:"不可逆处理，必须确认目标表和保留策略。", upstream:"Doris 表", downstream:"脱敏表、SM3 审计" },
         { id:"dorisSm3Logs", name:"SM3 日志审计", prefix:["/doris-sm3-decrypt"], risk:"中", purpose:"查询 SM3 任务与映射处理审计记录。", steps:"设置条件 → 查询 → 查看摘要和详情", permission:"dorisSm3Logs:read", impact:"只读审计；展示仍受权限和脱敏约束。", upstream:"SM3 运行", downstream:"审计核查" },
         { id:"dataPlatform", name:"离线开发", prefix:["/data-platform"], risk:"高", purpose:"将组件编排为版本化流程并配置生产调度。", steps:"创建流程 → 绑定组件 → 保存开发版 → 提交/发布 → 调度或运行", permission:"dataPlatform:read/design/publish/execute/monitor", impact:"发布快照隔离后续编辑；运行影响由各节点决定。", upstream:"同步、触发器、SM4/SM3、SQL 组件", downstream:"调度、Worker、运行日志" },
-        { id:"dataAutomation", name:"数据自动化流水线", prefix:["/data-automation/pipelines","/data-automation/batches","/data-automation/blueprints","/data-automation/assets"], risk:"高", purpose:"持续发现 DMP 并串联恢复、同步、标准化、血缘、分级和加密。", steps:"绑定已验证模板与组件 → 保存 → 启用监听 → 查看批次状态 → 处理阻断项", permission:"dataPlatform:read/design/execute + dorisEncrypt", impact:"自动恢复和同步会写入业务库；复杂血缘和加密默认阻断并要求确认。", upstream:"DMP 目录、恢复模板、同步组件、离线发布版本", downstream:"Oracle 隔离库、Doris 原始/标准/加密表、血缘资产" },
+        { id:"dataAutomation", name:"数据流编排与运行台账", prefix:["/data-automation/pipelines","/data-automation/batches","/data-automation/blueprints","/data-automation/assets","/data-automation/orchestration"], risk:"高", purpose:"按业务流记录 Oracle 还原、ODS 全表落地、ODS 安全加密、DWD 开发和元数据输出。", steps:"绑定恢复/同步/DWD/SM4 任务 → 完成首次建模 → 核验并冻结安全合同 → 启用安全编排 → 审计后续批次", permission:"dataPlatform:read/design/execute + dorisEncrypt", impact:"受保护批次先加密 ODS 再运行 DWD；合同、Schema 或血缘不一致时阻断且不回退明文。", upstream:"DMP 目录、恢复模板、Oracle→ODS 全表同步组件、DWD 生产版本", downstream:"Doris ODS 安全表、DWD 标准资产、安全别名、OpenMetadata" },
         { id:"dataLineage", name:"OpenMetadata 数据目录", prefix:["/data-automation/openmetadata", "/data-automation/lineage"], risk:"低", purpose:"打开 OpenMetadata 原生目录，统一使用采集、搜索、表/字段血缘、质量、标签、术语和 AI 上下文能力。", steps:"检查连接状态 → 打开 OpenMetadata → 按需同步当前资产与血缘快照", permission:"dataPlatform:read / execute", impact:"目录同步失败不阻塞当前任务；任务、批次、运行日志仍由本系统负责。", upstream:"自动化批次、OpenLineage 事件、连接器采集", downstream:"影响分析、质量治理、AI 上下文" },
         { id:"cleanup", name:"数据库清理", prefix:["/database-cleanup"], risk:"高", purpose:"生成和执行数据库对象清理计划。", steps:"选择连接 → 读取目录 → 生成计划 → 二次确认 → 执行", permission:"cleanup:read/execute", impact:"可能删除数据库对象或数据，属于破坏性操作。", upstream:"数据库连接、对象目录", downstream:"目标业务库" }
       ];
@@ -11924,7 +12072,7 @@
           <div class="toolbar">
             <div>
               <strong>${escapeHtml(task.name)} <span class="muted">V${Number(task.revision || 1)}</span></strong>
-              <div class="muted">${escapeHtml(task.connection_name || task.connection_id)} / ${escapeHtml(task.database)} / ${escapeHtml(dorisEncryptModeLabels[task.table_strategy] || task.table_strategy)} / ${task.tables?.length || 0} 张表</div>
+              <div class="muted">${escapeHtml(task.connection_name || task.connection_id)} / ${escapeHtml(task.database)} / ${escapeHtml(dorisEncryptModeLabels[task.table_strategy] || task.table_strategy)} / ${task.tables?.length || 0} 张表 / ${task.coverage_contracts?.length || 0} 条安全合同</div>
               <div class="muted">更新：${formatDateTime(task.updated_at || task.created_at)}</div>
             </div>
             <div class="actions">
@@ -11939,13 +12087,20 @@
       function buildDorisEncryptTaskDefinitionBody(name) {
         const draft = buildDorisEncryptOfflineDraft();
         if (!draft.tables.length) throw new Error("请至少选择一张表和字段后再保存任务。");
+        const text = ($("dorisEncryptCoverageContracts")?.value || "").trim();
+        let coverage_contracts = [];
+        if (text) {
+          try { coverage_contracts = JSON.parse(text); } catch (_) { throw new Error("安全访问覆盖合同必须是 JSON 数组。"); }
+          if (!Array.isArray(coverage_contracts)) throw new Error("安全访问覆盖合同必须是 JSON 数组。");
+        }
         return {
           name,
           connection_id: draft.connection_id,
           database: draft.database,
           tables: draft.tables,
           table_strategy: draft.table_strategy,
-          target_suffix: draft.target_suffix
+          target_suffix: draft.target_suffix,
+          coverage_contracts
         };
       }
 
@@ -12017,7 +12172,8 @@
           database: task.database || "",
           tables: task.tables || [],
           table_strategy: task.table_strategy || "drop_recreate",
-          target_suffix: task.target_suffix || null
+          target_suffix: task.target_suffix || null,
+          coverage_contracts: task.coverage_contracts || []
         });
         return comparable(current) !== comparable(body);
       }
@@ -12077,6 +12233,7 @@
         dorisEncryptEditingTaskDefinitionId = task.task_id;
         dorisEncryptEditingTaskReferences = null;
         $("dorisEncryptTaskDefinitionName").value = task.name || "";
+        $("dorisEncryptCoverageContracts").value = (task.coverage_contracts || []).length ? JSON.stringify(task.coverage_contracts, null, 2) : "";
         $("dorisEncryptConnection").value = task.connection_id;
         await refreshDorisEncryptSourceDatabases().catch(() => {});
         setDorisEncryptSourceDatabase(task.database);
@@ -14335,16 +14492,31 @@
         $("dorisSqlCollectionModal").hidden = true;
       }
 
+      function setDorisSqlCollectionActiveTab(tab) {
+        const active = ["settings", "members", "runs"].includes(tab) ? tab : "settings";
+        dorisSqlCollectionActiveTab = active;
+        document.querySelectorAll("[data-sql-collection-tab]").forEach((button) => {
+          const selected = button.getAttribute("data-sql-collection-tab") === active;
+          button.classList.toggle("active", selected);
+          button.setAttribute("aria-selected", String(selected));
+        });
+        $("dorisSqlCollectionSettingsPanel").hidden = active !== "settings";
+        $("dorisSqlCollectionMembersPanel").hidden = active !== "members";
+        $("dorisSqlCollectionRunsPanel").hidden = active !== "runs";
+      }
+
       function renderDorisSqlCollectionList() {
         const box = $("dorisSqlCollectionList");
         if (!box) return;
         $("dorisSqlUngroupedCount").textContent = `未分组 ${dorisSqlUngroupedTaskIds.length} 个`;
-        box.innerHTML = dorisSqlCollections.length ? dorisSqlCollections.map((item) => `
+        const keyword = dorisSqlCollectionSearch.trim().toLowerCase();
+        const visibleCollections = keyword ? dorisSqlCollections.filter((item) => [item.name, item.business_domain, item.data_layer].some((value) => String(value || "").toLowerCase().includes(keyword))) : dorisSqlCollections;
+        box.innerHTML = visibleCollections.length ? visibleCollections.map((item) => `
           <button type="button" class="sql-collection-item ${String(item.collection_id) === dorisSqlEditingCollectionId ? "active" : ""}" data-sql-collection-select="${escapeHtml(item.collection_id)}">
             <strong>${escapeHtml(item.name)}</strong>
             <div class="muted">${item.member_count || 0} 个 SQL · ${item.online_version_no ? `生产 V${item.online_version_no}` : "未发布"}</div>
             <div class="muted">${escapeHtml(item.business_domain || "未设置业务域")}${item.data_layer ? ` · ${escapeHtml(item.data_layer)}` : ""}</div>
-          </button>`).join("") : '<div class="muted" style="padding: 8px">暂无 SQL 集合，点击“新建”开始。</div>';
+          </button>`).join("") : `<div class="muted" style="padding: 8px">${dorisSqlCollections.length ? "没有匹配的 SQL 集合。" : "暂无 SQL 集合，点击“新建”开始。"}</div>`;
       }
 
       function startNewDorisSqlCollection() {
@@ -14357,6 +14529,7 @@
         $("dorisSqlCollectionTags").value = "";
         $("dorisSqlCollectionConnection").value = "";
         $("dorisSqlCollectionDatabase").value = "";
+        setDorisSqlCollectionActiveTab("settings");
         renderDorisSqlCollectionList();
         renderDorisSqlCollectionEditor();
         setMessage("dorisSqlCollectionMessage", "正在新建 SQL 集合。", "");
@@ -14374,6 +14547,7 @@
         $("dorisSqlCollectionTags").value = (collection.tags || []).join(", ");
         $("dorisSqlCollectionConnection").value = collection.default_connection_id || "";
         $("dorisSqlCollectionDatabase").value = collection.default_database || "";
+        setDorisSqlCollectionActiveTab("settings");
         renderDorisSqlCollectionList();
         renderDorisSqlCollectionEditor();
         setMessage("dorisSqlCollectionMessage", `已加载集合“${collection.name}”。`, "ok");
@@ -14410,6 +14584,7 @@
         }).join("") : '<div class="muted">尚未加入 SQL 任务。</div>';
         renderDorisSqlCollectionStatus(currentCollection);
         const saved = Boolean(currentCollection);
+        $("dorisSqlCollectionState").textContent = saved ? `已保存 · ${dorisSqlCollectionTaskIds.length} 个 SQL` : "草稿";
         $("dorisSqlCollectionArchiveBtn").disabled = !saved || !hasAction("dataPlatform:design");
         $("dorisSqlCollectionTestBtn").disabled = !saved || !dorisSqlCollectionTaskIds.length || !hasAction("dataPlatform:execute");
         $("dorisSqlCollectionPublishBtn").disabled = !saved || !dorisSqlCollectionTaskIds.length || !hasAction("dataPlatform:publish");
@@ -17036,6 +17211,15 @@
                 </select>
               </div>`
             : "";
+          const dorisSqlSecuritySelect = isDorisSqlNode && isSelected && canvasEditable
+            ? `<div class="data-platform-node-controls">
+                <label for="dataPlatformDorisSecurity_${escapeHtml(node.key)}">SQL 数据访问</label>
+                <select id="dataPlatformDorisSecurity_${escapeHtml(node.key)}" data-platform-doris-security-select="${escapeHtml(node.key)}">
+                  <option value="trusted" ${String(config.security_access_mode || "trusted") === "trusted" ? "selected" : ""}>ETL 受控明文</option>
+                  <option value="restricted" ${String(config.security_access_mode || "trusted") === "restricted" ? "selected" : ""}>Doris 下游账号安全别名</option>
+                </select>
+              </div>`
+            : "";
           const dorisSqlMeta = isDorisSqlNode
             ? `<div class="data-platform-node-meta">${escapeHtml(config.connection_name || config.connection_id || "未配置 Doris 连接")} / ${escapeHtml(config.database || "默认库")} / ${escapeHtml(config.sql_type || "SQL")}</div>`
             : "";
@@ -17064,6 +17248,7 @@
             ${sm4TaskSelect}
             ${componentTaskMeta}
             ${componentTaskSelect}
+            ${dorisSqlSecuritySelect}
             ${dorisSqlMeta}
             ${dataSyncMeta}
             ${changeTriggerMeta}
@@ -17339,6 +17524,7 @@
         dorisEncryptEditingTaskDefinitionId = "";
         dorisEncryptEditingTaskReferences = null;
         if ($("dorisEncryptTaskDefinitionName")) $("dorisEncryptTaskDefinitionName").value = "";
+        if ($("dorisEncryptCoverageContracts")) $("dorisEncryptCoverageContracts").value = "";
         dorisEncryptCatalog = null;
         dorisEncryptSelections = new Map();
         dorisEncryptSelectedTables = new Set();
@@ -20120,9 +20306,13 @@
           document.addEventListener(eventName, recordAuthActivity, { passive: true });
         });
         $("loginBtn").addEventListener("click", () => {
+          if (oidcConfigState.enabled && !localLoginMode) {
+            startOidcLogin("/ui");
+            return;
+          }
           loginUser().catch((e) => setMessage("systemMessage", e.message, "error"));
         });
-        $("oidcLoginBtn")?.addEventListener("click", () => startOidcLogin("/ui"));
+        $("localLoginToggle")?.addEventListener("click", toggleLocalLogin);
         $("loginPassword").addEventListener("keydown", (event) => {
           if (event.key === "Enter") {
             event.preventDefault();
@@ -20317,6 +20507,11 @@
         $("dorisSqlCollectionPublishBtn").addEventListener("click", () => publishDorisSqlCollection().catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
         $("dorisSqlCollectionRunProdBtn").addEventListener("click", () => runDorisSqlCollection("prod").catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
         $("dorisSqlCollectionArchiveBtn").addEventListener("click", () => archiveDorisSqlCollection().catch((e) => setMessage("dorisSqlCollectionMessage", e.message, "error")));
+        $("dorisSqlCollectionSearch").addEventListener("input", (event) => {
+          dorisSqlCollectionSearch = event.target.value || "";
+          renderDorisSqlCollectionList();
+        });
+        document.querySelectorAll("[data-sql-collection-tab]").forEach((button) => button.addEventListener("click", () => setDorisSqlCollectionActiveTab(button.getAttribute("data-sql-collection-tab") || "settings")));
         $("dorisSqlCollectionList").addEventListener("click", (event) => {
           const button = event.target.closest("[data-sql-collection-select]");
           if (button) selectDorisSqlCollection(button.getAttribute("data-sql-collection-select") || "");
@@ -21547,6 +21742,15 @@
           renderDataPlatformCanvas();
         });
         $("dataPlatformCanvasInner").addEventListener("change", (event) => {
+          const securitySelect = event.target.closest("[data-platform-doris-security-select]");
+          if (securitySelect) {
+            const key = securitySelect.getAttribute("data-platform-doris-security-select") || "";
+            const node = dataPlatformCanvasNodes().find((item) => String(item.key) === String(key));
+            if (!node) return;
+            updateDataPlatformCanvasNode(key, { config: { ...(node.config || {}), security_access_mode: securitySelect.value || "trusted" } });
+            persistDataPlatformVersionAfterNodeChange(`已设置 SQL 数据访问模式：${securitySelect.value === "restricted" ? "Doris 下游账号安全别名" : "ETL 受控明文"}`).catch((e) => setMessage("dataPlatformVersionMessage", e.message, "error"));
+            return;
+          }
           const sm4Select = event.target.closest("[data-platform-sm4-task-select]");
           if (sm4Select) {
             handleDataPlatformSm4TaskSelect(sm4Select.getAttribute("data-platform-sm4-task-select") || "", sm4Select.value || "").catch((e) => {
@@ -21765,6 +21969,7 @@
 
       let openMetadataState = null;
       let oidcConfigState = { enabled: false };
+      let localLoginMode = false;
 
       async function openPendingOpenMetadata() {
         const params = new URLSearchParams(window.location.search);
@@ -21848,54 +22053,231 @@
         $("openMetadataSyncBtn")?.addEventListener("click", () => syncOpenMetadata());
       }
 
+      let dataFlowLedger = null;
+      let selectedDataFlowId = null;
+      let selectedDataFlowTab = "ledger";
+      const dataFlowReadiness = {};
+
+      function dataFlowStageIndex(state) {
+        return {discovered:0, stabilizing:0, restore_queued:0, restoring:0, restored:1, asset_registered:1, sync_queued:2, syncing:2, raw_ready:2, security_contract_validating:2, standardize_queued:3, standardizing:3, standard_ready:4, encryption_ready:5, encrypting:5, security_access_active:6, completed:6}[state] ?? -1;
+      }
+
+      function renderDataFlowDetail(flow) {
+        const batch = flow.latest_batch;
+        const stageIndex = dataFlowStageIndex(batch?.state);
+        const enabled = flow.security_orchestration_enabled;
+        const mappings = flow.mappings || [];
+        const readiness = dataFlowReadiness[flow.pipeline_id];
+        const plan = readiness?.plan;
+        const canSubmitEncryption = batch?.state === "encryption_ready";
+        const canActivateAccess = batch?.state === "encrypting" && ["succeeded", "success"].includes(batch?.encryption_job_state);
+        const flowMode = batch?.context?.flow_mode || flow.flow_mode || "learning";
+        const protectedBatch = flowMode === "ods_protected";
+        const sourceLabel = batch?.restored_target?.schema ? `Oracle / ${batch.restored_target.schema}` : "Oracle / 等待恢复";
+        const target = flow.standard_target || {};
+        const targetSpec = (target.assets || [target]).find(item => item?.database && item?.table_name);
+        const standardLabel = targetSpec ? `Doris / ${targetSpec.database}.${targetSpec.table_name}` : (flow.standard_asset_id ? "Doris / 已登记标准资产" : "尚未生成");
+        const accessLabel = mappings[0]?.access || "等待激活安全别名";
+        const plannedFields = plan?.required_standard_fields || [];
+        const suggestions = plan?.suggestions || [];
+        const stageDefs = [
+          ["数据还原", batch?.restored_target?.schema ? `Oracle / ${batch.restored_target.schema}` : "等待 DMP 批次"],
+          ["资产登记", batch?.raw_target?.asset_ids?.length ? "结构指纹已核验" : "等待资产登记"],
+          ["跨库传输", batch?.raw_target?.asset_ids?.length ? `ODS / ${batch.raw_target.asset_ids.length} 张表` : "等待 ODS 落库"],
+          ["SQL 标准化", batch?.standard_run_id ? "冻结工作流已运行" : "等待 DWD 工作流"],
+          ["血缘与分级", plan ? `${suggestions.length} 条敏感字段关系` : "等待资格核验"],
+          ["反向加密", batch?.encryption_batch_id ? `SM4 / ${plannedFields.length} 个字段` : "等待生成任务"],
+          ["安全访问", flow.mapping_summary.active ? `${flow.mapping_summary.active} 条安全映射` : "视图 + SQL 解析"]
+        ];
+        const stages = stageDefs.map(([name, detail], index) => {
+          const protectedDone = [
+            Boolean(batch?.restored_target?.schema),
+            Boolean(batch?.raw_target?.asset_ids?.length),
+            Boolean(batch?.raw_target?.asset_ids?.length),
+            Boolean(batch?.standard_run_id && ["standard_ready", "completed"].includes(batch?.state)),
+            Boolean(batch?.standard_target?.asset_ids?.length),
+            ["succeeded", "success"].includes(batch?.encryption_job_state) || ["standardize_queued", "standardizing", "standard_ready", "completed"].includes(batch?.state),
+            ["standardize_queued", "standardizing", "standard_ready", "completed"].includes(batch?.state)
+          ];
+          const protectedCurrent = {discovered:0, stabilizing:0, restore_queued:0, restoring:0, restored:1, asset_registered:1, sync_queued:2, syncing:2, raw_ready:2, security_contract_validating:2, encryption_ready:5, encrypting:5, security_access_active:6, standardize_queued:3, standardizing:3, standard_ready:4}[batch?.state];
+          const done = batch?.state === "completed" || (protectedBatch ? protectedDone[index] : index < stageIndex);
+          const current = !done && index === (protectedBatch ? protectedCurrent : stageIndex);
+          const locked = !done && !current;
+          return `<div class="data-flow-stage ${done ? "done" : ""} ${current ? "current" : ""} ${locked ? "locked" : ""}"><b>${String(index + 1).padStart(2, "0")}</b><strong>${name}</strong><small>${escapeHtml(detail)}</small></div>`;
+        }).join("");
+        const directReady = plan ? suggestions.length > 0 && suggestions.every(item => item.auto_eligible) : false;
+        const qualification = [
+          ["标准字段已分级为 SM4", plan ? (plannedFields.length ? plannedFields.join("、") : "未发现可自动应用的 SM4 字段") : "尚未核验"],
+          ["反向字段血缘唯一且可证明", plan ? (directReady ? "仅包含 direct / rename / cast 的已证明关系" : "存在复杂、待确认或缺失血缘") : "尚未核验"],
+          ["SM4 覆盖合同与表结构匹配", plan ? (plan.ready ? "覆盖合同、SM4 字段与生产版本已冻结" : plan.reason) : "尚未核验"],
+          ["安全访问替换可用", mappings.length ? `${flow.mapping_summary.active}/${flow.mapping_summary.total} 条映射已激活` : (enabled ? "等待 SM4 成功后自动创建访问别名" : "尚未启用")]
+        ].map(([title, text], index) => { const ok = index === 3 ? flow.mapping_summary.active > 0 : Boolean(plan?.ready); return `<div class="data-flow-check ${ok ? "" : "warn"}"><span class="data-flow-check-mark">${ok ? "✓" : "!"}</span><div><strong>${title}</strong><small>${escapeHtml(text)}</small></div></div>`; }).join("");
+        const events = (flow.events || []).map(item => `<li><time>${formatTime(item.created_at) || "-"}</time><div class="data-flow-event-line"></div><div><strong>${escapeHtml(item.event_type)}</strong><br><span>${escapeHtml(item.message || "-")}</span></div></li>`).join("") || '<li><time>-</time><div class="data-flow-event-line"></div><div class="muted">暂无批次阶段记录。</div></li>';
+        const dispatchLabels = {pending:"待派发", dispatching:"派发中", dispatched:"已派发", running:"执行中", succeeded:"成功", failed:"失败"};
+        const dispatchStages = {restore:"还原", sync:"同步", standardize:"标准化", encrypt:"加密"};
+        const dispatchSummary = item => (item.stage_dispatches || []).length
+          ? item.stage_dispatches.map(dispatch => `${dispatchStages[dispatch.stage] || dispatch.stage}：${dispatchLabels[dispatch.status] || dispatch.status}`).join("；")
+          : "尚无派发记录";
+        const batchResult = item => (item.stage_dispatches || []).some(dispatch => ["pending", "dispatching"].includes(dispatch.status))
+          ? "待派发"
+          : (item.error_message ? "异常" : item.state === "completed" ? "已完成" : "运行中");
+        const batchRows = (flow.batches || []).map(item => `<tr><td>${escapeHtml(item.batch_id.slice(0, 12))}</td><td>${item.context?.flow_mode === "ods_protected" ? "目录监听 · 安全批次" : "首次建模 / 补偿"}</td><td>${escapeHtml(item.state)}</td><td>${escapeHtml(dispatchSummary(item))}</td><td><span class="data-flow-status ${item.state === "completed" ? "ok" : (["failed", "blocked", "partial"].includes(item.state) ? "warn" : "")}">${escapeHtml(batchResult(item))}</span></td><td><button type="button" data-data-flow-batch="${item.batch_id}">查看详情</button></td></tr>`).join("") || '<tr><td colspan="6" class="muted">暂无批次记录。</td></tr>';
+        const groupedMappings = new Map();
+        mappings.forEach(item => {
+          const parts = String(item.source || "").split(".");
+          const field = parts.pop() || "-";
+          const source = parts.join(".") || item.source;
+          const key = `${source}|${item.access}`;
+          const row = groupedMappings.get(key) || {source, access:item.access, fields:[], state:item.state, contract:item.contract_hash};
+          row.fields.push(field); if (item.state !== "active") row.state = item.state; groupedMappings.set(key, row);
+        });
+        const mappingRows = groupedMappings.size ? [...groupedMappings.values()].map(item => `<tr><td>${escapeHtml(item.source)}</td><td>${escapeHtml(item.access)}</td><td>${escapeHtml(item.fields.join("、"))}</td><td><span class="data-flow-status ${item.state === "active" ? "ok" : "warn"}">${escapeHtml(item.state)}</span></td><td><button type="button" data-data-flow-contract="${escapeHtml(item.contract || "")}">查看合同</button></td></tr>`).join("") : '<tr><td colspan="5" class="muted">尚未生成安全访问映射。</td></tr>';
+        $("dataFlowDetail").innerHTML = `<section class="data-flow-card data-flow-card-summary"><div class="data-flow-detail-head"><div><h3>${escapeHtml(flow.name)}</h3><span class="data-flow-flow-id">${escapeHtml(flow.pipeline_id)} · ${enabled ? "版本已冻结（ODS 安全优先）" : "首次建模阶段"}</span></div><div class="actions"><button type="button" data-data-flow-lineage="${flow.pipeline_id}">查看血缘</button><button type="button" data-data-flow-readiness="${flow.pipeline_id}" data-standard-asset-id="${flow.standard_asset_id || ""}" ${flow.standard_asset_id ? "" : "disabled"}>核验资格</button><button type="button" data-data-flow-prepare="${flow.pipeline_id}" data-standard-asset-id="${flow.standard_asset_id || ""}" ${flow.standard_asset_id ? "" : "disabled"}>生成反向加密任务</button><button type="button" data-data-flow-submit-encryption="${batch?.batch_id || ""}" ${canSubmitEncryption ? "" : "disabled"}>一键进行加密</button><button type="button" data-data-flow-activate-access="${batch?.batch_id || ""}" ${canActivateAccess ? "" : "disabled"}>一键切换安全路由</button><button type="button" class="primary" data-data-flow-enable="${flow.pipeline_id}" data-standard-asset-id="${flow.standard_asset_id || ""}" ${flow.standard_asset_id && !enabled ? "" : "disabled"}>${enabled ? "已启用安全编排" : "一键启用安全编排"}</button></div></div>
+          <div class="data-flow-summary"><div><span>源数据</span><strong>${escapeHtml(sourceLabel)}</strong></div><div><span>标准资产</span><strong>${escapeHtml(standardLabel)}</strong></div><div><span>安全访问别名</span><strong>${escapeHtml(accessLabel)}</strong></div><div><span>调度</span><strong>${flow.auto_watch_enabled ? `${flow.watch_interval_minutes} 分钟 + 新批次触发` : "手工触发"}</strong></div></div></section>
+          <section class="data-flow-card data-flow-block"><div class="data-flow-block-title"><div><h4>${protectedBatch ? "受保护批次执行" : "首批建模与安全启用"}</h4><small class="hint">${protectedBatch ? "ODS 加密和安全路由完成后才允许 DWD SQL。" : "首次建立可证明的血缘、加密合同与安全路由。"}</small></div><span class="data-flow-status ${batch?.state === "completed" ? "ok" : "warn"}">本批次：${escapeHtml(batch?.state || "尚无批次")}</span></div><div class="data-flow-stages">${stages}</div></section>
+          <section class="data-flow-card data-flow-block"><div class="data-flow-block-title"><div><h4>批次运行策略</h4><small class="hint">一条业务流保留两类路径，避免首次建模与日常批处理混淆。</small></div><span class="hint">启用后冻结版本随批次记录</span></div><div class="data-flow-modes"><div class="data-flow-mode"><strong>首次建模路径 <span class="data-flow-status">只在新流/结构变化时</span></strong><small>先取得标准字段和血缘证据，才允许生成 ODS 反向加密计划。</small><div class="data-flow-route"><span>Oracle 还原</span><i>→</i><span>ODS 传输</span><i>→</i><span>DWD SQL</span><i>→</i><span>资格校验</span></div></div><div class="data-flow-mode highlight"><strong>后续自动路径 <span class="data-flow-status ok">安全优先</span></strong><small>新批次先校验并加密 ODS，再由安全别名驱动 DWD 工作流。</small><div class="data-flow-route"><span>Oracle 还原</span><i>→</i><span>ODS 落地</span><i>→</i><span>ODS SM4</span><i>→</i><span>DWD SQL / OpenMetadata</span></div></div></div></section>
+          <section class="data-flow-card data-flow-block"><div class="data-flow-block-title"><div><h4>反向加密资格</h4><small class="hint">只有全部通过，才允许生成和启用自动加密及任务流替换。</small></div><span class="hint">冻结版本：SQL ${flow.security_orchestration?.standard_workflow_version_id ? "已绑定" : "未绑定"} · SM4 v${flow.security_orchestration?.sm4_task_revision || "-"}</span></div><div class="data-flow-qualification">${qualification}</div></section>
+          <section class="data-flow-card data-flow-card-ledger"><div class="data-flow-tabs"><button type="button" class="data-flow-tab ${selectedDataFlowTab === "ledger" ? "active" : ""}" data-data-flow-tab="ledger">运行台账</button><button type="button" class="data-flow-tab ${selectedDataFlowTab === "batches" ? "active" : ""}" data-data-flow-tab="batches">批次记录</button><button type="button" class="data-flow-tab ${selectedDataFlowTab === "mapping" ? "active" : ""}" data-data-flow-tab="mapping">映射与替换</button></div>
+          <div class="data-flow-tab-content" ${selectedDataFlowTab === "ledger" ? "" : "hidden"} data-data-flow-tab-content="ledger"><ol class="data-flow-events">${events}</ol></div>
+          <div class="data-flow-tab-content" ${selectedDataFlowTab === "batches" ? "" : "hidden"} data-data-flow-tab-content="batches"><div class="table-wrap"><table><thead><tr><th>批次</th><th>触发方式</th><th>当前阶段</th><th>任务派发</th><th>结果</th><th>操作</th></tr></thead><tbody>${batchRows}</tbody></table></div></div>
+          <div class="data-flow-tab-content" ${selectedDataFlowTab === "mapping" ? "" : "hidden"} data-data-flow-tab-content="mapping"><div class="table-wrap"><table><thead><tr><th>逻辑源表</th><th>安全对象</th><th>保护字段</th><th>状态</th><th>操作</th></tr></thead><tbody>${mappingRows}</tbody></table></div></div></section>`;
+      }
+
+      function renderDataFlowLedger(data) {
+        dataFlowLedger = data;
+        const flows = data.flows || [];
+        if (!flows.some(item => item.pipeline_id === selectedDataFlowId)) selectedDataFlowId = flows[0]?.pipeline_id || null;
+        $("dataAutomationEnabledCount").textContent = data.summary?.enabled_count ?? 0;
+        $("dataAutomationAutoRunCount").textContent = `${flows.filter(item => item.auto_watch_enabled).length} 条自动运行`;
+        $("dataAutomationRunningCount").textContent = data.summary?.running_count ?? 0;
+        $("dataAutomationActiveMappingCount").textContent = data.summary?.active_mapping_count ?? 0;
+        $("dataAutomationExceptionCount").textContent = data.summary?.exception_count ?? 0;
+        $("dataFlowCount").textContent = `${flows.length} 条`;
+        $("dataFlowPipelineList").innerHTML = flows.length ? flows.map(item => `<button type="button" class="data-flow-item ${item.pipeline_id === selectedDataFlowId ? "active" : ""}" data-data-flow-select="${item.pipeline_id}"><span class="data-flow-item-name">${escapeHtml(item.name)}<i class="data-flow-status ${item.security_orchestration_enabled ? "ok" : "warn"}">${item.security_orchestration_enabled ? "已启用" : "待确认"}</i></span><small>${item.security_orchestration_enabled ? "Oracle → ODS 安全层 → DWD" : "恢复 → ODS 同步 → 首次建模"}</small></button>`).join("") : '<div class="muted">暂无业务数据流，请新建后绑定已有任务引用。</div>';
+        const selected = flows.find(item => item.pipeline_id === selectedDataFlowId);
+        if (selected) renderDataFlowDetail(selected);
+        else $("dataFlowDetail").innerHTML = '<div class="data-flow-detail-head"><div><h3>暂无业务数据流</h3><span class="hint">请新建并绑定既有恢复、同步、SQL 和 SM4 任务。</span></div></div>';
+      }
+
       async function refreshDataAutomation() {
-        const [pipelineData, batchData, assetData] = await Promise.all([
-          api("/api/v1/data-automation/pipelines"),
-          api("/api/v1/data-automation/batches?limit=100"),
-          api("/api/v1/data-automation/assets?limit=200")
-        ]);
-        const pipelines = pipelineData.pipelines || [];
-        const runningStates = new Set(["discovered", "stabilizing", "restore_queued", "restoring", "restored", "asset_registered", "sync_queued", "syncing", "raw_ready", "path_matching", "standardize_queued", "standardizing", "standard_ready", "lineage_ready", "classified", "encryption_planned", "encrypting"]);
-        $("dataAutomationPipelineCount").textContent = pipelines.length;
-        $("dataAutomationRunningCount").textContent = (batchData.batches || []).filter((item) => runningStates.has(item.state)).length;
-        $("dataAutomationAssetCount").textContent = (assetData.assets || []).length;
-        $("dataAutomationPipelines").innerHTML = pipelines.length ? pipelines.map((item) => `<tr><td><strong>${escapeHtml(item.name)}</strong><br><span class="muted">${escapeHtml(item.pipeline_id)}</span></td><td>${item.auto_watch_enabled ? '<span class="status success">监听中</span>' : '<span class="status muted">已关闭</span>'}</td><td>${item.watch_interval_minutes} 分钟<br><span class="muted">稳定 ${item.stable_wait_seconds} 秒</span></td><td>${formatTime(item.last_scan_at) || "尚未扫描"}<br><span class="muted">${formatTime(item.next_scan_at) || "-"}</span></td><td>${item.restore_template_task_id ? "恢复" : "-"} / ${item.data_sync_node_id ? "同步" : "-"} / ${item.standard_workflow_version_id ? "标准化" : "-"} / ${item.sm4_task_definition_id ? "SM4" : "-"}</td><td><button type="button" data-data-auto-scan="${item.pipeline_id}">立即扫描</button><button type="button" data-data-auto-toggle="${item.pipeline_id}" data-enabled="${item.auto_watch_enabled}">${item.auto_watch_enabled ? "关闭监听" : "开启监听"}</button></td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无流水线。</td></tr>';
-        const batches = batchData.batches || [];
-        $("dataAutomationBatches").innerHTML = batches.length ? batches.map((item) => `<tr><td>${formatTime(item.created_at)}</td><td>${escapeHtml((item.source_files || []).map((file) => file.relative_path).join(", ") || item.source_path)}</td><td><strong>${escapeHtml(item.state)}</strong></td><td>${item.restore_task_id ? "✓" : "-"} / ${item.sync_run_id ? "✓" : "-"} / ${item.standard_run_id ? "✓" : "-"} / ${item.encryption_batch_id ? "✓" : "-"}</td><td>${escapeHtml(item.error_message || item.message || "-")}</td><td><button type="button" data-data-auto-detail="${item.batch_id}">查看阶段日志</button>${["failed","blocked","discovered"].includes(item.state) ? `<button type="button" data-data-auto-resume="${item.batch_id}">继续</button>` : ""}</td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无批次。</td></tr>';
-        const assets = assetData.assets || [];
-        $("dataAutomationAssets").innerHTML = assets.length ? assets.map((item) => `<tr><td>${escapeHtml(item.layer)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.database)}.${escapeHtml(item.table_name)}</td><td><span class="status muted">由 OpenMetadata 管理</span></td><td><span class="muted">${escapeHtml((item.schema_signature || "-").slice(0, 16))}</span></td><td>${((item.classification_summary || {}).fields || []).filter((field) => field.protection_action !== "none").length} 个保护字段</td><td>${escapeHtml(item.last_batch_id || "-")}</td><td><button type="button" data-data-auto-lineage="${escapeHtml(item.asset_id)}">打开目录</button></td></tr>`).join("") : '<tr><td colspan="8" class="muted">暂无资产。</td></tr>';
+        renderDataFlowLedger(await api("/api/v1/data-automation/orchestration/ledger"));
+      }
+
+      function openDataAutomationForm(flow = null) {
+        const target = flow?.standard_target || {};
+        const targetSpec = (target.assets || [target]).find(item => item?.database || item?.table_name) || {};
+        $("dataAutomationEditingId").value = flow?.pipeline_id || "";
+        $("dataAutomationFormTitle").textContent = flow ? "配置业务数据流" : "新建业务数据流";
+        $("dataAutomationName").value = flow?.name || "";
+        $("dataAutomationDomain").value = flow?.business_domain || "";
+        $("dataAutomationRestoreTemplate").value = flow?.restore_template_task_id || "";
+        $("dataAutomationSyncNode").value = flow?.data_sync_node_id || "";
+        $("dataAutomationWorkflowVersion").value = flow?.standard_workflow_version_id || "";
+        $("dataAutomationSm4Task").value = flow?.sm4_task_definition_id || "";
+        $("dataAutomationStandardDatabase").value = targetSpec.database || "";
+        $("dataAutomationStandardTable").value = targetSpec.table_name || "";
+        $("dataAutomationStandardConnection").value = targetSpec.connection_id || "";
+        $("dataAutomationPattern").value = flow?.file_pattern || "*.dmp";
+        $("dataAutomationInterval").value = flow?.watch_interval_minutes || 5;
+        $("dataAutomationStable").value = flow?.stable_wait_seconds || 60;
+        $("dataAutomationWatch").checked = Boolean(flow?.auto_watch_enabled);
+        $("dataAutomationCreateBtn").textContent = flow ? "保存配置" : "创建业务流";
+        $("dataAutomationCreatePanel").open = true;
+        $("dataAutomationName").focus();
       }
 
       function bindDataAutomationEvents() {
         $("dataAutomationRefreshBtn")?.addEventListener("click", () => refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error")));
+        $("dataAutomationShowCreateBtn")?.addEventListener("click", () => openDataAutomationForm());
+        $("dataAutomationConfigureBtn")?.addEventListener("click", () => {
+          const flow = (dataFlowLedger?.flows || []).find(item => item.pipeline_id === selectedDataFlowId);
+          if (!flow) return setMessage("dataAutomationMessage", "请先选择一条业务数据流。", "warn");
+          openDataAutomationForm(flow);
+        });
         $("dataAutomationCreateBtn")?.addEventListener("click", async () => {
           try {
             const optionalId = (id) => $(id).value.trim() || null;
-            await api("/api/v1/data-automation/pipelines", {method:"POST", body:JSON.stringify({name:$("dataAutomationName").value.trim(), restore_template_task_id:optionalId("dataAutomationRestoreTemplate"), data_sync_node_id:optionalId("dataAutomationSyncNode"), standard_workflow_version_id:optionalId("dataAutomationWorkflowVersion"), file_pattern:$("dataAutomationPattern").value.trim(), watch_interval_minutes:Number($("dataAutomationInterval").value), stable_wait_seconds:Number($("dataAutomationStable").value), auto_watch_enabled:$("dataAutomationWatch").checked})});
-            setMessage("dataAutomationMessage", "流水线已保存；勾选监听时系统会按间隔持续扫描。", "ok"); await refreshDataAutomation();
+            const database = $("dataAutomationStandardDatabase").value.trim();
+            const tableName = $("dataAutomationStandardTable").value.trim();
+            if ((database && !tableName) || (!database && tableName)) throw new Error("DWD 标准库和标准表必须同时填写。");
+            const payload = {name:$("dataAutomationName").value.trim(), business_domain:$("dataAutomationDomain").value.trim() || null, restore_template_task_id:optionalId("dataAutomationRestoreTemplate"), data_sync_node_id:optionalId("dataAutomationSyncNode"), standard_workflow_version_id:optionalId("dataAutomationWorkflowVersion"), sm4_task_definition_id:optionalId("dataAutomationSm4Task"), standard_target:database ? {database, table_name:tableName, connection_id:optionalId("dataAutomationStandardConnection")} : {}, file_pattern:$("dataAutomationPattern").value.trim(), watch_interval_minutes:Number($("dataAutomationInterval").value), stable_wait_seconds:Number($("dataAutomationStable").value), auto_watch_enabled:$("dataAutomationWatch").checked};
+            const editingId = $("dataAutomationEditingId").value;
+            await api(editingId ? `/api/v1/data-automation/pipelines/${editingId}` : "/api/v1/data-automation/pipelines", {method:editingId ? "PATCH" : "POST", body:JSON.stringify(payload)});
+            setMessage("dataAutomationMessage", editingId ? "业务数据流配置已更新；若冻结引用变化，需重新核验安全资格。" : "业务数据流已保存；绑定完成后可在台账中核验并启用安全编排。", "ok");
+            $("dataAutomationCreatePanel").open = false;
+            await refreshDataAutomation();
           } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
         });
-        $("dataAutomationPipelines")?.addEventListener("click", async (event) => {
-          const scan = event.target.closest("[data-data-auto-scan]"); const toggle = event.target.closest("[data-data-auto-toggle]");
+        $("dataFlowPipelineList")?.addEventListener("click", (event) => {
+          const item = event.target.closest("[data-data-flow-select]");
+          if (!item) return;
+          selectedDataFlowId = item.dataset.dataFlowSelect;
+          renderDataFlowLedger(dataFlowLedger || {flows:[], summary:{}});
+        });
+        $("dataFlowDetail")?.addEventListener("click", async (event) => {
+          const readiness = event.target.closest("[data-data-flow-readiness]");
+          const lineage = event.target.closest("[data-data-flow-lineage]");
+          const prepare = event.target.closest("[data-data-flow-prepare]");
+          const submitEncryption = event.target.closest("[data-data-flow-submit-encryption]");
+          const activateAccess = event.target.closest("[data-data-flow-activate-access]");
+          const contract = event.target.closest("[data-data-flow-contract]");
+          const batchDetail = event.target.closest("[data-data-flow-batch]");
+          const enable = event.target.closest("[data-data-flow-enable]");
+          const tab = event.target.closest("[data-data-flow-tab]");
           try {
-            if (scan) await api(`/api/v1/data-automation/pipelines/${scan.dataset.dataAutoScan}/scan`, {method:"POST"});
-            if (toggle) await api(`/api/v1/data-automation/pipelines/${toggle.dataset.dataAutoToggle}`, {method:"PATCH", body:JSON.stringify({auto_watch_enabled:toggle.dataset.enabled !== "true"})});
-            if (scan || toggle) await refreshDataAutomation();
+            if (tab) {
+              selectedDataFlowTab = tab.dataset.dataFlowTab;
+              const flow = (dataFlowLedger?.flows || []).find(item => item.pipeline_id === selectedDataFlowId);
+              if (flow) renderDataFlowDetail(flow);
+              return;
+            }
+            if (contract) {
+              showNotice("冻结覆盖合同", contract.dataset.dataFlowContract ? `合同哈希：${contract.dataset.dataFlowContract}` : "合同尚未生成。");
+              return;
+            }
+            if (batchDetail) {
+              const selectedFlow = (dataFlowLedger?.flows || []).find(item => item.pipeline_id === selectedDataFlowId);
+              const selectedBatch = (selectedFlow?.batches || []).find(item => item.batch_id === batchDetail.dataset.dataFlowBatch);
+              showNotice("批次详情", selectedBatch?.error_message || selectedBatch?.message || "暂无说明。");
+              return;
+            }
+            if (lineage) {
+              showModule("dataLineage");
+              openOpenMetadata();
+              return;
+            }
+            if (readiness) {
+              const result = await api(`/api/v1/data-automation/orchestration/pipelines/${readiness.dataset.dataFlowReadiness}/readiness?standard_asset_id=${encodeURIComponent(readiness.dataset.standardAssetId)}`);
+              dataFlowReadiness[readiness.dataset.dataFlowReadiness] = result;
+              const flow = (dataFlowLedger?.flows || []).find(item => item.pipeline_id === selectedDataFlowId);
+              if (flow) renderDataFlowDetail(flow);
+              showNotice("安全编排资格核验", result.plan.ready ? `核验通过：${(result.plan.required_standard_fields || []).join("、")} 可进入受控反向加密。` : `核验未通过：${result.plan.reason}`);
+            }
+            if (prepare) {
+              if (!window.confirm("将按字段血缘为 Doris ODS 源表创建受控 SM4 加密任务；不会覆盖 ODS 明文表。确认继续？")) return;
+              const result = await api(`/api/v1/data-automation/orchestration/pipelines/${prepare.dataset.dataFlowPrepare}/prepare-security`, {method:"POST", body:JSON.stringify({standard_asset_id:prepare.dataset.standardAssetId, confirm:true})});
+              setMessage("dataAutomationMessage", `ODS 反向加密任务已生成，批次 ${result.activation_batch_id || "-"} 将由既有 SM4 Worker 执行。`, "ok");
+              await refreshDataAutomation();
+            }
+            if (submitEncryption) {
+              if (!window.confirm("将立即提交 Doris ODS 反向 SM4 加密任务。确认继续？")) return;
+              await api(`/api/v1/data-automation/orchestration/batches/${submitEncryption.dataset.dataFlowSubmitEncryption}/submit-encryption`, {method:"POST", body:JSON.stringify({confirm:true})});
+              setMessage("dataAutomationMessage", "ODS 反向 SM4 加密任务已提交，等待 Worker 完成。", "ok");
+              await refreshDataAutomation();
+            }
+            if (activateAccess) {
+              if (!window.confirm("将把 Doris 下游账号的逻辑访问切换到安全访问别名。确认继续？")) return;
+              await api(`/api/v1/data-automation/orchestration/batches/${activateAccess.dataset.dataFlowActivateAccess}/activate-security-access`, {method:"POST", body:JSON.stringify({confirm:true})});
+              setMessage("dataAutomationMessage", "安全访问路由已激活，Doris 下游账号将访问安全对象。", "ok");
+              await refreshDataAutomation();
+            }
+            if (enable) {
+              if (!window.confirm("启用后，后续批次会先完成 Oracle 全表 ODS 落地，再按冻结合同执行 ODS SM4 和安全路由，随后才运行 DWD SQL；失败时禁止回退明文。确认启用？")) return;
+              await api(`/api/v1/data-automation/orchestration/pipelines/${enable.dataset.dataFlowEnable}/enable`, {method:"POST", body:JSON.stringify({standard_asset_id:enable.dataset.standardAssetId, confirm:true})});
+              setMessage("dataAutomationMessage", "安全编排已启用；后续批次将执行 ODS 先加密、安全路由激活、DWD SQL 与 OpenMetadata 同步。", "ok");
+              await refreshDataAutomation();
+            }
           } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
-        });
-        $("dataAutomationBatches")?.addEventListener("click", async (event) => {
-          const resume = event.target.closest("[data-data-auto-resume]"); const detail = event.target.closest("[data-data-auto-detail]");
-          try {
-            if (resume) await api(`/api/v1/data-automation/batches/${resume.dataset.dataAutoResume}/resume`, {method:"POST"});
-            if (detail) { const data = await api(`/api/v1/data-automation/batches/${detail.dataset.dataAutoDetail}`); showNotice("流水线阶段日志", (data.events || []).map((item) => `${formatTime(item.created_at)} [${item.stage}] ${item.message || item.event_type}`).join("\n") || "暂无日志"); }
-            if (resume) await refreshDataAutomation();
-          } catch (e) { setMessage("dataAutomationMessage", e.message, "error"); }
-        });
-        $("dataAutomationAssets")?.addEventListener("click", (event) => {
-          const button = event.target.closest("[data-data-auto-lineage]");
-          if (!button) return;
-          showModule("dataLineage");
-          openOpenMetadata();
         });
       }
 

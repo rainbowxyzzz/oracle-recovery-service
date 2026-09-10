@@ -76,6 +76,57 @@ class DorisSqlExecutionPolicyTests(unittest.TestCase):
 
         self.assertEqual(executed, statements)
 
+    def test_restricted_execution_uses_security_sql_resolver(self):
+        executed = []
+        with (
+            patch(
+                "recovery_service.services.security_access.resolve_security_sql",
+                return_value={"sql": "SELECT PHONE FROM ACCESS.CASE_RAW", "mappings": ["mapping"]},
+            ) as resolver,
+            patch(
+                "recovery_service.services.doris_sql_etl._doris_conn",
+                side_effect=lambda profile, database: _FakeConnection(executed),
+            ),
+        ):
+            result = execute_doris_sql(
+                self.profile,
+                database="ODS",
+                sql="SELECT PHONE FROM ODS.CASE_RAW",
+                security_access_mode="restricted",
+            )
+        self.assertEqual(result.sql_type, "SELECT")
+        resolver.assert_called_once()
+        self.assertEqual(executed, ["SELECT PHONE FROM ACCESS.CASE_RAW"])
+
+    def test_protected_etl_execution_uses_frozen_security_context(self):
+        executed = []
+        security_context = {"field_contracts": [{"contract_hash": "x" * 64}]}
+        with (
+            patch(
+                "recovery_service.services.security_access.resolve_protected_etl_sql",
+                return_value={"sql": "INSERT INTO DWD.CASE_STANDARD SELECT * FROM ACCESS.CASE_RAW", "mappings": ["mapping"]},
+            ) as resolver,
+            patch(
+                "recovery_service.services.doris_sql_etl._doris_conn",
+                side_effect=lambda profile, database: _FakeConnection(executed),
+            ),
+        ):
+            result = execute_doris_sql(
+                self.profile,
+                database="ODS",
+                sql="INSERT INTO DWD.CASE_STANDARD SELECT * FROM ODS.CASE_RAW",
+                security_access_mode="protected_etl",
+                security_access_context=security_context,
+            )
+        self.assertEqual(result.sql_type, "INSERT")
+        resolver.assert_called_once_with(
+            connection_id=self.profile.id,
+            default_database="ODS",
+            sql="INSERT INTO DWD.CASE_STANDARD SELECT * FROM ODS.CASE_RAW",
+            security_context=security_context,
+        )
+        self.assertEqual(executed, ["INSERT INTO DWD.CASE_STANDARD SELECT * FROM ACCESS.CASE_RAW"])
+
 
 if __name__ == "__main__":
     unittest.main()

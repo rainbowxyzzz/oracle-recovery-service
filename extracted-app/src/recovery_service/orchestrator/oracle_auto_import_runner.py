@@ -740,7 +740,7 @@ class OracleAutoImportRunner:
         }
 
     def _docker_exec(self, container: str, inner_shell: str) -> str:
-        return f"docker exec -i {shlex.quote(container)} bash -lc {shlex.quote(inner_shell)}"
+        return f"docker exec -u 54321:54321 -i {shlex.quote(container)} bash -lc {shlex.quote(inner_shell)}"
 
     def _oracle_env_prefix(self, oracle_home: str | None) -> str:
         q_home = shlex.quote((oracle_home or "").strip())

@@ -8,11 +8,14 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from recovery_service.core.models.task import (
+    DataAutomationBatch,
+    DataAutomationPipeline,
+    DatabaseConnectionProfile,
     DataPlatformComponentRun,
     DataPlatformComponentRunLog,
     DataPlatformComponentRunTable,
     DataPlatformNode,
-    DatabaseConnectionProfile,
+    RecoveryTask,
 )
 from recovery_service.services.data_platform import (
     _freeze_component_task_nodes,
@@ -23,8 +26,8 @@ from recovery_service.services.data_platform import (
     create_node,
     list_component_runs,
     list_nodes,
-    run_queued_component_task,
     run_component_task_once,
+    run_queued_component_task,
     submit_component_task_run,
     update_node,
 )
@@ -75,6 +78,9 @@ class DataPlatformComponentTaskTests(unittest.TestCase):
         DataPlatformComponentRunTable.__table__.create(self.engine)
         DataPlatformComponentRunLog.__table__.create(self.engine)
         DatabaseConnectionProfile.__table__.create(self.engine)
+        DataAutomationPipeline.__table__.create(self.engine)
+        DataAutomationBatch.__table__.create(self.engine)
+        RecoveryTask.__table__.create(self.engine)
         self.factory = sessionmaker(self.engine, expire_on_commit=False)
         self.connection_id = uuid.uuid4()
 
@@ -552,13 +558,139 @@ class DataPlatformComponentTaskTests(unittest.TestCase):
                 "table_results": [],
                 "logs": [],
             },
-        ):
+        ) as execute:
             result = run_queued_component_task(run.id)
+            duplicate = run_queued_component_task(run.id)
             runs = list_component_runs(node.id)
 
         self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(duplicate["status"], "succeeded")
+        execute.assert_called_once()
         self.assertEqual(runs[0].status, "succeeded")
         self.assertEqual(runs[0].result["loaded_rows"], 3)
+
+    def test_automation_batch_rediscovers_every_restored_oracle_table_for_ods(self) -> None:
+        oracle_profile_id = uuid.uuid4()
+        target_profile_id = uuid.uuid4()
+        pipeline_id = uuid.uuid4()
+        restore_task_id = uuid.uuid4()
+        batch_id = uuid.uuid4()
+        node = DataPlatformNode(
+            id=uuid.uuid4(),
+            name="Oracle 全表同步至 ODS",
+            revision=1,
+            node_type="data_sync",
+            config={
+                "source_connection_id": str(oracle_profile_id),
+                "target_connection_id": str(target_profile_id),
+                "source_catalog": "local_oracle",
+                "source_schema": "TEMPLATE_SCHEMA",
+                "target_database": "ODS_AUDIT",
+                "write_mode": "append",
+                "sync_method": "stream_load",
+                "schema_policy": "source",
+                "table_mappings": [{"id": "stale", "source_table": "OLD_TABLE", "target_table": "OLD_TABLE"}],
+            },
+            status="active",
+        )
+        oracle_profile = DatabaseConnectionProfile(
+            id=oracle_profile_id,
+            name="Oracle 恢复目标",
+            engine="oracle",
+            host="oracle-host",
+            port=1521,
+            username="SYSTEM",
+            password_enc="admin-password",
+            service_name="ORCLPDB1",
+        )
+        target_profile = DatabaseConnectionProfile(
+            id=target_profile_id,
+            name="Doris ODS",
+            engine="doris",
+            host="doris-host",
+            port=9030,
+            username="root",
+            password_enc="",
+            database="ODS_AUDIT",
+        )
+        pipeline = DataAutomationPipeline(id=pipeline_id, name="案件审计安全流")
+        restore_task = RecoveryTask(
+            id=restore_task_id,
+            remote_host="oracle-host",
+            remote_port=22,
+            remote_user="root",
+            remote_password_enc="ssh-password",
+            remote_directory="/audit/dmp",
+            target_connection="oracle-host:1521/ORCLPDB1",
+            target_admin_user="SYSTEM",
+            target_admin_password_enc="admin-password",
+            options={
+                "professional_flow": {"target": {"generated_user_password": "schema-password"}},
+                "target_connection_profile": str(oracle_profile_id),
+            },
+        )
+        batch = DataAutomationBatch(
+            id=batch_id,
+            pipeline_id=pipeline_id,
+            source_path="/audit/case_20260908.dmp",
+            source_files=[],
+            source_fingerprint="all-restored-tables",
+            restore_task_id=restore_task_id,
+        )
+        run = DataPlatformComponentRun(
+            id=uuid.uuid4(),
+            node_id=node.id,
+            node_type="data_sync",
+            node_name=node.name,
+            node_revision=1,
+            selected_items=[],
+            status="queued",
+            message="queued",
+            result={
+                "runtime_overrides": {
+                    "pipeline_batch_id": str(batch_id),
+                    "restored_target": {"schema": "AUDIT_BATCH_20260908"},
+                    "sync_all_tables": True,
+                }
+            },
+        )
+        with self.factory() as session:
+            session.add_all([oracle_profile, target_profile, pipeline, restore_task, batch, node, run])
+            session.commit()
+
+        recognized_mappings = [
+            {"id": "case", "enabled": True, "source_schema": "AUDIT_BATCH_20260908", "source_table": "AUDIT_CASE", "target_database": "ODS_AUDIT", "target_table": "AUDIT_CASE"},
+            {"id": "evidence", "enabled": True, "source_schema": "AUDIT_BATCH_20260908", "source_table": "AUDIT_EVIDENCE", "target_database": "ODS_AUDIT", "target_table": "AUDIT_EVIDENCE"},
+        ]
+        sync_result = {
+            "status": "succeeded",
+            "message": "done",
+            "success_count": 2,
+            "failed_count": 0,
+            "loaded_rows": 6,
+            "table_results": [],
+            "logs": [],
+            "config_patch": {"table_mappings": recognized_mappings},
+        }
+        with patch("recovery_service.services.data_platform.get_sync_session_factory", return_value=self.factory), patch(
+            "recovery_service.services.data_platform.recognize_data_sync_mappings",
+            return_value={"table_mappings": recognized_mappings},
+        ) as recognize, patch(
+            "recovery_service.services.data_platform.execute_data_sync",
+            return_value=sync_result,
+        ) as execute:
+            result = run_queued_component_task(run.id)
+
+        self.assertEqual(result["status"], "succeeded")
+        recognize.assert_called_once()
+        self.assertEqual(recognize.call_args.kwargs["source_schema"], "AUDIT_BATCH_20260908")
+        self.assertEqual(recognize.call_args.kwargs["target_database"], "ODS_AUDIT")
+        executed_config = execute.call_args.args[2]
+        self.assertEqual([item["source_table"] for item in executed_config["table_mappings"]], ["AUDIT_CASE", "AUDIT_EVIDENCE"])
+        self.assertEqual(executed_config["selected_tables"], [])
+        with self.factory() as session:
+            saved_node = session.get(DataPlatformNode, node.id)
+            self.assertEqual(saved_node.config["table_mappings"][0]["source_table"], "OLD_TABLE")
 
     def test_queued_data_sync_component_run_marks_missing_connection_failed(self) -> None:
         node = DataPlatformNode(

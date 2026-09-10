@@ -5,6 +5,153 @@
 - 默认使用简体中文与用户交流。
 - 代码、命令、文件路径、API 名称、错误信息和专有名词保持原文，必要时用中文解释。
 
+## Project Environment
+
+本节记录当前 Windows 本地开发环境的已确认事实和固定入口。后续执行任何开发、修复、测试、打包前，必须优先复用这里的环境信息，不要重新探索 Python、Java、Node、Docker、Oracle、Doris、Spark 等运行时。
+
+### Environment
+
+- OS / Shell：当前本地开发机为 Windows，Shell 为 PowerShell；可使用 PowerShell 7，也兼容 Windows PowerShell 执行只读检查脚本。
+- Python：项目要求 Python `>=3.10`。当前已确认系统 Python 为 `C:\Users\zy\AppData\Local\Programs\Python\Python313\python.exe`，版本 `3.13.3`。
+- 虚拟环境：项目标准虚拟环境路径为仓库根目录 `.venv\Scripts\python.exe`。如果 `.venv` 不存在，先运行 `scripts/bootstrap.ps1` 创建；不要创建第二套虚拟环境。
+- Python 依赖管理：当前使用 `extracted-app\requirements.txt` 安装运行依赖，`extracted-app\pyproject.toml` 记录项目元数据、pytest、ruff、mypy 配置；当前没有确认可用的 `poetry.lock`、`uv.lock`、`conda` 环境或 Node lockfile。
+- Java/JDK：本地未确认存在可用 `java` / `javac`，`JAVA_HOME` 可能为空。只有构建 Doris SM4 Java UDF jar 时才需要 Java；构建必须生成 Java 8 兼容 class file version 52.0，可通过 `DORIS_SM4_JAVAC_BIN` 指定 `javac`。
+- Spark：当前项目没有声明本地 `pyspark` 依赖，未确认存在 `SPARK_HOME` 或 `spark-submit`。除非需求明确触达 Spark 本地运行，否则不要把 Spark 缺失当作本地单元测试失败原因。
+- Node/npm：当前已确认系统 Node.js 路径为 `C:\Program Files\nodejs\node.exe`，版本 `v18.20.8`；npm 路径为 `C:\Program Files\nodejs\npm.cmd`，版本 `10.8.2`。项目没有 `package.json`，Node 主要用于静态 HTML 内联脚本语法检查。
+- Docker：当前已确认 Docker CLI 存在，但本地 Docker Desktop daemon 可能不可达。Docker 不可达时，不要反复重试或修改业务代码；需要真实容器验证时按发布规则使用 128 或先由用户启动 Docker Desktop。
+- 数据库和外部服务：系统元数据库为 MySQL `8.4`，缓存为 Redis `7`；业务链路依赖 Oracle、Doris、SQL Server/MySQL 恢复目标库等。当前本地 `127.0.0.1:3306/6379/8000/9030/8030/8040/1521` 可能不可达，真实数据库验证通常依赖 128 或用户提供的远程环境。
+- Oracle Client / JDBC / OCI：Python 侧使用 `oracledb`；Oracle 还原链路会在目标主机/容器内调用 `imp`/`impdp`/`sqlplus`。本地未确认存在 `ORACLE_HOME`、`impdp`、`sqlplus`，不要为了普通单元测试安装 Oracle Client。
+- Doris 连接：项目通过 Doris MySQL 协议和 HTTP/Stream Load 能力访问 Doris；Python 依赖侧主要使用 `pymysql` / `httpx`，连接信息由系统配置或数据库连接配置提供。
+- 项目启动：本地开发入口位于 `extracted-app`，使用 `PYTHONPATH=src` 启动 FastAPI、Celery Worker 和脚本；Docker Run 部署仍遵守本文件打包规则。
+
+### Required workflow
+
+以后每次执行任务必须遵守：
+
+1. 首先读取 `AGENTS.md` 和 `docs/PROJECT_PRD_SUMMARY.md`，再看本次涉及模块的 PRD 或发布验证记录。
+2. 优先运行 `scripts/check-env.ps1`，确认当前本地环境状态。
+3. 使用项目已有环境和仓库根目录 `.venv`。
+4. 不随意创建新的虚拟环境。
+5. 不随意切换 Python / Java / Node 版本。
+6. 不重复安装已经存在的依赖。
+7. 不修改宿主机全局环境来解决项目问题。
+8. 不因为一个测试失败就重新搭建环境。
+9. 首先判断问题属于代码问题还是环境问题。
+10. 已知环境问题优先读取 `KNOWN_ISSUES.md`，确认是否已有固定处理方式。
+
+### Commands
+
+环境检查：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-env.ps1
+```
+
+严格检查（WARNING 也视为失败，适合发布前本地环境收敛）：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-env.ps1 -Strict
+```
+
+初始化或修复项目内 Python 环境：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
+```
+
+激活项目虚拟环境：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+```
+
+安装依赖应优先使用 `bootstrap`。如需手工安装，只允许安装到项目 `.venv`：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r extracted-app\requirements.txt
+.\.venv\Scripts\python.exe -m pip install "pytest>=8.3.0" "pytest-asyncio>=0.24.0" "ruff>=0.8.0" "mypy>=1.13.0"
+```
+
+主测试命令：
+
+```powershell
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+..\.venv\Scripts\python.exe -m pytest tests --ignore=tests/test_microservice_modes.py
+```
+
+已知兼容性失败的专项测试：
+
+```powershell
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+..\.venv\Scripts\python.exe -m pytest tests/test_microservice_modes.py
+```
+
+Lint：
+
+```powershell
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+..\.venv\Scripts\python.exe -m ruff check src tests
+```
+
+Type check：
+
+```powershell
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+..\.venv\Scripts\python.exe -m mypy src
+```
+
+前端静态脚本语法检查：
+
+```powershell
+node -e "const fs=require('fs'); const vm=require('vm'); for (const file of ['extracted-app/src/recovery_service/static/ui.html','extracted-app/src/recovery_service/static/assistant.html']) { const html=fs.readFileSync(file,'utf8'); const match=html.match(/<script>([\s\S]*)<\/script>/); if(match) new vm.Script(match[1]); } console.log('html script syntax ok');"
+```
+
+本地 API 启动（要求本地 MySQL / Redis 可用）：
+
+```powershell
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+..\.venv\Scripts\python.exe scripts/init_db.py
+..\.venv\Scripts\python.exe -m uvicorn recovery_service.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+本地 Worker 启动（要求本地 MySQL / Redis 可用）：
+
+```powershell
+Set-Location extracted-app
+$env:PYTHONPATH = "src"
+..\.venv\Scripts\celery.exe -A recovery_service.workers.celery_app:celery_app worker -l info
+```
+
+本地服务低成本检查：
+
+```powershell
+docker ps
+Test-NetConnection 127.0.0.1 -Port 3306
+Test-NetConnection 127.0.0.1 -Port 6379
+Test-NetConnection 127.0.0.1 -Port 8000
+Test-NetConnection 127.0.0.1 -Port 9030
+```
+
+### Environment troubleshooting policy
+
+当出现环境错误时：
+
+1. 首先判断是代码问题还是环境问题。
+2. 检查 `AGENTS.md`、`KNOWN_ISSUES.md` 和 `scripts/check-env.ps1` / `scripts/bootstrap.ps1`。
+3. 不要连续尝试多个 Python、pip、Java、npm 或其他运行时。
+4. 不要为了绕过一个问题创建第二套开发环境。
+5. 不要自动修改宿主机全局配置。
+6. 如果发现了一个未来还可能出现的问题，应将解决方案固化到 `AGENTS.md`、`KNOWN_ISSUES.md`、`scripts/check-env.ps1`、`scripts/bootstrap.ps1`、依赖文件或环境变量模板。
+7. 同一个已经确认的问题以后不要重新诊断。
+8. 如果某个外部服务本来就无法从当前环境访问，应明确报告并切换到 mock / 静态检查 / 128 授权验证路径，不要无限重试。
+
 ## Docker Packaging
 
 - 系统元数据库 MySQL 必须固定使用 `mysql:8.4`，不要使用 `mysql:latest`、`mysql:8` 或 9.x 标签。
@@ -18,6 +165,18 @@
 - 应用迁移、API、Worker 必须继续使用 `MYSQL_USER` 连接系统库，不要改成 root 连接应用。root 只用于本地 MySQL 容器健康检查或用户明确执行初始化 SQL。
 - 系统元数据库承载数据同步独立运行记录和大 JSON 运行日志，生产与 Docker Run 包必须保留最低 MySQL 资源配置：`sort_buffer_size=16777216`、`join_buffer_size=4194304`、`read_buffer_size=1048576`、`read_rnd_buffer_size=4194304`、`tmp_table_size=268435456`、`max_heap_table_size=268435456`、`max_allowed_packet=268435456`、`innodb_buffer_pool_size=536870912`。默认 256KB 排序缓冲和 16MB 临时表会导致 100 表级数据同步日志 `component-runs` 查询报 `Out of sort memory`/500。已有环境使用 `artifacts/tune-system-mysql-for-data-platform-logs.sh` 调优；后续打包必须把该配置作为检查项。
 - SM4 Java UDF jar 必须编译为 Java 8 兼容 class file version 52.0。打包前检查 `doris_sm4_function.py`：优先使用 `javac --release 8`，不支持时退回 `-source 8 -target 8`。不能生成 Java 17 class file version 61.0，否则 Doris Java 8 运行时会报 `only recognizes class file versions up to 52.0`。
+
+### Docker 20 新服务器独立交付基线
+
+- Docker 17.03 仍是 128 和历史 Docker Run 包的默认兼容基线；只有用户明确指定全新服务器和 Docker 20+ 时，才允许生成独立的 Docker Compose 交付包，禁止用新版包覆盖 128 的旧版基线。
+- 双服务器交付固定拆分：A 服务器继续使用 Docker 17.03 兼容的业务 Docker Run 包，B 服务器使用 Docker 20.10+ 和 Docker Compose 2.2.3+ 独立运行 OpenMetadata 1.13.0；不得再把两者包装成要求共享 Docker 网络的同机启动包。
+- A 包复用 `20260909-data-automation-reliable-dispatch-r1` 业务镜像，不重复构建，并离线携带系统 MySQL 8.4、Redis 7-alpine 镜像；B 包只携带 OpenMetadata Server/DB 1.13.0、Elasticsearch 9.3.0 和 Docker Compose 2.24.7。
+- OpenMetadata 使用平台 API 主动推送模式，不包含 Ingestion/Airflow；两台服务器通过 B 服务器可达的 `http://B_SERVER_IP:8585` 通信，不依赖跨主机 Docker 网络或容器名称解析。
+- B 服务器首次配置必须修改 OpenMetadata 元数据库密码；A 服务器继续保留 Docker 17 历史账号兼容规则，并在获得 OpenMetadata 服务端 Token 后配置 `OPENMETADATA_URL`、`OPENMETADATA_API_TOKEN` 和 `OPENMETADATA_SYNC_ENABLED=true`。
+- B 服务器部署 Docker 前必须先区分真正裸机与“旧 Docker 已安装但服务未启动”。存在 Docker 命令、服务单元或非空 `/var/lib/docker` 时不得执行 `fresh` 新装脚本，也不得通过删除 `/var/lib/docker` 强行满足新装条件。
+- Docker 二进制升级脚本启动服务后必须等待 daemon（后台服务）和 Socket（本地通信套接字）就绪，并核验服务端版本；一次 `docker info` 失败不能直接认定升级失败。失败恢复必须保留旧二进制备份和服务日志位置。
+- A 业务系统的 `OPENMETADATA_*` 机器间同步配置与 `OIDC_*` 人员统一认证配置互不替代。更新现有环境不得用 `.env.example` 覆盖 `.env`；修改 `.env` 后必须重建相关容器，单独 `docker restart` 不会加载新环境变量。
+- 每次 A 完整打包必须比较包内 `oracle21c-ee/initialize.sh` 与 `deploy/oracle21c-ee/initialize.sh`，并运行 `tests/test_oracle21c_initialize.py`，防止 Smallfile TEMP 表空间上限修复再次从历史包回退。
 
 ## Requirement Intake and PRD Workflow
 

@@ -72,6 +72,8 @@ SCHEMA_PARSE_EXCLUDES = SYSTEM_USERS | {
 
 TABLESPACE_PARSE_EXCLUDES = SYSTEM_TABLESPACES | {"TO"}
 
+ORACLE_CONTAINER_USER = "54321:54321"
+
 
 class RunAlreadyActiveError(RuntimeError):
     pass
@@ -403,17 +405,23 @@ fi
 """
     oracle_env = oracle_env.strip()
     wrapped = f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {oracle_env}; {cmd}"
-    return run_process(["docker", "exec", "-i", container, "bash", "-lc", wrapped], logger=logger, input_text=input_text)
+    return run_process(
+        ["docker", "exec", "-u", ORACLE_CONTAINER_USER, "-i", container, "bash", "-lc", wrapped],
+        logger=logger,
+        input_text=input_text,
+    )
 
 
-def docker_cp_from(container: str, container_path: str, local_path: Path, logger: RunLogger) -> None:
+def docker_copy_text_from(container: str, container_path: str, local_path: Path, logger: RunLogger) -> None:
     local_path.parent.mkdir(parents=True, exist_ok=True)
-    result = run_process(["docker", "cp", f"{container}:{container_path}", str(local_path)], logger=logger)
+    result = docker_exec(container, f"cat -- {shlex.quote(container_path)}", logger=logger)
     if result.returncode != 0:
-        logger.log(f"[warn] could not copy {container_path} from container: {result.stdout.strip()}")
+        logger.log(f"[warn] could not archive {container_path} from container: {result.stdout.strip()}")
+        return
+    local_path.write_text(result.stdout + ("\n" if result.stdout else ""), encoding="utf-8")
 
 
-def docker_cp_from_if_present(container: str, container_path: str, local_path: Path, logger: RunLogger) -> bool:
+def docker_copy_text_from_if_present(container: str, container_path: str, local_path: Path, logger: RunLogger) -> bool:
     check = docker_exec(
         container,
         f"if test -f {shlex.quote(container_path)}; then printf present; fi",
@@ -421,8 +429,31 @@ def docker_cp_from_if_present(container: str, container_path: str, local_path: P
     )
     if check.returncode != 0 or "present" not in check.stdout:
         return False
-    docker_cp_from(container, container_path, local_path, logger)
+    docker_copy_text_from(container, container_path, local_path, logger)
     return True
+
+
+def docker_stream_file_to(container: str, local_path: Path, container_path: str, logger: RunLogger) -> None:
+    docker_command = " ".join(
+        shlex.quote(part)
+        for part in [
+            "docker",
+            "exec",
+            "-u",
+            ORACLE_CONTAINER_USER,
+            "-i",
+            container,
+            "sh",
+            "-c",
+            f"cat > {shlex.quote(container_path)}",
+        ]
+    )
+    result = run_process(
+        ["sh", "-c", f"{docker_command} < {shlex.quote(str(local_path))}"],
+        logger=logger,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stdout)
 
 
 def quote_sql(value: str) -> str:
@@ -820,12 +851,10 @@ def copy_dump_to_container(args: argparse.Namespace, dump_spec: DumpSpec, contai
     mkdir = docker_exec(args.container, f"mkdir -p {shlex.quote(container_dir)}", logger=logger)
     if mkdir.returncode != 0:
         raise RuntimeError(mkdir.stdout)
-    target = f"{args.container}:{container_dir.rstrip('/')}/"
     for file_name in dump_spec.source_files:
-        source = str(Path(dump_spec.source_dir) / file_name)
-        result = run_process(["docker", "cp", source, target], logger=logger)
-        if result.returncode != 0:
-            raise RuntimeError(result.stdout)
+        source = Path(dump_spec.source_dir) / file_name
+        target = f"{container_dir.rstrip('/')}/{file_name}"
+        docker_stream_file_to(args.container, source, target, logger)
 
 
 def dumpfile_reference(args: argparse.Namespace, ctx: RuntimeContext) -> str:
@@ -920,8 +949,8 @@ def run_impdp_sqlfile_probe(
     sqlfile_text = read_container_file(args.container, sqlfile_container, logger)
     logfile_text = read_container_file(args.container, logfile_container, logger)
 
-    docker_cp_from(args.container, sqlfile_container, Path(ctx.probe_dir) / sqlfile_name, logger)
-    docker_cp_from(args.container, logfile_container, Path(ctx.probe_dir) / logfile_name, logger)
+    docker_copy_text_from(args.container, sqlfile_container, Path(ctx.probe_dir) / sqlfile_name, logger)
+    docker_copy_text_from(args.container, logfile_container, Path(ctx.probe_dir) / logfile_name, logger)
     return result, sqlfile_text, logfile_text, result.stdout + "\n" + sqlfile_text + "\n" + logfile_text
 
 
@@ -935,6 +964,8 @@ def has_comment_charset_loss(text: str) -> bool:
 
 def classify_probe_failure(text: str) -> str:
     upper = text.upper()
+    if "UNABLE TO FIND USER" in upper and "NO MATCHING ENTRIES IN PASSWD FILE" in upper:
+        return "docker_user_resolution_failed"
     if "ORA-39087" in upper:
         return "directory_invalid"
     if "ORA-39054" in upper:
@@ -1079,7 +1110,7 @@ def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger)
     legacy_result = docker_exec(args.container, legacy_cmd, logger=logger)
     legacy_log_container = f"{ctx.container_import_dir}/auto_probe_imp.log"
     legacy_log_text = read_container_file(args.container, legacy_log_container, logger)
-    docker_cp_from(args.container, legacy_log_container, Path(ctx.probe_dir) / "auto_probe_imp.log", logger)
+    docker_copy_text_from(args.container, legacy_log_container, Path(ctx.probe_dir) / "auto_probe_imp.log", logger)
     attempts.append(
         {
             "attempt": len(attempts) + 1,
@@ -1222,7 +1253,7 @@ def build_plan(args: argparse.Namespace, ctx: RuntimeContext, dump_spec: DumpSpe
         if excluded_object_types:
             params.append(f"EXCLUDE={','.join(excluded_object_types)}")
         shell_cmd = " ".join(shlex.quote(p) for p in params if p)
-        return ["docker", "exec", "-i", args.container, "bash", "-lc", f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {shell_cmd}"]
+        return ["docker", "exec", "-u", ORACLE_CONTAINER_USER, "-i", args.container, "bash", "-lc", f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {shell_cmd}"]
 
     if probe.dump_type == "datapump":
         if args.exclude_user_metadata:
@@ -1248,14 +1279,14 @@ def build_plan(args: argparse.Namespace, ctx: RuntimeContext, dump_spec: DumpSpe
                     f"LOG={shlex.quote(ctx.container_import_dir.rstrip('/') + '/auto_import_' + src.lower() + '_imp.log')} "
                     f"FROMUSER={shlex.quote(src)} TOUSER={shlex.quote(dst)} IGNORE=Y"
                 )
-                commands.append(["docker", "exec", "-i", args.container, "bash", "-lc", f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {shell_cmd}"])
+                commands.append(["docker", "exec", "-u", ORACLE_CONTAINER_USER, "-i", args.container, "bash", "-lc", f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {shell_cmd}"])
         else:
             shell_cmd = (
                 f"imp {shlex.quote(login)} "
                 f"FILE={shlex.quote(ctx.container_dump_dir.rstrip('/') + '/' + ctx.dumpfile_arg)} "
                 f"LOG={shlex.quote(ctx.container_import_dir.rstrip('/') + '/auto_import_legacy_imp.log')} FULL=Y IGNORE=Y"
             )
-            commands.append(["docker", "exec", "-i", args.container, "bash", "-lc", f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {shell_cmd}"])
+            commands.append(["docker", "exec", "-u", ORACLE_CONTAINER_USER, "-i", args.container, "bash", "-lc", f"export NLS_LANG=AMERICAN_AMERICA.AL32UTF8; export LANG=C.UTF-8; {shell_cmd}"])
 
     for cmd in commands:
         masked = " ".join(shlex.quote(part) for part in cmd).replace(f"{args.username}/{args.password}", f"{args.username}/******")
@@ -1366,8 +1397,8 @@ def plan_to_json(plan: ImportPlan) -> Dict[str, object]:
 
 def copy_oracle_import_logs(args: argparse.Namespace, ctx: RuntimeContext, plan: ImportPlan, logger: RunLogger) -> None:
     if plan.dump_type == "datapump":
-        docker_cp_from(args.container, f"{ctx.container_import_dir}/auto_import_impdp.log", Path(ctx.import_dir) / "auto_import_impdp.log", logger)
-        docker_cp_from_if_present(
+        docker_copy_text_from(args.container, f"{ctx.container_import_dir}/auto_import_impdp.log", Path(ctx.import_dir) / "auto_import_impdp.log", logger)
+        docker_copy_text_from_if_present(
             args.container,
             f"{ctx.container_import_dir}/auto_import_impdp_full_retry.log",
             Path(ctx.import_dir) / "auto_import_impdp_full_retry.log",
@@ -1378,9 +1409,9 @@ def copy_oracle_import_logs(args: argparse.Namespace, ctx: RuntimeContext, plan:
     if plan.dump_type == "legacy_exp":
         if plan.source_schemas:
             for schema in plan.source_schemas:
-                docker_cp_from(args.container, f"{ctx.container_import_dir}/auto_import_{schema.lower()}_imp.log", Path(ctx.import_dir) / f"auto_import_{schema.lower()}_imp.log", logger)
+                docker_copy_text_from(args.container, f"{ctx.container_import_dir}/auto_import_{schema.lower()}_imp.log", Path(ctx.import_dir) / f"auto_import_{schema.lower()}_imp.log", logger)
         else:
-            docker_cp_from(args.container, f"{ctx.container_import_dir}/auto_import_legacy_imp.log", Path(ctx.import_dir) / "auto_import_legacy_imp.log", logger)
+            docker_copy_text_from(args.container, f"{ctx.container_import_dir}/auto_import_legacy_imp.log", Path(ctx.import_dir) / "auto_import_legacy_imp.log", logger)
 
 
 def summarize_oracle_errors(log_dir: Path, logger: RunLogger, label: str = "import") -> None:
@@ -1951,7 +1982,7 @@ def main(argv: List[str]) -> int:
             ensure_reusable_dump_directory(args, dump_spec, ctx.container_dump_dir, logger)
             logger.log(
                 f"[zero-copy] reuse {args.dump_directory_object}:{dump_spec.dumpfile_arg}; "
-                "docker cp was not executed"
+                "host-side DMP file copy was not executed"
             )
             logger.stage(
                 "dump_copy",

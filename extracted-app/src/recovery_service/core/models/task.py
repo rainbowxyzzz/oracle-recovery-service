@@ -197,6 +197,28 @@ class DataAutomationEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
+class DataAutomationStageDispatch(Base):
+    __tablename__ = "data_automation_stage_dispatches"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_data_automation_stage_dispatch_key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    stage: Mapped[str] = mapped_column(String(48), index=True)
+    target_type: Mapped[str] = mapped_column(String(32), index=True)
+    target_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(160), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
+
+
 class DataAsset(Base):
     __tablename__ = "data_assets"
     __table_args__ = (UniqueConstraint("connection_id", "catalog", "database", "table_name", "layer", name="uq_data_asset_identity"),)
@@ -254,6 +276,35 @@ class DataLineageEdge(Base):
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     review_required: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class DataSecurityAccessMapping(Base):
+    __tablename__ = "data_security_access_mappings"
+    __table_args__ = (
+        UniqueConstraint("pipeline_id", "standard_asset_id", "source_asset_id", "source_field", "standard_field", name="uq_data_security_coverage"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    pipeline_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    standard_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    source_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    secured_asset_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    sm4_task_definition_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    sm4_task_revision: Mapped[int] = mapped_column(Integer, default=1)
+    source_database: Mapped[str] = mapped_column(String(128), index=True)
+    source_table: Mapped[str] = mapped_column(String(255), index=True)
+    source_field: Mapped[str] = mapped_column(String(255), index=True)
+    standard_field: Mapped[str] = mapped_column(String(255), index=True)
+    secured_database: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    secured_table: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    access_database: Mapped[str] = mapped_column(String(128), index=True)
+    access_table: Mapped[str] = mapped_column(String(255), index=True)
+    contract_hash: Mapped[str] = mapped_column(String(64), index=True)
+    source_schema_signature: Mapped[str] = mapped_column(String(64), index=True)
+    state: Mapped[str] = mapped_column(String(32), default="planned", index=True)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
 
 
 class DataLineageEvent(Base):
@@ -1124,6 +1175,7 @@ class DorisSm4TaskDefinition(Base):
     table_strategy: Mapped[str] = mapped_column(String(32), default="drop_recreate", index=True)
     target_suffix: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tables: Mapped[list] = mapped_column(JSON, default=list)
+    coverage_contracts: Mapped[list] = mapped_column(JSON, default=list)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
     created_by_username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_by_auth_type: Mapped[str] = mapped_column(String(32), default="api-key", index=True)

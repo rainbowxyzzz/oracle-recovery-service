@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, update
 
 from recovery_service.common.security import decrypt_secret
 from recovery_service.common.time import app_now, to_app_naive
@@ -22,6 +22,7 @@ from recovery_service.core.models.task import (
     DataAutomationBlueprint,
     DataAutomationEvent,
     DataAutomationPipeline,
+    DataAutomationStageDispatch,
     DatabaseConnectionProfile,
     DataClassificationRule,
     DataDatabaseLayer,
@@ -32,6 +33,7 @@ from recovery_service.core.models.task import (
     DataPlatformNode,
     DataPlatformWorkflowRun,
     DataPlatformWorkflowVersion,
+    DataSecurityAccessMapping,
     DorisSm4BatchJob,
     DorisSm4TaskDefinition,
     RecoveryTask,
@@ -46,6 +48,8 @@ _SCHEDULER_STOP = threading.Event()
 _SCHEDULER_THREAD: threading.Thread | None = None
 logger = logging.getLogger(__name__)
 _TERMINAL_BATCH_STATES = {"completed", "blocked", "failed", "partial", "cancelled"}
+_TERMINAL_DISPATCH_STATES = {"succeeded", "failed"}
+_DISPATCH_STALE_AFTER = timedelta(minutes=2)
 
 
 def schema_signature(columns: list[dict[str, Any]]) -> str:
@@ -61,6 +65,258 @@ def schema_signature(columns: list[dict[str, Any]]) -> str:
     ]
     payload = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _copy_json(value: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(json.dumps(value or {}, ensure_ascii=False))
+
+
+def _active_security_snapshot(pipeline: DataAutomationPipeline) -> dict[str, Any]:
+    config = dict(pipeline.config or {})
+    snapshot = dict(config.get("security_orchestration") or {})
+    if not (
+        config.get("security_access_enabled")
+        and config.get("auto_encryption_enabled")
+        and snapshot.get("enabled")
+        and snapshot.get("mode") == "ods_protected"
+    ):
+        return {}
+    return snapshot
+
+
+def _batch_is_protected(batch: DataAutomationBatch) -> bool:
+    context = dict(batch.context or {})
+    return context.get("flow_mode") == "ods_protected" and bool(context.get("security_orchestration"))
+
+
+def _register_stage_dispatch(
+    session,
+    batch: DataAutomationBatch,
+    stage: str,
+    target_type: str,
+    target_id: uuid.UUID,
+) -> DataAutomationStageDispatch:
+    key = f"{batch.id}:{stage}:{target_type}:{target_id}"
+    existing = session.scalar(
+        select(DataAutomationStageDispatch).where(DataAutomationStageDispatch.idempotency_key == key)
+    )
+    if existing:
+        return existing
+    row = DataAutomationStageDispatch(
+        batch_id=batch.id,
+        pipeline_id=batch.pipeline_id,
+        stage=stage,
+        target_type=target_type,
+        target_id=target_id,
+        idempotency_key=key,
+        status="pending",
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _target_dispatch_state(session, row: DataAutomationStageDispatch) -> str | None:
+    target = None
+    state = None
+    if row.target_type == "recovery_task":
+        target = session.get(RecoveryTask, row.target_id)
+        state = target.state if target else None
+        if state in {"succeeded", "succeeded_with_warnings"}:
+            return "succeeded"
+        if state in {"failed", "cancelled", "stopped"}:
+            return "failed"
+        if state and state != "created":
+            return "running"
+    elif row.target_type == "component_run":
+        target = session.get(DataPlatformComponentRun, row.target_id)
+        state = target.status if target else None
+        if state in {"succeeded", "success"}:
+            return "succeeded"
+        if state in {"failed", "partial", "cancelled"}:
+            return "failed"
+        if state == "running":
+            return "running"
+    elif row.target_type == "workflow_run":
+        target = session.get(DataPlatformWorkflowRun, row.target_id)
+        state = target.status if target else None
+        if state == "succeeded":
+            return "succeeded"
+        if state in {"failed", "partial", "cancelled"}:
+            return "failed"
+        if state == "running":
+            return "running"
+    elif row.target_type == "sm4_job":
+        target = session.get(DorisSm4BatchJob, row.target_id)
+        state = target.state if target else None
+        if state in {"succeeded", "success"}:
+            return "succeeded"
+        if state in {"failed", "partial", "cancelled", "stopped"}:
+            return "failed"
+        if state == "running":
+            return "running"
+        if state == "reserved":
+            return "dispatched"
+    return None
+
+
+def _dispatch_status_for_target(session, target_type: str, target_id: uuid.UUID) -> str | None:
+    return session.scalar(
+        select(DataAutomationStageDispatch.status)
+        .where(
+            DataAutomationStageDispatch.target_type == target_type,
+            DataAutomationStageDispatch.target_id == target_id,
+        )
+        .order_by(desc(DataAutomationStageDispatch.created_at))
+        .limit(1)
+    )
+
+
+def _reconcile_stage_dispatches(session) -> None:
+    now = app_now()
+    rows = session.scalars(
+        select(DataAutomationStageDispatch).where(
+            DataAutomationStageDispatch.status.not_in(_TERMINAL_DISPATCH_STATES)
+        )
+    ).all()
+    for row in rows:
+        target_state = _target_dispatch_state(session, row)
+        if not target_state:
+            continue
+        row.status = target_state
+        if row.target_type == "sm4_job" and not row.celery_task_id and target_state in {"dispatched", "running", "succeeded", "failed"}:
+            row.celery_task_id = f"doris-sm4-{row.target_id}"
+        row.updated_at = now
+        if target_state in _TERMINAL_DISPATCH_STATES:
+            row.completed_at = now
+
+
+def _dispatch_stage_task(row: DataAutomationStageDispatch) -> str | None:
+    if row.target_type == "sm4_job":
+        from recovery_service.services.doris_encryption import dispatch_queued_sm4_jobs_once
+
+        dispatch_queued_sm4_jobs_once()
+        return None
+
+    from recovery_service.workers.celery_app import celery_app
+
+    settings = get_settings()
+    task_name, queue, kwargs = {
+        "recovery_task": (
+            "recovery.run_task",
+            settings.celery_oracle_queue,
+            {"volume_group_index": 0},
+        ),
+        "component_run": (
+            "data_platform.component_task_run",
+            settings.celery_data_sync_queue,
+            {},
+        ),
+        "workflow_run": (
+            "data_platform.workflow_run",
+            settings.celery_data_platform_queue,
+            {},
+        ),
+    }[row.target_type]
+    result = celery_app.send_task(
+        task_name,
+        args=[str(row.target_id)],
+        kwargs=kwargs,
+        queue=queue,
+        task_id=f"data-automation-{row.id}",
+    )
+    return str(result.id)
+
+
+def dispatch_pending_stage_tasks(limit: int = 100) -> dict[str, int]:
+    """Reliably dispatch committed automation stages without changing batch outcomes."""
+    session = get_sync_session_factory()()
+    dispatched = deferred = failed = 0
+    try:
+        now = app_now()
+        session.execute(
+            update(DataAutomationStageDispatch)
+            .where(
+                DataAutomationStageDispatch.status == "dispatching",
+                DataAutomationStageDispatch.last_attempt_at < now - _DISPATCH_STALE_AFTER,
+            )
+            .values(status="pending", next_attempt_at=now, updated_at=now)
+        )
+        _reconcile_stage_dispatches(session)
+        session.commit()
+        ids = session.scalars(
+            select(DataAutomationStageDispatch.id)
+            .where(
+                DataAutomationStageDispatch.status == "pending",
+                (
+                    DataAutomationStageDispatch.next_attempt_at.is_(None)
+                    | (DataAutomationStageDispatch.next_attempt_at <= now)
+                ),
+            )
+            .order_by(DataAutomationStageDispatch.created_at)
+            .limit(max(1, min(limit, 500)))
+        ).all()
+        for dispatch_id in ids:
+            attempted_at = app_now()
+            claimed = session.execute(
+                update(DataAutomationStageDispatch)
+                .where(
+                    DataAutomationStageDispatch.id == dispatch_id,
+                    DataAutomationStageDispatch.status == "pending",
+                    (
+                        DataAutomationStageDispatch.next_attempt_at.is_(None)
+                        | (DataAutomationStageDispatch.next_attempt_at <= attempted_at)
+                    ),
+                )
+                .values(
+                    status="dispatching",
+                    attempts=DataAutomationStageDispatch.attempts + 1,
+                    last_attempt_at=attempted_at,
+                    next_attempt_at=None,
+                    updated_at=attempted_at,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            session.commit()
+            if int(getattr(claimed, "rowcount", 0) or 0) != 1:
+                continue
+            row = session.get(DataAutomationStageDispatch, dispatch_id)
+            if not row:
+                continue
+            try:
+                celery_task_id = _dispatch_stage_task(row)
+                if row.target_type == "sm4_job":
+                    session.expire_all()
+                    row = session.get(DataAutomationStageDispatch, dispatch_id)
+                    target_state = _target_dispatch_state(session, row)
+                    if target_state:
+                        row.status = target_state
+                        row.celery_task_id = f"doris-sm4-{row.target_id}"
+                        dispatched += 1
+                    else:
+                        row.status = "pending"
+                        row.next_attempt_at = app_now() + timedelta(seconds=30)
+                        deferred += 1
+                else:
+                    row.status = "dispatched"
+                    row.celery_task_id = celery_task_id
+                    dispatched += 1
+                row.last_error = None
+                row.updated_at = app_now()
+                session.commit()
+            except Exception as exc:  # noqa: BLE001 - persist broker errors for bounded retry
+                session.rollback()
+                row = session.get(DataAutomationStageDispatch, dispatch_id)
+                delay_seconds = min(300, 5 * (2 ** min(max(int(row.attempts or 1) - 1, 0), 6)))
+                row.status = "pending"
+                row.next_attempt_at = app_now() + timedelta(seconds=delay_seconds)
+                row.last_error = str(exc)[:100000]
+                row.updated_at = app_now()
+                session.commit()
+                failed += 1
+        return {"dispatched": dispatched, "deferred": deferred, "failed": failed}
+    finally:
+        session.close()
 
 
 def create_pipeline(data: dict[str, Any], actor: AuthContext | None = None) -> dict[str, Any]:
@@ -97,6 +353,11 @@ def update_pipeline(pipeline_id: uuid.UUID, data: dict[str, Any]) -> dict[str, A
         row = session.get(DataAutomationPipeline, pipeline_id)
         if not row:
             raise KeyError("数据自动化流水线不存在。")
+        frozen_bindings = (
+            row.standard_workflow_version_id,
+            row.sm4_task_definition_id,
+            json.dumps(row.standard_target or {}, ensure_ascii=False, sort_keys=True),
+        )
         for field in ("name", "status", "file_pattern", "business_domain"):
             if field in data:
                 setattr(row, field, _optional(data[field], 255 if field == "file_pattern" else 128) or ("*.dmp" if field == "file_pattern" else ""))
@@ -114,6 +375,17 @@ def update_pipeline(pipeline_id: uuid.UUID, data: dict[str, Any]) -> dict[str, A
             row.standard_target = dict(data["standard_target"] or {})
         if "config" in data:
             row.config = dict(data["config"] or {})
+        current_bindings = (
+            row.standard_workflow_version_id,
+            row.sm4_task_definition_id,
+            json.dumps(row.standard_target or {}, ensure_ascii=False, sort_keys=True),
+        )
+        if frozen_bindings != current_bindings and _active_security_snapshot(row):
+            config = dict(row.config or {})
+            snapshot = dict(config.get("security_orchestration") or {})
+            snapshot.update({"enabled": False, "invalidated_at": app_now().isoformat(), "invalidated_reason": "业务流冻结引用已修改"})
+            config.update({"security_access_enabled": False, "auto_encryption_enabled": False, "security_orchestration": snapshot})
+            row.config = config
         row.updated_at = app_now()
         _validate_pipeline_references(session, row)
         session.commit()
@@ -263,6 +535,7 @@ def scan_pipeline(pipeline_id: uuid.UUID, *, dispatch: bool = True) -> dict[str,
             fingerprint = _source_fingerprint(group)
             batch = session.scalar(select(DataAutomationBatch).where(DataAutomationBatch.pipeline_id == pipeline.id, DataAutomationBatch.source_fingerprint == fingerprint))
             if batch is None:
+                security_snapshot = _active_security_snapshot(pipeline)
                 batch = DataAutomationBatch(
                     pipeline_id=pipeline.id,
                     state="stabilizing",
@@ -270,6 +543,10 @@ def scan_pipeline(pipeline_id: uuid.UUID, *, dispatch: bool = True) -> dict[str,
                     source_files=group,
                     source_fingerprint=fingerprint,
                     source_observed_at=now,
+                    context={
+                        "flow_mode": "ods_protected" if security_snapshot else "learning",
+                        "security_orchestration": _copy_json(security_snapshot),
+                    },
                     message="已发现 DMP 文件组，等待文件稳定。",
                 )
                 session.add(batch)
@@ -288,6 +565,8 @@ def scan_pipeline(pipeline_id: uuid.UUID, *, dispatch: bool = True) -> dict[str,
         pipeline.last_scan_at = now
         pipeline.next_scan_at = now + timedelta(minutes=int(pipeline.watch_interval_minutes or 5))
         session.commit()
+        if dispatch:
+            dispatch_pending_stage_tasks()
         return {"pipeline_id": str(pipeline.id), "found_groups": len(_group_dump_files(files)), "created_batch_ids": created, "queued_batch_ids": queued, "last_scan_at": now}
     finally:
         session.close()
@@ -312,44 +591,65 @@ def resume_batch(batch_id: uuid.UUID) -> dict[str, Any]:
         elif resume_stage in {"sync_queued", "syncing"}:
             if not pipeline.data_sync_node_id or not batch.restored_target:
                 raise ValueError("缺少可重试的数据同步组件或恢复目标。")
-            from recovery_service.services.data_platform import submit_component_task_run
-            result = submit_component_task_run(
+            from recovery_service.services.data_platform import prepare_component_task_run
+
+            sync_run = prepare_component_task_run(
+                session,
                 pipeline.data_sync_node_id,
-                {"pipeline_batch_id": str(batch.id), "restored_target": batch.restored_target},
+                {
+                    "pipeline_batch_id": str(batch.id),
+                    "restored_target": batch.restored_target,
+                    "sync_all_tables": True,
+                },
             )
-            batch.sync_run_id = uuid.UUID(result["run_id"])
+            batch.sync_run_id = sync_run.id
             batch.state = "sync_queued"
             batch.resume_from_stage = None
             batch.error_message = None
             batch.message = "数据同步重试任务已排队。"
-            _event(session, batch, "sync_requeued", "success", batch.message, result)
+            _register_stage_dispatch(session, batch, "sync", "component_run", sync_run.id)
+            _event(session, batch, "sync_requeued", "success", batch.message, {"run_id": str(sync_run.id)})
         elif resume_stage in {"standardize_queued", "standardizing"}:
             if not pipeline.standard_workflow_version_id:
                 raise ValueError("缺少可重试的标准化工作流版本。")
-            from recovery_service.services.data_platform import run_version
-            result = run_version(
+            from recovery_service.services.data_platform import prepare_workflow_run
+            trigger_context = {
+                "pipeline_id": str(pipeline.id),
+                "batch_id": str(batch.id),
+                "restored_target": batch.restored_target,
+                "raw_target": batch.raw_target,
+            }
+            if _batch_is_protected(batch):
+                _validate_protected_batch(session, pipeline, batch)
+                trigger_context["security_access_mode"] = "protected_etl"
+                trigger_context["security_orchestration"] = _copy_json((batch.context or {}).get("security_orchestration") or {})
+            workflow_run = prepare_workflow_run(
+                session,
                 pipeline.standard_workflow_version_id,
                 trigger_type="data_automation_retry",
-                trigger_context={"pipeline_id": str(pipeline.id), "batch_id": str(batch.id), "restored_target": batch.restored_target, "raw_target": batch.raw_target},
+                trigger_context=trigger_context,
             )
-            batch.standard_run_id = result.run_id
+            batch.standard_run_id = workflow_run.id
             batch.state = "standardize_queued"
             batch.resume_from_stage = None
             batch.error_message = None
             batch.message = "标准化重试流程已排队。"
-            _event(session, batch, "standardize_requeued", "success", batch.message, {"run_id": str(result.run_id)})
+            _register_stage_dispatch(session, batch, "standardize", "workflow_run", workflow_run.id)
+            _event(session, batch, "standardize_requeued", "success", batch.message, {"run_id": str(workflow_run.id)})
         else:
             batch.state = resume_stage
             batch.resume_from_stage = None
             batch.error_message = None
             batch.message = "已请求从断点继续。"
         session.commit()
+        dispatch_pending_stage_tasks()
         return _batch_dict(batch)
     finally:
         session.close()
 
 
 def advance_batches() -> dict[str, int]:
+    dispatch_pending_stage_tasks()
     session = get_sync_session_factory()()
     advanced = failed = 0
     try:
@@ -367,18 +667,29 @@ def advance_batches() -> dict[str, int]:
                 _event(session, batch, "stage_failed", "failed", str(exc))
                 failed += 1
             session.commit()
+            if batch.state == "completed" and (batch.context or {}).get("openmetadata_sync_pending"):
+                queued = _enqueue_openmetadata_snapshot(batch_id=batch.id)
+                batch.context = {
+                    **dict(batch.context or {}),
+                    "openmetadata_sync_pending": False,
+                    "openmetadata_sync_state": "queued" if queued else "failed",
+                }
+                session.commit()
+        dispatch_pending_stage_tasks()
         return {"advanced": advanced, "failed": failed}
     finally:
         session.close()
 
 
-def _enqueue_openmetadata_snapshot(*, batch_id: uuid.UUID | None = None) -> None:
+def _enqueue_openmetadata_snapshot(*, batch_id: uuid.UUID | None = None) -> bool:
     try:
         from recovery_service.services.openmetadata import enqueue_snapshot
 
         enqueue_snapshot(batch_id=batch_id)
+        return True
     except Exception as exc:  # noqa: BLE001 - metadata dispatch is best-effort and must not block asset writes
         logger.warning("OpenMetadata outbox enqueue failed: %s", exc)
+        return False
 
 
 def register_asset(data: dict[str, Any], batch_id: uuid.UUID | None = None) -> dict[str, Any]:
@@ -859,6 +1170,580 @@ def execute_reverse_encryption_plan(
         session.close()
 
 
+def build_security_access_plan(standard_asset_id: uuid.UUID, pipeline_id: uuid.UUID) -> dict[str, Any]:
+    """Build a strict, frozen standard-to-source-to-secured contract."""
+    session = get_sync_session_factory()()
+    try:
+        return _build_security_access_plan_in_session(session, standard_asset_id, pipeline_id)
+    finally:
+        session.close()
+
+
+def _build_security_access_plan_in_session(session, standard_asset_id: uuid.UUID, pipeline_id: uuid.UUID) -> dict[str, Any]:
+    pipeline = session.get(DataAutomationPipeline, pipeline_id)
+    standard = session.get(DataAsset, standard_asset_id)
+    definition = session.get(DorisSm4TaskDefinition, pipeline.sm4_task_definition_id) if pipeline and pipeline.sm4_task_definition_id else None
+    if not pipeline or not standard or not definition:
+        raise ValueError("安全访问计划缺少流水线、标准资产或 SM4 任务定义。")
+    version_id = pipeline.standard_workflow_version_id
+    sensitive = {str(item.get("field") or "") for item in (standard.classification_summary or {}).get("fields") or [] if item.get("protection_action") == "sm4" and item.get("auto_apply")}
+    contracts = list(definition.coverage_contracts or [])
+    suggestions: list[dict[str, Any]] = []
+    edges = session.scalars(select(DataLineageEdge).where(DataLineageEdge.target_asset_id == standard.id, DataLineageEdge.target_field.in_(sensitive or {"__none__"}))).all()
+    for edge in edges:
+        source = session.get(DataAsset, edge.source_asset_id)
+        safe = bool(
+            source
+            and source.engine.casefold() == "doris"
+            and source.layer == "raw"
+            and edge.transformation_type in {"direct", "rename", "cast"}
+            and not edge.review_required
+            and edge.workflow_version_id == version_id
+        )
+        match = next((item for item in contracts if _coverage_contract_matches(item, standard, source, edge)), None) if safe else None
+        if match and source:
+            match = {**match, "access_table": str(match.get("access_table") or source.table_name)}
+        table_spec = next((item for item in (definition.tables or []) if source and str(item.get("table_name") or "").casefold() == source.table_name.casefold() and str(edge.source_field or "").casefold() in {str(column).casefold() for column in item.get("columns") or []}), None)
+        eligible = bool(match and table_spec and source and source.connection_id == definition.connection_id and source.database.casefold() == definition.database.casefold())
+        suggestions.append({
+            "standard_field": edge.target_field, "source_asset_id": str(source.id) if source else None,
+            "source_database": source.database if source else None, "source_table": source.table_name if source else None,
+            "source_field": edge.source_field, "transformation_type": edge.transformation_type,
+            "auto_eligible": eligible, "review_required": not eligible, "contract": match,
+            "reason": "覆盖合同、生产血缘和 SM4 字段均已冻结" if eligible else "缺少唯一覆盖合同、生产血缘或 SM4 字段匹配",
+        })
+    required = sorted(field for field in sensitive if field)
+    covered = {str(item.get("standard_field") or "") for item in suggestions if item["auto_eligible"]}
+    return {
+        "pipeline_id": str(pipeline.id), "standard_asset_id": str(standard.id), "sm4_task_definition_id": str(definition.id),
+        "sm4_task_revision": int(definition.revision or 1), "required_standard_fields": required,
+        "suggestions": suggestions, "ready": bool(required) and set(required) == covered,
+        "reason": "覆盖合同完整" if required and set(required) == covered else "敏感字段未形成完整且唯一的安全访问覆盖合同",
+    }
+
+
+def execute_security_access_plan(standard_asset_id: uuid.UUID, pipeline_id: uuid.UUID, *, confirm: bool, actor: AuthContext | None = None) -> dict[str, Any]:
+    if not confirm:
+        raise ValueError("安全访问反向加密会创建安全对象，必须显式确认后执行。")
+    plan = build_security_access_plan(standard_asset_id, pipeline_id)
+    if not plan["ready"]:
+        raise ValueError(plan["reason"])
+    session = get_sync_session_factory()()
+    try:
+        pipeline = session.get(DataAutomationPipeline, pipeline_id)
+        standard = session.get(DataAsset, standard_asset_id)
+        definition = session.get(DorisSm4TaskDefinition, pipeline.sm4_task_definition_id) if pipeline else None
+        profile = session.get(DatabaseConnectionProfile, definition.connection_id) if definition else None
+        if not pipeline or not standard or not definition or not profile:
+            raise ValueError("安全访问计划依赖已发生变化，请重新生成计划。")
+        grouped: dict[str, set[str]] = {}
+        for item in plan["suggestions"]:
+            if not item["auto_eligible"]:
+                continue
+            grouped.setdefault(str(item["source_table"]), set()).add(str(item["source_field"]))
+            contract = dict(item["contract"])
+            source = session.get(DataAsset, uuid.UUID(str(item["source_asset_id"])))
+            contract_hash = _security_contract_hash(contract, source.schema_signature, int(definition.revision or 1))
+            existing = session.scalar(select(DataSecurityAccessMapping).where(
+                DataSecurityAccessMapping.pipeline_id == pipeline.id,
+                DataSecurityAccessMapping.standard_asset_id == standard.id,
+                DataSecurityAccessMapping.source_asset_id == source.id,
+                DataSecurityAccessMapping.source_field == str(item["source_field"]),
+                DataSecurityAccessMapping.standard_field == str(item["standard_field"]),
+            ))
+            values = {
+                "sm4_task_definition_id": definition.id,
+                "sm4_task_revision": int(definition.revision or 1),
+                "source_database": source.database,
+                "source_table": source.table_name,
+                "source_schema_signature": source.schema_signature,
+                "access_database": str(contract["access_database"]),
+                "access_table": str(contract["access_table"]),
+                "contract_hash": contract_hash,
+                "state": "planned",
+                "evidence": {"contract": contract, "workflow_version_id": str(pipeline.standard_workflow_version_id)},
+            }
+            if existing:
+                for key, value in values.items(): setattr(existing, key, value)
+                existing.secured_asset_id = None; existing.secured_database = None; existing.secured_table = None
+            else:
+                session.add(DataSecurityAccessMapping(id=uuid.uuid4(), pipeline_id=pipeline.id, standard_asset_id=standard.id, source_asset_id=source.id, source_field=str(item["source_field"]), standard_field=str(item["standard_field"]), **values))
+        session.commit()
+        from recovery_service.services.doris_encryption import create_sm4_batch_task
+        result = create_sm4_batch_task(profile, database=definition.database, tables=[{"table_name": table, "columns": sorted(columns)} for table, columns in grouped.items()], table_strategy=definition.table_strategy, target_suffix=definition.target_suffix, actor=actor)
+        return {"batch_id": str(result.batch_id), "status": result.state, "tables": [{"table_name": table, "columns": sorted(columns)} for table, columns in grouped.items()], "plan": plan}
+    finally:
+        session.close()
+
+
+def _coverage_contract_matches(contract: dict[str, Any], standard: DataAsset, source: DataAsset | None, edge: DataLineageEdge) -> bool:
+    if not source:
+        return False
+    expected = {
+        "standard_database": standard.database, "standard_table": standard.table_name, "standard_field": edge.target_field,
+        "source_database": source.database, "source_table": source.table_name, "source_field": edge.source_field,
+    }
+    return all(str(contract.get(key) or "").casefold() == str(value or "").casefold() for key, value in expected.items())
+
+
+def _security_contract_hash(contract: dict[str, Any], schema: str, revision: int) -> str:
+    payload = json.dumps({"contract": contract, "schema": schema, "revision": revision}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _build_security_orchestration_snapshot(
+    session,
+    pipeline: DataAutomationPipeline,
+    standard: DataAsset,
+    definition: DorisSm4TaskDefinition,
+    plan: dict[str, Any],
+    *,
+    enabled: bool,
+    actor: AuthContext | None,
+) -> dict[str, Any]:
+    if not pipeline.standard_workflow_version_id:
+        raise ValueError("安全编排必须绑定已冻结的 DWD 生产工作流版本。")
+    source_assets: dict[str, dict[str, Any]] = {}
+    field_contracts: list[dict[str, Any]] = []
+    for item in plan["suggestions"]:
+        if not item["auto_eligible"]:
+            continue
+        source = session.get(DataAsset, uuid.UUID(str(item["source_asset_id"])))
+        if not source or source.engine.casefold() != "doris" or source.layer != "raw":
+            raise ValueError("反向加密源资产必须是 Doris ODS 原始层资产。")
+        source_assets[str(source.id)] = {
+            "asset_id": str(source.id),
+            "database": source.database,
+            "table_name": source.table_name,
+            "schema_signature": source.schema_signature,
+        }
+        contract_hash = _security_contract_hash(dict(item["contract"]), source.schema_signature, int(definition.revision or 1))
+        field_contracts.append({
+            "standard_field": item["standard_field"],
+            "source_asset_id": str(source.id),
+            "source_field": item["source_field"],
+            "access_database": item["contract"]["access_database"],
+            "access_table": item["contract"]["access_table"],
+            "contract_hash": contract_hash,
+        })
+    now = app_now().isoformat()
+    return {
+        "enabled": enabled,
+        "mode": "ods_protected",
+        "standard_asset_id": str(standard.id),
+        "standard_schema_signature": standard.schema_signature,
+        "standard_workflow_version_id": str(pipeline.standard_workflow_version_id),
+        "sm4_task_definition_id": str(definition.id),
+        "sm4_task_revision": int(definition.revision or 1),
+        "required_standard_fields": list(plan["required_standard_fields"]),
+        "source_assets": list(source_assets.values()),
+        "field_contracts": field_contracts,
+        "enabled_at": now if enabled else None,
+        "enabled_by": actor.username if enabled and actor else None,
+        "prepared_at": None if enabled else now,
+        "prepared_by": actor.username if not enabled and actor else None,
+    }
+
+
+def _validate_protected_batch(session, pipeline: DataAutomationPipeline, batch: DataAutomationBatch) -> uuid.UUID:
+    snapshot = dict((batch.context or {}).get("security_orchestration") or {})
+    if snapshot.get("mode") != "ods_protected" or not snapshot.get("enabled"):
+        raise ValueError("批次缺少已启用的 ODS 安全编排快照。")
+    standard_asset_id = _uuid_or_none(snapshot.get("standard_asset_id"))
+    definition_id = _uuid_or_none(snapshot.get("sm4_task_definition_id"))
+    workflow_version_id = _uuid_or_none(snapshot.get("standard_workflow_version_id"))
+    if not standard_asset_id or not definition_id or not workflow_version_id:
+        raise ValueError("ODS 安全编排快照缺少标准资产、SM4 修订或 DWD 工作流版本。")
+    if pipeline.standard_workflow_version_id != workflow_version_id or pipeline.sm4_task_definition_id != definition_id:
+        raise ValueError("业务流绑定已偏离批次冻结版本，必须重新核验后才能继续。")
+    definition = session.get(DorisSm4TaskDefinition, definition_id)
+    standard = session.get(DataAsset, standard_asset_id)
+    if not definition or int(definition.revision or 1) != int(snapshot.get("sm4_task_revision") or 0):
+        raise ValueError("SM4 任务修订已偏离批次冻结合同，已阻断安全编排。")
+    if not standard or standard.schema_signature != str(snapshot.get("standard_schema_signature") or ""):
+        raise ValueError("DWD 标准资产结构已偏离批次冻结合同，已阻断安全编排。")
+    batch_raw_ids = {str(value) for value in (batch.raw_target or {}).get("asset_ids") or []}
+    for expected in snapshot.get("source_assets") or []:
+        source_id = str(expected.get("asset_id") or "")
+        source = session.get(DataAsset, _uuid_or_none(source_id))
+        if not source or source_id not in batch_raw_ids or source.engine.casefold() != "doris" or source.layer != "raw":
+            raise ValueError("本批次未产生冻结合同要求的 Doris ODS 源资产。")
+        if (
+            source.database != str(expected.get("database") or "")
+            or source.table_name != str(expected.get("table_name") or "")
+            or source.schema_signature != str(expected.get("schema_signature") or "")
+        ):
+            raise ValueError(f"ODS 资产 {source.database}.{source.table_name} 的 Schema 已漂移，已阻断安全编排。")
+    plan = _build_security_access_plan_in_session(session, standard.id, pipeline.id)
+    if not plan["ready"] or list(plan["required_standard_fields"]) != list(snapshot.get("required_standard_fields") or []):
+        raise ValueError("字段血缘或敏感字段范围已偏离批次冻结合同，已阻断安全编排。")
+    current_hashes = set()
+    for item in plan["suggestions"]:
+        if item["auto_eligible"]:
+            source = session.get(DataAsset, uuid.UUID(str(item["source_asset_id"])))
+            current_hashes.add(_security_contract_hash(dict(item["contract"]), source.schema_signature, int(definition.revision or 1)))
+    frozen_hashes = {str(item.get("contract_hash") or "") for item in snapshot.get("field_contracts") or []}
+    if current_hashes != frozen_hashes:
+        raise ValueError("ODS 字段覆盖合同已漂移，已阻断安全编排。")
+    return standard.id
+
+
+def list_security_access_mappings(pipeline_id: uuid.UUID | None = None) -> list[dict[str, Any]]:
+    session = get_sync_session_factory()()
+    try:
+        stmt = select(DataSecurityAccessMapping).order_by(desc(DataSecurityAccessMapping.updated_at)).limit(500)
+        if pipeline_id:
+            stmt = stmt.where(DataSecurityAccessMapping.pipeline_id == pipeline_id)
+        return [_security_access_mapping_dict(item) for item in session.scalars(stmt).all()]
+    finally:
+        session.close()
+
+
+def get_security_orchestration_ledger() -> dict[str, Any]:
+    """Project existing pipeline facts into the business-flow operations ledger."""
+    session = get_sync_session_factory()()
+    try:
+        _reconcile_stage_dispatches(session)
+        session.commit()
+        flows = []
+        pipelines = session.scalars(select(DataAutomationPipeline).order_by(DataAutomationPipeline.name)).all()
+        for pipeline in pipelines:
+            batches = session.scalars(
+                select(DataAutomationBatch)
+                .where(DataAutomationBatch.pipeline_id == pipeline.id)
+                .order_by(desc(DataAutomationBatch.updated_at))
+                .limit(12)
+            ).all()
+            latest_batch = batches[0] if batches else None
+            mappings = session.scalars(
+                select(DataSecurityAccessMapping)
+                .where(DataSecurityAccessMapping.pipeline_id == pipeline.id)
+                .order_by(desc(DataSecurityAccessMapping.updated_at))
+            ).all()
+            standard_asset_id = _latest_standard_asset_id(session, pipeline, latest_batch)
+            events = []
+            if latest_batch:
+                rows = session.scalars(
+                    select(DataAutomationEvent)
+                    .where(DataAutomationEvent.batch_id == latest_batch.id)
+                    .order_by(desc(DataAutomationEvent.created_at))
+                    .limit(12)
+                ).all()
+                events = [_event_dict(item) for item in rows]
+            config = dict(pipeline.config or {})
+            enabled = bool(config.get("security_access_enabled") and config.get("auto_encryption_enabled"))
+            flows.append({
+                **_pipeline_dict(pipeline),
+                "security_orchestration_enabled": enabled,
+                "security_orchestration": dict(config.get("security_orchestration") or {}),
+                "flow_mode": "ods_protected" if enabled else "learning",
+                "standard_asset_id": str(standard_asset_id) if standard_asset_id else None,
+                "latest_batch": _ledger_batch_dict(session, latest_batch) if latest_batch else None,
+                "batches": [_ledger_batch_dict(session, item) for item in batches],
+                "events": events,
+                "mappings": [_security_access_mapping_dict(item) for item in mappings],
+                "mapping_summary": {
+                    "total": len(mappings),
+                    "active": sum(item.state == "active" for item in mappings),
+                    "blocked": sum(item.state == "blocked" for item in mappings),
+                },
+            })
+        return {
+            "flows": flows,
+            "summary": {
+                "flow_count": len(flows),
+                "enabled_count": sum(item["security_orchestration_enabled"] for item in flows),
+                "running_count": sum(bool(item["latest_batch"] and item["latest_batch"]["state"] not in _TERMINAL_BATCH_STATES) for item in flows),
+                "active_mapping_count": sum(item["mapping_summary"]["active"] for item in flows),
+                "exception_count": sum(bool(item["latest_batch"] and item["latest_batch"]["state"] in {"blocked", "failed", "partial"}) for item in flows),
+            },
+        }
+    finally:
+        session.close()
+
+
+def get_security_orchestration_readiness(
+    pipeline_id: uuid.UUID,
+    standard_asset_id: uuid.UUID | None = None,
+) -> dict[str, Any]:
+    session = get_sync_session_factory()()
+    try:
+        pipeline = session.get(DataAutomationPipeline, pipeline_id)
+        if not pipeline:
+            raise KeyError("数据自动化流水线不存在。")
+        asset_id = standard_asset_id or _latest_standard_asset_id(session, pipeline)
+        if not asset_id:
+            raise ValueError("该业务流尚无可核验的标准资产。")
+        standard = session.get(DataAsset, asset_id)
+        if not standard or standard.layer != "standard":
+            raise ValueError("指定资产不是可用于安全编排的标准资产。")
+        _assert_standard_asset_for_pipeline(session, pipeline, standard)
+        plan = _build_security_access_plan_in_session(session, standard.id, pipeline.id)
+        return {
+            "pipeline_id": str(pipeline.id),
+            "pipeline_name": pipeline.name,
+            "standard_asset_id": str(standard.id),
+            "standard_asset": _asset_dict(standard),
+            "security_orchestration_enabled": bool((pipeline.config or {}).get("security_access_enabled") and (pipeline.config or {}).get("auto_encryption_enabled")),
+            "plan": plan,
+        }
+    finally:
+        session.close()
+
+
+def enable_security_orchestration(
+    pipeline_id: uuid.UUID,
+    standard_asset_id: uuid.UUID,
+    *,
+    confirm: bool,
+    actor: AuthContext | None = None,
+) -> dict[str, Any]:
+    if not confirm:
+        raise ValueError("启用后续批次自动反向加密会写入安全对象，必须显式确认。")
+    session = get_sync_session_factory()()
+    try:
+        pipeline = session.get(DataAutomationPipeline, pipeline_id)
+        standard = session.get(DataAsset, standard_asset_id)
+        if not pipeline or not standard or standard.layer != "standard":
+            raise ValueError("流水线或标准资产不存在，无法启用安全编排。")
+        _assert_standard_asset_for_pipeline(session, pipeline, standard)
+        plan = _build_security_access_plan_in_session(session, standard.id, pipeline.id)
+        if not plan["ready"]:
+            raise ValueError(plan["reason"])
+        definition = session.get(DorisSm4TaskDefinition, pipeline.sm4_task_definition_id)
+        if not definition:
+            raise ValueError("流水线绑定的 SM4 任务定义不存在。")
+        snapshot = _build_security_orchestration_snapshot(
+            session, pipeline, standard, definition, plan, enabled=True, actor=actor
+        )
+        config = dict(pipeline.config or {})
+        already_enabled = bool(config.get("security_access_enabled") and config.get("auto_encryption_enabled"))
+        config.update({
+            "security_access_enabled": True,
+            "auto_encryption_enabled": True,
+            "security_orchestration": snapshot,
+        })
+        pipeline.config = config
+        pipeline.updated_at = app_now()
+        batch_id = standard.last_batch_id
+        batch = session.get(DataAutomationBatch, batch_id) if batch_id else None
+        if batch and batch.pipeline_id == pipeline.id:
+            _event(
+                session,
+                batch,
+                "security_orchestration_enabled",
+                "success",
+                "安全编排已启用；后续批次将在 ODS 加密与安全路由激活后运行 DWD SQL。",
+                {"standard_asset_id": str(standard.id), "contract_fields": plan["required_standard_fields"]},
+            )
+        if not already_enabled:
+            activation_batch_id = _prepare_security_orchestration_batch(session, pipeline, standard, trigger="security_orchestration_enable")
+        else:
+            activation_batch_id = None
+        session.commit()
+        return {
+            "pipeline": _pipeline_dict(pipeline),
+            "standard_asset_id": str(standard.id),
+            "security_orchestration_enabled": True,
+            "activation_batch_id": activation_batch_id,
+            "plan": plan,
+        }
+    finally:
+        session.close()
+
+
+def prepare_security_orchestration(
+    pipeline_id: uuid.UUID,
+    standard_asset_id: uuid.UUID,
+    *,
+    confirm: bool,
+    actor: AuthContext | None = None,
+) -> dict[str, Any]:
+    if not confirm:
+        raise ValueError("生成反向加密任务会创建安全对象，必须显式确认。")
+    session = get_sync_session_factory()()
+    try:
+        pipeline = session.get(DataAutomationPipeline, pipeline_id)
+        standard = session.get(DataAsset, standard_asset_id)
+        if not pipeline or not standard or standard.layer != "standard":
+            raise ValueError("流水线或标准资产不存在，无法生成反向加密任务。")
+        _assert_standard_asset_for_pipeline(session, pipeline, standard)
+        plan = _build_security_access_plan_in_session(session, standard.id, pipeline.id)
+        if not plan["ready"]:
+            raise ValueError(plan["reason"])
+        definition = session.get(DorisSm4TaskDefinition, pipeline.sm4_task_definition_id)
+        if not definition:
+            raise ValueError("流水线绑定的 SM4 任务定义不存在。")
+        config = dict(pipeline.config or {})
+        config["security_access_enabled"] = True
+        config["security_orchestration"] = _build_security_orchestration_snapshot(
+            session, pipeline, standard, definition, plan, enabled=False, actor=actor
+        )
+        pipeline.config = config
+        activation_batch_id = _prepare_security_orchestration_batch(session, pipeline, standard, trigger="security_orchestration_prepare")
+        session.commit()
+        return {
+            "pipeline": _pipeline_dict(pipeline),
+            "standard_asset_id": str(standard.id),
+            "activation_batch_id": activation_batch_id,
+            "plan": plan,
+        }
+    finally:
+        session.close()
+
+
+def submit_security_orchestration_encryption(
+    batch_id: uuid.UUID,
+    *,
+    confirm: bool,
+    actor: AuthContext | None = None,
+) -> dict[str, Any]:
+    if not confirm:
+        raise ValueError("提交反向 SM4 加密任务会写入安全对象，必须显式确认。")
+    session = get_sync_session_factory()()
+    try:
+        batch = session.get(DataAutomationBatch, batch_id)
+        pipeline = session.get(DataAutomationPipeline, batch.pipeline_id) if batch else None
+        if not batch or not pipeline:
+            raise KeyError("业务数据批次或流水线不存在。")
+        if batch.state != "encryption_ready":
+            raise ValueError("当前批次不处于可提交加密状态。")
+        if not bool((pipeline.config or {}).get("security_access_enabled")):
+            raise ValueError("安全访问尚未准备，不能提交明文回退风险的加密任务。")
+        _submit_security_encryption(session, pipeline, batch, actor=actor)
+        session.commit()
+        dispatch_pending_stage_tasks()
+        return _ledger_batch_dict(session, batch)
+    finally:
+        session.close()
+
+
+def activate_security_orchestration_access(batch_id: uuid.UUID, *, confirm: bool) -> dict[str, Any]:
+    if not confirm:
+        raise ValueError("激活安全访问会切换 Doris 下游账号的逻辑访问别名，必须显式确认。")
+    session = get_sync_session_factory()()
+    try:
+        batch = session.get(DataAutomationBatch, batch_id)
+        pipeline = session.get(DataAutomationPipeline, batch.pipeline_id) if batch else None
+        if not batch or not pipeline:
+            raise KeyError("业务数据批次或流水线不存在。")
+        _complete_security_encryption(session, pipeline, batch)
+        session.commit()
+        dispatch_pending_stage_tasks()
+        if batch.state == "completed" and (batch.context or {}).get("openmetadata_sync_pending"):
+            queued = _enqueue_openmetadata_snapshot(batch_id=batch.id)
+            batch.context = {
+                **dict(batch.context or {}),
+                "openmetadata_sync_pending": False,
+                "openmetadata_sync_state": "queued" if queued else "failed",
+            }
+            session.commit()
+        return _ledger_batch_dict(session, batch)
+    finally:
+        session.close()
+
+
+def _prepare_security_orchestration_batch(session, pipeline: DataAutomationPipeline, standard: DataAsset, *, trigger: str) -> str | None:
+    for candidate in session.scalars(
+        select(DataAutomationBatch)
+        .where(
+            DataAutomationBatch.pipeline_id == pipeline.id,
+            DataAutomationBatch.state.in_({"encryption_ready", "encrypting"}),
+        )
+        .order_by(desc(DataAutomationBatch.updated_at))
+        .limit(100)
+    ):
+        if str((candidate.context or {}).get("encryption_standard_asset_id") or "") == str(standard.id):
+            return str(candidate.id)
+    batch = session.get(DataAutomationBatch, standard.last_batch_id) if standard.last_batch_id else None
+    if not batch or batch.pipeline_id != pipeline.id:
+        raise ValueError("标准资产缺少可审计的业务数据批次，不能生成反向加密任务。")
+    if batch.state in {"encryption_ready", "encrypting"} and str((batch.context or {}).get("encryption_standard_asset_id") or "") == str(standard.id):
+        return str(batch.id)
+    if batch.state == "standard_ready":
+        batch.context = {**dict(batch.context or {}), "encryption_standard_asset_id": str(standard.id)}
+        batch.state = "encryption_ready"
+        batch.message = "反向 SM4 加密任务已生成，等待提交。"
+        _event(session, batch, "encryption_planned", "success", batch.message, {"standard_asset_id": str(standard.id), "trigger": trigger})
+        return str(batch.id)
+    source_key = f"security-orchestration:{pipeline.id}:{standard.id}:{app_now().isoformat()}"
+    activation_batch = DataAutomationBatch(
+        pipeline_id=pipeline.id,
+        state="encryption_ready",
+        source_path=f"security-orchestration://{pipeline.id}/{standard.id}",
+        source_files=[],
+        source_fingerprint=hashlib.sha256(source_key.encode("utf-8")).hexdigest(),
+        restored_target=dict(batch.restored_target or {}),
+        raw_target=dict(batch.raw_target or {}),
+        standard_target={"asset_ids": [str(standard.id)]},
+        context={
+            "flow_mode": "learning",
+            "encryption_standard_asset_id": str(standard.id),
+            "security_orchestration": _copy_json((pipeline.config or {}).get("security_orchestration") or {}),
+            "security_orchestration_backfill": True,
+        },
+        message="反向 SM4 加密任务已生成，已创建仅加密阶段的补偿批次。",
+    )
+    session.add(activation_batch)
+    session.flush()
+    _event(session, activation_batch, "security_orchestration_backfill_created", "success", activation_batch.message, {"standard_asset_id": str(standard.id), "source_batch_id": str(batch.id), "trigger": trigger})
+    return str(activation_batch.id)
+
+
+def _latest_standard_asset_id(session, pipeline: DataAutomationPipeline, latest_batch: DataAutomationBatch | None = None) -> uuid.UUID | None:
+    candidates = [latest_batch] if latest_batch else []
+    if not latest_batch:
+        candidates.extend(session.scalars(
+            select(DataAutomationBatch)
+            .where(DataAutomationBatch.pipeline_id == pipeline.id)
+            .order_by(desc(DataAutomationBatch.updated_at))
+            .limit(100)
+        ).all())
+    for batch in candidates:
+        if not batch:
+            continue
+        for value in (batch.standard_target or {}).get("asset_ids") or []:
+            asset = session.get(DataAsset, _uuid_or_none(value))
+            if asset and asset.layer == "standard":
+                return asset.id
+    target = dict(pipeline.standard_target or {})
+    definitions = list(target.get("assets") or ([target] if target.get("database") and target.get("table_name") else []))
+    for item in definitions:
+        stmt = select(DataAsset.id).where(
+            DataAsset.layer == "standard",
+            DataAsset.database == str(item.get("database") or ""),
+            DataAsset.table_name == str(item.get("table_name") or ""),
+        )
+        connection_id = _uuid_or_none(item.get("connection_id"))
+        stmt = stmt.where(DataAsset.connection_id == connection_id) if connection_id else stmt
+        asset_id = session.scalar(stmt.order_by(desc(DataAsset.updated_at)).limit(1))
+        if asset_id:
+            return asset_id
+    return None
+
+
+def _assert_standard_asset_for_pipeline(session, pipeline: DataAutomationPipeline, asset: DataAsset) -> None:
+    for batch in session.scalars(
+        select(DataAutomationBatch)
+        .where(DataAutomationBatch.pipeline_id == pipeline.id)
+        .order_by(desc(DataAutomationBatch.updated_at))
+        .limit(100)
+    ):
+        if str(asset.id) in {str(value) for value in (batch.standard_target or {}).get("asset_ids") or []}:
+            return
+    target = dict(pipeline.standard_target or {})
+    definitions = list(target.get("assets") or ([target] if target.get("database") and target.get("table_name") else []))
+    for item in definitions:
+        connection_id = _uuid_or_none(item.get("connection_id"))
+        if (
+            asset.database == str(item.get("database") or "")
+            and asset.table_name == str(item.get("table_name") or "")
+            and (connection_id is None or asset.connection_id == connection_id)
+        ):
+            return
+    raise ValueError("指定标准资产不属于该业务数据流，已阻止跨流启用。")
+
+
 def start_data_automation_scheduler() -> None:
     global _SCHEDULER_THREAD
     with _SCHEDULER_LOCK:
@@ -894,6 +1779,49 @@ def _scheduler_loop() -> None:
             continue
 
 
+def _queue_standardization(session, pipeline: DataAutomationPipeline, batch: DataAutomationBatch, *, trigger_type: str) -> None:
+    if not pipeline.standard_workflow_version_id:
+        raise ValueError("业务流尚未绑定 DWD 标准化工作流版本。")
+    from recovery_service.services.data_platform import prepare_workflow_run
+
+    trigger_context = {
+        "pipeline_id": str(pipeline.id),
+        "batch_id": str(batch.id),
+        "restored_target": batch.restored_target,
+        "raw_target": batch.raw_target,
+    }
+    if _batch_is_protected(batch):
+        _validate_protected_batch(session, pipeline, batch)
+        trigger_context["security_access_mode"] = "protected_etl"
+        trigger_context["security_orchestration"] = _copy_json((batch.context or {}).get("security_orchestration") or {})
+    run = prepare_workflow_run(
+        session,
+        pipeline.standard_workflow_version_id,
+        trigger_type=trigger_type,
+        trigger_context=trigger_context,
+    )
+    batch.standard_run_id = run.id
+    batch.state = "standardize_queued"
+    batch.message = "DWD 标准化离线流程已按安全路由排队。" if _batch_is_protected(batch) else "标准化离线流程已排队。"
+    _register_stage_dispatch(session, batch, "standardize", "workflow_run", run.id)
+    _event(
+        session,
+        batch,
+        "standardize_queued",
+        "success",
+        batch.message,
+        {"run_id": str(run.id), "security_access_mode": trigger_context.get("security_access_mode", "trusted")},
+    )
+
+
+def _mark_batch_completed(session, batch: DataAutomationBatch, message: str) -> None:
+    batch.state = "completed"
+    batch.finished_at = app_now()
+    batch.message = message
+    batch.context = {**dict(batch.context or {}), "openmetadata_sync_pending": True}
+    _event(session, batch, "pipeline_completed", "success", batch.message)
+
+
 def _advance_one(session, batch: DataAutomationBatch) -> bool:
     if (batch.context or {}).get("assistant_plan_id"):
         from recovery_service.services.assistant_execution import advance
@@ -904,6 +1832,10 @@ def _advance_one(session, batch: DataAutomationBatch) -> bool:
     if batch.restore_task_id and batch.state in {"restore_queued", "restoring"}:
         task = session.get(RecoveryTask, batch.restore_task_id)
         if not task: raise KeyError("关联恢复任务不存在。")
+        if task.state == "created":
+            dispatch_status = _dispatch_status_for_target(session, "recovery_task", task.id)
+            if dispatch_status in {"pending", "dispatching"}:
+                batch.state = "restore_queued"; batch.message = "Oracle 恢复任务已登记，等待可靠派发。"; return False
         if task.state in {"created", "policy_running", "importing", "correcting", "validating", "stopping"}:
             batch.state = "restoring"; batch.message = f"Oracle 恢复任务正在执行：{task.state}"; return False
         if task.state not in {"succeeded", "succeeded_with_warnings"}:
@@ -915,27 +1847,53 @@ def _advance_one(session, batch: DataAutomationBatch) -> bool:
         batch.restored_target = {"connection": task.target_connection, "schema": target_schema, "metadata": metadata}
         batch.state = "restored"; batch.message = f"Oracle 已恢复到 {target_schema}。"; _event(session, batch, "restore_succeeded", "success", batch.message, batch.restored_target)
         if pipeline.data_sync_node_id:
-            from recovery_service.services.data_platform import submit_component_task_run
-            result = submit_component_task_run(pipeline.data_sync_node_id, {"pipeline_batch_id": str(batch.id), "restored_target": batch.restored_target})
-            batch.sync_run_id = uuid.UUID(result["run_id"]); batch.state = "sync_queued"; batch.message = "数据同步任务已排队。"; _event(session, batch, "sync_queued", "success", batch.message, result)
+            from recovery_service.services.data_platform import prepare_component_task_run
+
+            run = prepare_component_task_run(
+                session,
+                pipeline.data_sync_node_id,
+                {
+                    "pipeline_batch_id": str(batch.id),
+                    "restored_target": batch.restored_target,
+                    "sync_all_tables": True,
+                },
+            )
+            batch.sync_run_id = run.id
+            batch.state = "sync_queued"
+            batch.message = "数据同步任务已登记，等待可靠派发。"
+            _register_stage_dispatch(session, batch, "sync", "component_run", run.id)
+            _event(session, batch, "sync_queued", "success", batch.message, {"run_id": str(run.id)})
         else:
             batch.state = "raw_ready"; batch.message = "未绑定数据同步任务，等待登记原始资产。"
         return True
     if batch.sync_run_id and batch.state in {"sync_queued", "syncing"}:
         run = session.get(DataPlatformComponentRun, batch.sync_run_id)
         if not run: raise KeyError("关联数据同步运行不存在。")
+        if run.status == "queued" and _dispatch_status_for_target(session, "component_run", run.id) in {"pending", "dispatching"}:
+            batch.state = "sync_queued"; batch.message = "数据同步任务已登记，等待可靠派发。"; return False
         if run.status in {"queued", "running"}: batch.state = "syncing"; batch.message = run.message; return False
         if run.status not in {"succeeded", "success"}: batch.state = "failed"; batch.resume_from_stage = "sync_queued"; batch.error_message = run.message or "数据同步失败。"; _event(session, batch, "sync_failed", "failed", batch.error_message); return True
         asset_ids = _record_sync_assets(session, pipeline, batch, run)
         batch.raw_target = {**dict(run.result or {}), "asset_ids": [str(item) for item in asset_ids]}; batch.state = "raw_ready"; batch.message = "Doris 原始层同步完成并已登记数据资产与血缘。"; _event(session, batch, "sync_succeeded", "success", batch.message, batch.raw_target)
-        if pipeline.standard_workflow_version_id:
-            from recovery_service.services.data_platform import run_version
-            result = run_version(pipeline.standard_workflow_version_id, trigger_type="data_automation", trigger_context={"pipeline_id": str(pipeline.id), "batch_id": str(batch.id), "restored_target": batch.restored_target, "raw_target": batch.raw_target})
-            batch.standard_run_id = result.run_id; batch.state = "standardize_queued"; batch.message = "标准化离线流程已排队。"; _event(session, batch, "standardize_queued", "success", batch.message, {"run_id": str(result.run_id)})
+        if _batch_is_protected(batch):
+            standard_asset_id = _validate_protected_batch(session, pipeline, batch)
+            batch.context = {
+                **dict(batch.context or {}),
+                "encryption_standard_asset_id": str(standard_asset_id),
+                "security_contract_validated_at": app_now().isoformat(),
+            }
+            batch.state = "encryption_ready"
+            batch.message = "ODS 冻结合同与 Schema 校验通过，等待执行批次前置 SM4。"
+            _event(session, batch, "security_contract_validated", "success", batch.message, {"standard_asset_id": str(standard_asset_id)})
+            _event(session, batch, "encryption_planned", "success", "ODS 前置 SM4 任务已生成。", {"standard_asset_id": str(standard_asset_id), "flow_mode": "ods_protected"})
+        elif pipeline.standard_workflow_version_id:
+            _queue_standardization(session, pipeline, batch, trigger_type="data_automation")
         return True
     if batch.standard_run_id and batch.state in {"standardize_queued", "standardizing"}:
         run = session.get(DataPlatformWorkflowRun, batch.standard_run_id)
         if not run: raise KeyError("关联标准化运行不存在。")
+        if run.status == "queued" and _dispatch_status_for_target(session, "workflow_run", run.id) in {"pending", "dispatching"}:
+            batch.state = "standardize_queued"; batch.message = "标准化流程已登记，等待可靠派发。"; return False
         if run.status in {"queued", "running"}: batch.state = "standardizing"; batch.message = run.message; return False
         if run.status != "succeeded": batch.state = "failed"; batch.resume_from_stage = "standardize_queued"; batch.error_message = run.message or "标准化流程失败。"; _event(session, batch, "standardize_failed", "failed", batch.error_message); return True
         standard_assets = _record_standard_assets(session, pipeline, batch)
@@ -943,30 +1901,181 @@ def _advance_one(session, batch: DataAutomationBatch) -> bool:
         for asset in standard_assets:
             _classify_asset_in_session(session, asset)
         batch.state = "standard_ready"; batch.message = "标准层流程执行完成，血缘与分级结果已固化。"; _event(session, batch, "standardize_succeeded", "success", batch.message, batch.standard_target)
+        if _batch_is_protected(batch):
+            _mark_batch_completed(session, batch, "本批次已完成 Oracle 还原、ODS 前置加密、安全路由、DWD SQL 与血缘同步。")
+            return True
         if pipeline.sm4_task_definition_id and bool((pipeline.config or {}).get("auto_encryption_enabled")):
             eligible_assets = [asset for asset in standard_assets if _reverse_plan_in_session(session, asset.id)]
             if len(eligible_assets) == 1:
+                if bool((pipeline.config or {}).get("security_access_enabled")):
+                    access_plan = _build_security_access_plan_in_session(session, eligible_assets[0].id, pipeline.id)
+                    if not access_plan["ready"]:
+                        batch.state = "blocked"; batch.resume_from_stage = "standard_ready"; batch.error_message = access_plan["reason"]
+                        _event(session, batch, "security_access_blocked", "blocked", batch.error_message, access_plan)
+                        return True
                 batch.context = {**dict(batch.context or {}), "encryption_standard_asset_id": str(eligible_assets[0].id)}
                 batch.state = "encryption_ready"; batch.message = "反向 SM4 加密计划已生成，等待安全提交。"; _event(session, batch, "encryption_planned", "success", batch.message, {"standard_asset_id": str(eligible_assets[0].id)})
             elif len(eligible_assets) > 1:
                 batch.state = "blocked"; batch.resume_from_stage = "standard_ready"; batch.error_message = "存在多个可加密标准资产，需要人工确认目标。"
         return True
     if batch.state == "encryption_ready":
-        asset_id = _uuid_or_none((batch.context or {}).get("encryption_standard_asset_id"))
-        if not asset_id: raise ValueError("加密计划缺少标准资产。")
-        execution = execute_reverse_encryption_plan(asset_id, pipeline.id, confirm=True)
-        batch.encryption_batch_id = uuid.UUID(execution["batch_id"]); batch.state = "encrypting"; batch.message = "反向 SM4 加密任务已排队。"; _event(session, batch, "encryption_queued", "success", batch.message, execution); return True
+        _submit_security_encryption(session, pipeline, batch)
+        return True
     if batch.encryption_batch_id and batch.state == "encrypting":
-        job = session.get(DorisSm4BatchJob, batch.encryption_batch_id)
-        if not job: raise KeyError("关联 SM4 加密批次不存在。")
-        if job.state in {"queued", "running"}: return False
-        if job.state not in {"succeeded", "success"}:
-            batch.state = "failed"; batch.resume_from_stage = "standard_ready"; batch.error_message = job.message or "SM4 加密任务失败。"; _event(session, batch, "encryption_failed", "failed", batch.error_message); return True
-        _record_secured_assets(session, pipeline, batch, job)
-        batch.state = "completed"; batch.finished_at = app_now(); batch.message = "自动恢复、同步、标准化、分级与加密全链路已完成。"; _event(session, batch, "pipeline_completed", "success", batch.message); return True
+        return _complete_security_encryption(session, pipeline, batch)
     if batch.state == "standard_ready":
-        batch.state = "completed"; batch.finished_at = app_now(); batch.message = "自动恢复、同步、标准化、血缘与分级链路已完成。"; _event(session, batch, "pipeline_completed", "success", batch.message); return True
+        _mark_batch_completed(session, batch, "自动恢复、同步、标准化、血缘与分级链路已完成。")
+        return True
     return False
+
+
+def _prepare_automation_encryption_job(
+    session,
+    pipeline: DataAutomationPipeline,
+    standard_asset_id: uuid.UUID,
+    *,
+    actor: AuthContext | None = None,
+) -> tuple[DorisSm4BatchJob, list[dict[str, Any]]]:
+    standard = session.get(DataAsset, standard_asset_id)
+    definition = session.get(DorisSm4TaskDefinition, pipeline.sm4_task_definition_id) if pipeline.sm4_task_definition_id else None
+    profile = session.get(DatabaseConnectionProfile, definition.connection_id) if definition else None
+    if not standard or not definition or not profile:
+        raise ValueError("自动加密缺少标准资产、SM4 任务定义或 Doris 连接。")
+
+    security_access = bool((pipeline.config or {}).get("security_access_enabled"))
+    grouped: dict[str, set[str]] = {}
+    if security_access:
+        plan = _build_security_access_plan_in_session(session, standard_asset_id, pipeline.id)
+        if not plan["ready"]:
+            raise ValueError(plan["reason"])
+        for item in plan["suggestions"]:
+            if not item["auto_eligible"]:
+                continue
+            grouped.setdefault(str(item["source_table"]), set()).add(str(item["source_field"]))
+            source = session.get(DataAsset, uuid.UUID(str(item["source_asset_id"])))
+            contract = dict(item["contract"])
+            contract_hash = _security_contract_hash(contract, source.schema_signature, int(definition.revision or 1))
+            existing = session.scalar(select(DataSecurityAccessMapping).where(
+                DataSecurityAccessMapping.pipeline_id == pipeline.id,
+                DataSecurityAccessMapping.standard_asset_id == standard.id,
+                DataSecurityAccessMapping.source_asset_id == source.id,
+                DataSecurityAccessMapping.source_field == str(item["source_field"]),
+                DataSecurityAccessMapping.standard_field == str(item["standard_field"]),
+            ))
+            values = {
+                "sm4_task_definition_id": definition.id,
+                "sm4_task_revision": int(definition.revision or 1),
+                "source_database": source.database,
+                "source_table": source.table_name,
+                "source_schema_signature": source.schema_signature,
+                "access_database": str(contract["access_database"]),
+                "access_table": str(contract["access_table"]),
+                "contract_hash": contract_hash,
+                "state": "planned",
+                "evidence": {"contract": contract, "workflow_version_id": str(pipeline.standard_workflow_version_id)},
+            }
+            if existing:
+                for key, value in values.items():
+                    setattr(existing, key, value)
+                existing.secured_asset_id = None
+                existing.secured_database = None
+                existing.secured_table = None
+            else:
+                session.add(DataSecurityAccessMapping(
+                    id=uuid.uuid4(),
+                    pipeline_id=pipeline.id,
+                    standard_asset_id=standard.id,
+                    source_asset_id=source.id,
+                    source_field=str(item["source_field"]),
+                    standard_field=str(item["standard_field"]),
+                    **values,
+                ))
+    else:
+        sensitive = {
+            str(item.get("field") or "")
+            for item in (standard.classification_summary or {}).get("fields") or []
+            if item.get("protection_action") == "sm4" and item.get("auto_apply")
+        }
+        edges = session.scalars(select(DataLineageEdge).where(
+            DataLineageEdge.target_asset_id == standard.id,
+            DataLineageEdge.target_field.in_(sensitive or {"__none__"}),
+            DataLineageEdge.transformation_type.in_(["direct", "rename", "cast"]),
+            DataLineageEdge.review_required.is_(False),
+        )).all()
+        for edge in edges:
+            source = session.get(DataAsset, edge.source_asset_id)
+            if source and source.database.casefold() == definition.database.casefold() and edge.source_field:
+                grouped.setdefault(source.table_name, set()).add(edge.source_field)
+
+    tables = [
+        {"table_name": table, "columns": sorted(columns)}
+        for table, columns in sorted(grouped.items())
+    ]
+    if not tables:
+        raise ValueError("没有符合冻结血缘和 SM4 合同的自动加密字段。")
+    from recovery_service.services.doris_encryption import prepare_sm4_batch_task
+    from recovery_service.services.sm4_runtime_guard import sm4_database_guard
+
+    with sm4_database_guard(profile.id, definition.database):
+        job = prepare_sm4_batch_task(
+            session,
+            profile,
+            database=definition.database,
+            tables=tables,
+            table_strategy=definition.table_strategy,
+            target_suffix=definition.target_suffix,
+            actor=actor,
+        )
+    return job, tables
+
+
+def _submit_security_encryption(session, pipeline: DataAutomationPipeline, batch: DataAutomationBatch, *, actor: AuthContext | None = None) -> None:
+    asset_id = _uuid_or_none((batch.context or {}).get("encryption_standard_asset_id"))
+    if not asset_id:
+        raise ValueError("加密计划缺少标准资产。")
+    if _batch_is_protected(batch) and _validate_protected_batch(session, pipeline, batch) != asset_id:
+        raise ValueError("批次加密目标与冻结安全编排快照不一致。")
+    job, tables = _prepare_automation_encryption_job(session, pipeline, asset_id, actor=actor)
+    batch.encryption_batch_id = job.id
+    batch.state = "encrypting"
+    batch.message = "反向 SM4 加密任务已登记，等待可靠派发。"
+    _register_stage_dispatch(session, batch, "encrypt", "sm4_job", job.id)
+    _event(session, batch, "encryption_queued", "success", batch.message, {"batch_id": str(job.id), "tables": tables, "status": job.state})
+
+
+def _complete_security_encryption(session, pipeline: DataAutomationPipeline, batch: DataAutomationBatch) -> bool:
+    job = session.get(DorisSm4BatchJob, batch.encryption_batch_id) if batch.encryption_batch_id else None
+    if not job:
+        raise KeyError("关联 SM4 加密批次不存在。")
+    # ``reserved`` is a normal hand-off state: the scheduler has claimed the
+    # job but the SM4 worker has not persisted ``running`` yet.  Treating it
+    # as a failure races the worker and leaves a completed encryption batch
+    # behind a failed automation batch.
+    if job.state in {"queued", "reserved", "running"}:
+        if job.state == "queued" and _dispatch_status_for_target(session, "sm4_job", job.id) in {"pending", "dispatching"}:
+            batch.message = "反向 SM4 加密任务已登记，等待可靠派发。"
+        elif job.state == "reserved":
+            batch.message = "反向 SM4 加密任务已派发，等待执行器接收。"
+        else:
+            batch.message = job.message or "反向 SM4 加密任务正在执行。"
+        return False
+    if job.state not in {"succeeded", "success"}:
+        batch.state = "failed"
+        batch.resume_from_stage = "encryption_ready" if _batch_is_protected(batch) else "standard_ready"
+        batch.error_message = job.message or "SM4 加密任务失败。"
+        _event(session, batch, "encryption_failed", "failed", batch.error_message)
+        return True
+    _record_secured_assets(session, pipeline, batch, job)
+    if _batch_is_protected(batch):
+        batch.state = "security_access_active"
+        batch.message = "ODS SM4 与安全别名已激活，准备运行受保护的 DWD 数据加工。"
+        _event(session, batch, "security_access_activated", "success", batch.message, {"security_access_mode": "protected_etl"})
+        # The mapping, workflow run and dispatch record are committed together;
+        # the dispatcher cannot expose the workflow before the mapping exists.
+        _queue_standardization(session, pipeline, batch, trigger_type="data_automation_protected")
+        return True
+    _mark_batch_completed(session, batch, "自动恢复、同步、标准化、分级与 ODS 加密全链路已完成。")
+    return True
 
 
 def _upsert_asset(session, *, connection_id, catalog, database, table_name, layer, domain, columns, batch_id):
@@ -989,6 +2098,9 @@ def _record_sync_assets(session, pipeline, batch, run):
     config = dict(node.config or {}) if node else {}
     if (batch.context or {}).get("assistant_snapshot"):
         config = dict(batch.context["assistant_snapshot"]["sync_config"])
+    runtime_config = dict((run.result or {}).get("config_patch") or {})
+    if runtime_config.get("table_mappings"):
+        config.update(runtime_config)
     source_connection_id = _uuid_or_none(config.get("source_connection_id"))
     target_connection_id = _uuid_or_none(config.get("target_connection_id"))
     results = []
@@ -1065,7 +2177,63 @@ def _record_secured_assets(session, pipeline, batch, job):
             is_encrypted = field.casefold() in encrypted
             session.add(DataLineageEdge(batch_id=batch.id, source_asset_id=source.id, source_field=field, target_asset_id=target.id, target_field=field, transformation_type="expression" if is_encrypted else "direct", expression="SM4_ENCRYPT" if is_encrypted else None, evidence={"sm4_batch_id": str(job.id), "sm4_key_fingerprint": job.sm4_key_fingerprint}, confidence=1.0, review_required=False))
     batch.context = {**dict(batch.context or {}), "secured_asset_ids": secured_ids}
+    if bool((pipeline.config or {}).get("security_access_enabled")):
+        _activate_security_access_for_batch(session, pipeline, batch, job)
     return secured_ids
+
+
+def _activate_security_access_for_batch(session, pipeline, batch, job) -> None:
+    standard_asset_id = _uuid_or_none((batch.context or {}).get("encryption_standard_asset_id"))
+    filters = [
+        DataSecurityAccessMapping.pipeline_id == pipeline.id,
+        DataSecurityAccessMapping.state == "planned",
+    ]
+    if standard_asset_id:
+        filters.append(DataSecurityAccessMapping.standard_asset_id == standard_asset_id)
+    mappings = session.scalars(select(DataSecurityAccessMapping).where(*filters)).all()
+    by_source = {(str(item.get("table_name") or "").casefold()): item for item in (job.results or []) if str(item.get("state") or "").lower() in {"succeeded", "success"}}
+    ready: list[DataSecurityAccessMapping] = []
+    for mapping in mappings:
+        result = by_source.get(mapping.source_table.casefold())
+        if not result:
+            continue
+        secured = session.scalar(select(DataAsset).where(
+            DataAsset.connection_id == job.connection_id,
+            DataAsset.database == str(result.get("target_database") or job.database),
+            DataAsset.table_name == str(result.get("target_table") or ""),
+            DataAsset.layer == "secured",
+        ))
+        if not secured:
+            continue
+        mapping.secured_asset_id = secured.id
+        mapping.secured_database = secured.database
+        mapping.secured_table = secured.table_name
+        mapping.state = "ready"
+        ready.append(mapping)
+    if not ready:
+        raise ValueError("SM4 已完成但没有可激活的安全访问映射。")
+    profile = session.get(DatabaseConnectionProfile, job.connection_id)
+    if not profile:
+        raise ValueError("安全访问映射缺少 Doris 连接。")
+    from recovery_service.services.security_access import create_security_access_views
+    try:
+        create_security_access_views(profile, ready)
+    except Exception as exc:
+        for mapping in ready:
+            mapping.state = "blocked"
+            mapping.evidence = {**dict(mapping.evidence or {}), "activation_error": str(exc)[:1000]}
+        raise ValueError(f"安全视图激活失败，已阻断明文回退：{exc}") from exc
+    for mapping in ready:
+        mapping.state = "active"
+        mapping.evidence = {**dict(mapping.evidence or {}), "batch_id": str(job.id), "sm4_key_fingerprint": job.sm4_key_fingerprint}
+        edge = session.scalar(select(DataLineageEdge).where(
+            DataLineageEdge.source_asset_id == mapping.source_asset_id,
+            DataLineageEdge.source_field == mapping.source_field,
+            DataLineageEdge.target_asset_id == mapping.secured_asset_id,
+            DataLineageEdge.target_field == mapping.source_field,
+        ))
+        if edge:
+            edge.evidence = {**dict(edge.evidence or {}), "security_access": f"{mapping.access_database}.{mapping.access_table}", "security_mapping_id": str(mapping.id)}
 
 
 def _classify_asset_in_session(session, asset):
@@ -1096,10 +2264,9 @@ def _queue_restore(session, pipeline: DataAutomationPipeline, batch: DataAutomat
     options["data_automation"] = {"pipeline_id": str(pipeline.id), "batch_id": str(batch.id), "source_fingerprint": batch.source_fingerprint}
     task = RecoveryTask(remote_host=template.remote_host, remote_port=template.remote_port, remote_user=template.remote_user, remote_password_enc=template.remote_password_enc, remote_directory=template.remote_directory, target_connection=template.target_connection, target_admin_user=template.target_admin_user, target_admin_password_enc=template.target_admin_password_enc, options=options, state="created")
     session.add(task); session.flush()
-    batch.restore_task_id = task.id; batch.state = "restore_queued"; batch.resume_from_stage = None; batch.error_message = None; batch.message = f"Oracle 恢复任务已创建：{source_name}"; _event(session, batch, "restore_queued", "success", batch.message, {"task_id": str(task.id), "dumpfile": source_name})
-    session.commit()
-    from recovery_service.workers.celery_app import celery_app
-    celery_app.send_task("recovery.run_task", args=[str(task.id)], kwargs={"volume_group_index": 0}, queue=get_settings().celery_oracle_queue)
+    batch.restore_task_id = task.id; batch.state = "restore_queued"; batch.resume_from_stage = None; batch.error_message = None; batch.message = f"Oracle 恢复任务已登记：{source_name}"
+    _register_stage_dispatch(session, batch, "restore", "recovery_task", task.id)
+    _event(session, batch, "restore_queued", "success", batch.message, {"task_id": str(task.id), "dumpfile": source_name})
 
 
 def _list_template_dmp_files(template: RecoveryTask, pattern: str) -> list[dict[str, Any]]:
@@ -1496,9 +2663,23 @@ def _optional(value, limit):
 def _uuid_or_none(value): return uuid.UUID(str(value)) if value else None
 def _bounded_int(value, default, minimum, maximum): return max(minimum, min(maximum, int(value if value is not None else default)))
 def _pipeline_dict(row): return {"pipeline_id": str(row.id), "name": row.name, "status": row.status, "auto_watch_enabled": row.auto_watch_enabled, "watch_interval_minutes": row.watch_interval_minutes, "stable_wait_seconds": row.stable_wait_seconds, "file_pattern": row.file_pattern, "restore_template_task_id": str(row.restore_template_task_id) if row.restore_template_task_id else None, "data_sync_node_id": str(row.data_sync_node_id) if row.data_sync_node_id else None, "standard_workflow_version_id": str(row.standard_workflow_version_id) if row.standard_workflow_version_id else None, "sm4_task_definition_id": str(row.sm4_task_definition_id) if row.sm4_task_definition_id else None, "business_domain": row.business_domain, "standard_target": row.standard_target or {}, "config": row.config or {}, "last_scan_at": row.last_scan_at, "next_scan_at": row.next_scan_at, "created_at": row.created_at, "updated_at": row.updated_at}
-def _batch_dict(row): return {"batch_id": str(row.id), "pipeline_id": str(row.pipeline_id), "blueprint_id": str(row.blueprint_id) if row.blueprint_id else None, "blueprint_version": row.blueprint_version, "state": row.state, "resume_from_stage": row.resume_from_stage, "source_path": row.source_path, "source_files": row.source_files or [], "source_fingerprint": row.source_fingerprint, "restore_task_id": str(row.restore_task_id) if row.restore_task_id else None, "sync_run_id": str(row.sync_run_id) if row.sync_run_id else None, "standard_run_id": str(row.standard_run_id) if row.standard_run_id else None, "encryption_batch_id": str(row.encryption_batch_id) if row.encryption_batch_id else None, "restored_target": row.restored_target or {}, "raw_target": row.raw_target or {}, "standard_target": row.standard_target or {}, "schema_signature": row.schema_signature, "match_confidence": row.match_confidence, "match_reason": row.match_reason, "message": row.message, "error_message": row.error_message, "created_at": row.created_at, "updated_at": row.updated_at, "finished_at": row.finished_at}
+def _batch_dict(row): return {"batch_id": str(row.id), "pipeline_id": str(row.pipeline_id), "blueprint_id": str(row.blueprint_id) if row.blueprint_id else None, "blueprint_version": row.blueprint_version, "state": row.state, "resume_from_stage": row.resume_from_stage, "source_path": row.source_path, "source_files": row.source_files or [], "source_fingerprint": row.source_fingerprint, "restore_task_id": str(row.restore_task_id) if row.restore_task_id else None, "sync_run_id": str(row.sync_run_id) if row.sync_run_id else None, "standard_run_id": str(row.standard_run_id) if row.standard_run_id else None, "encryption_batch_id": str(row.encryption_batch_id) if row.encryption_batch_id else None, "restored_target": row.restored_target or {}, "raw_target": row.raw_target or {}, "standard_target": row.standard_target or {}, "context": row.context or {}, "schema_signature": row.schema_signature, "match_confidence": row.match_confidence, "match_reason": row.match_reason, "message": row.message, "error_message": row.error_message, "created_at": row.created_at, "updated_at": row.updated_at, "finished_at": row.finished_at}
+def _ledger_batch_dict(session, row):
+    result = _batch_dict(row)
+    job = session.get(DorisSm4BatchJob, row.encryption_batch_id) if row and row.encryption_batch_id else None
+    result["encryption_job_state"] = job.state if job else None
+    result["encryption_job_message"] = job.message if job else None
+    dispatches = session.scalars(
+        select(DataAutomationStageDispatch)
+        .where(DataAutomationStageDispatch.batch_id == row.id)
+        .order_by(DataAutomationStageDispatch.created_at)
+    ).all()
+    result["stage_dispatches"] = [_stage_dispatch_dict(item) for item in dispatches]
+    return result
+def _stage_dispatch_dict(row): return {"dispatch_id": str(row.id), "stage": row.stage, "target_type": row.target_type, "target_id": str(row.target_id), "status": row.status, "attempts": int(row.attempts or 0), "celery_task_id": row.celery_task_id, "last_error": row.last_error, "last_attempt_at": row.last_attempt_at, "next_attempt_at": row.next_attempt_at, "completed_at": row.completed_at, "created_at": row.created_at, "updated_at": row.updated_at}
 def _event_dict(row): return {"event_id": str(row.id), "stage": row.stage, "event_type": row.event_type, "status": row.status, "message": row.message, "payload": row.payload or {}, "created_at": row.created_at}
 def _blueprint_dict(row): return {"blueprint_id": str(row.id), "pipeline_id": str(row.pipeline_id), "version_no": row.version_no, "name": row.name, "status": row.status, "source_rule": row.source_rule or {}, "schema_signature": row.schema_signature, "schema_contract": row.schema_contract or {}, "execution_snapshot": row.execution_snapshot or {}, "auto_execute": row.auto_execute, "created_at": row.created_at}
 def _asset_dict(row): return {"asset_id": str(row.id), "connection_id": str(row.connection_id) if row.connection_id else None, "connection_name": row.connection_name, "engine": row.engine, "catalog": row.catalog, "database": row.database, "table_name": row.table_name, "layer": row.layer, "business_domain": row.business_domain, "schema_signature": row.schema_signature, "schema_contract": row.schema_contract or {}, "classification_summary": row.classification_summary or {}, "first_batch_id": str(row.first_batch_id) if row.first_batch_id else None, "last_batch_id": str(row.last_batch_id) if row.last_batch_id else None, "created_at": row.created_at, "updated_at": row.updated_at}
+def _security_access_mapping_dict(row): return {"mapping_id": str(row.id), "pipeline_id": str(row.pipeline_id), "standard_asset_id": str(row.standard_asset_id), "source_asset_id": str(row.source_asset_id), "secured_asset_id": str(row.secured_asset_id) if row.secured_asset_id else None, "sm4_task_definition_id": str(row.sm4_task_definition_id), "sm4_task_revision": row.sm4_task_revision, "source": f"{row.source_database}.{row.source_table}.{row.source_field}", "standard_field": row.standard_field, "secured": f"{row.secured_database}.{row.secured_table}" if row.secured_database and row.secured_table else None, "access": f"{row.access_database}.{row.access_table}", "state": row.state, "contract_hash": row.contract_hash, "evidence": row.evidence or {}, "created_at": row.created_at, "updated_at": row.updated_at}
 def _lineage_dict(row): return {"edge_id": str(row.id), "batch_id": str(row.batch_id) if row.batch_id else None, "source_asset_id": str(row.source_asset_id), "source_field": row.source_field, "target_asset_id": str(row.target_asset_id), "target_field": row.target_field, "transformation_type": row.transformation_type, "expression": row.expression, "workflow_version_id": str(row.workflow_version_id) if row.workflow_version_id else None, "node_key": row.node_key, "evidence": row.evidence or {}, "source": "openlineage" if (row.evidence or {}).get("source") == "openlineage" else "native", "confidence": row.confidence, "review_required": row.review_required, "created_at": row.created_at}
 def _classification_rule_dict(row): return {"rule_id": str(row.id), "name": row.name, "status": row.status, "priority": row.priority, "match_config": row.match_config or {}, "classification": row.classification, "protection_action": row.protection_action, "auto_apply": row.auto_apply, "version_no": row.version_no, "created_at": row.created_at}

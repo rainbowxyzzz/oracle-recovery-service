@@ -8,7 +8,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -107,6 +107,41 @@ def build_authorization_url(
         "nonce": nonce,
     }
     return f"{str(discovery_document['authorization_endpoint']).strip()}?{urlencode(query)}"
+
+
+def build_logout_url(
+    settings: Settings,
+    discovery_document: dict[str, Any],
+    id_token_hint: str | None,
+) -> str:
+    endpoint = str(discovery_document.get("end_session_endpoint") or "").strip()
+    if not endpoint:
+        raise OIDCConfigurationError("OIDC discovery document is missing end_session_endpoint")
+    query = {
+        "client_id": settings.oidc_client_id.strip(),
+        "post_logout_redirect_uri": oidc_post_logout_redirect_uri(settings),
+    }
+    if id_token_hint:
+        query["id_token_hint"] = id_token_hint
+    return f"{endpoint}?{urlencode(query)}"
+
+
+def oidc_post_logout_redirect_uri(settings: Settings) -> str:
+    configured = settings.oidc_post_logout_redirect_uri.strip()
+    if configured:
+        return _absolute_http_url(configured)
+
+    callback = urlsplit(settings.oidc_redirect_uri.strip())
+    if callback.scheme not in {"http", "https"} or not callback.netloc:
+        raise OIDCConfigurationError("OIDC redirect URI cannot derive post-logout redirect URI")
+    return urlunsplit((callback.scheme, callback.netloc, "/ui", "", ""))
+
+
+def _absolute_http_url(value: str) -> str:
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise OIDCConfigurationError("OIDC post-logout redirect URI must be an absolute HTTP(S) URL")
+    return value
 
 
 async def exchange_code(

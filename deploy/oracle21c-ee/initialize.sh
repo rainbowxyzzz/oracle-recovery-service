@@ -41,7 +41,7 @@ esac
 docker ps --format '{{.Names}}' | grep -Fx "$CONTAINER" >/dev/null 2>&1 || fail "container is not running: $CONTAINER"
 
 oracle_sql() {
-  docker exec -i "$CONTAINER" sh -c '
+  docker exec -u 54321:54321 -i "$CONTAINER" sh -c '
     resolved_home=
     for candidate in "${ORACLE_HOME:-}" /opt/oracle/product/21c/dbhome_1 /opt/oracle/product/19c/dbhome_1
     do
@@ -186,7 +186,7 @@ else
   log "TEMP tablespace auto extension skipped by ORACLE21C_TEMP_AUTO_EXTEND=$TEMP_AUTO_EXTEND"
 fi
 
-CONNECT_OUTPUT=$(docker exec -i \
+CONNECT_OUTPUT=$(docker exec -u 54321:54321 -i \
   -e ORACLE_PWD="$ORACLE_PASSWORD" \
   -e ORACLE_PDB="$ORACLE_PDB" \
   "$CONTAINER" sh -c '
@@ -209,7 +209,7 @@ echo "$CONNECT_OUTPUT"
 echo "$CONNECT_OUTPUT" | grep -F "$ORACLE_PDB" >/dev/null 2>&1 || fail "SYSTEM connection verification failed"
 echo "$CONNECT_OUTPUT" | grep -E 'ORA-|SP2-|Error 6 initializing' >/dev/null 2>&1 && fail "SQLPlus returned an Oracle initialization error"
 
-HOME_OUTPUT=$(docker exec "$CONTAINER" sh -c '
+HOME_OUTPUT=$(docker exec -u 54321:54321 "$CONTAINER" sh -c '
   resolved_home=${ORACLE_HOME:-/opt/oracle/product/21c/dbhome_1}
   export ORACLE_HOME=$resolved_home
   export PATH=$ORACLE_HOME/bin:$PATH

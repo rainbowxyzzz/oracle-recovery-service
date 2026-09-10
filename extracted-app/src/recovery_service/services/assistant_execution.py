@@ -78,8 +78,10 @@ def advance(session, batch):
         if not _claim(session, batch, "assistant_submitting_restore"):
             return False
         try:
-            # This existing helper records task ID and commits before dispatch.
+            # The recovery task, batch link and dispatch outbox commit together.
             auto._queue_restore(session, pipeline, batch, template)
+            session.commit()
+            auto.dispatch_pending_stage_tasks()
         except Exception:
             session.refresh(batch)
             batch.state = "assistant_submitting_restore"
