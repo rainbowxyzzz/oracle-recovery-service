@@ -2065,6 +2065,150 @@
     }
     .approval-auth-log-content pre { max-height: none; min-height: 100%; margin: 0; border-radius: 0; }
     .approval-auth-modal-actions { flex: 0 0 auto; justify-content: flex-end; margin-top: 12px; }
+    .approval-auth-hidden { display: none; }
+    .approval-auth-workspace-tabs {
+      display: flex;
+      gap: 24px;
+      margin: 0 0 14px;
+      padding: 0 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .approval-auth-workspace-tabs button {
+      min-height: 42px;
+      padding: 0 2px;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      font-weight: 700;
+    }
+    .approval-auth-workspace-tabs button:hover,
+    .approval-auth-workspace-tabs button.active { color: var(--primary); background: transparent; }
+    .approval-auth-workspace-tabs button.active { border-bottom-color: var(--primary); }
+    .approval-auth-workspace-panel[hidden] { display: none; }
+    .approval-auth-task-workspace {
+      display: grid;
+      grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+      min-height: 590px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+    .approval-auth-task-sidebar { border-right: 1px solid var(--line); }
+    .approval-auth-section-toolbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .approval-auth-section-toolbar h3 { margin: 0; }
+    .approval-auth-task-list button {
+      width: 100%;
+      display: block;
+      padding: 13px 15px;
+      color: var(--text);
+      text-align: left;
+      background: var(--panel);
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+    }
+    .approval-auth-task-list button:hover { background: #f8fafc; }
+    .approval-auth-task-list button.active { background: var(--primary-soft); box-shadow: inset 3px 0 var(--primary); }
+    .approval-auth-task-list-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+    .approval-auth-task-list small { display: block; color: var(--muted); font-weight: 400; }
+    .approval-auth-task-form { min-width: 0; padding: 16px 18px 20px; }
+    .approval-auth-task-form-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .approval-auth-form-section { padding: 14px 0; border-top: 1px solid var(--line); }
+    .approval-auth-form-section h3 { margin: 0 0 3px; }
+    .approval-auth-form-section > .muted { display: block; margin-bottom: 12px; }
+    .approval-auth-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+    .approval-auth-form-field { min-width: 0; }
+    .approval-auth-form-field label { margin-top: 0; }
+    .approval-auth-field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .approval-auth-config-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .approval-auth-config-summary > div { padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: #f8fafc; }
+    .approval-auth-config-summary span,
+    .approval-auth-config-summary strong { display: block; overflow-wrap: anywhere; }
+    .approval-auth-config-summary span { color: var(--muted); font-size: 12px; }
+    .approval-auth-config-modal {
+      width: min(1040px, calc(100vw - 36px));
+      height: min(820px, calc(100vh - 36px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .approval-auth-config-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 2px; }
+    .approval-auth-config-group { margin-bottom: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .approval-auth-config-group > summary { padding: 11px 13px; cursor: pointer; font-weight: 700; list-style-position: inside; }
+    .approval-auth-config-group[open] > summary { border-bottom: 1px solid var(--line); }
+    .approval-auth-config-group-body { padding: 13px; }
+    .approval-auth-config-group-intro { margin-bottom: 12px; color: var(--muted); }
+    .approval-auth-config-group .checkbox-row { margin-top: 0; }
+    .approval-auth-choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .approval-auth-choice-grid .checkbox-row { min-height: 36px; margin: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; }
+    .approval-auth-kv-list { display: grid; gap: 8px; }
+    .approval-auth-kv-row { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(220px, 1.3fr) auto; gap: 8px; align-items: end; }
+    .approval-auth-legacy-note { padding: 9px 11px; border: 1px solid #f0d292; border-radius: 7px; background: #fffaf0; color: #7c5700; }
+    .approval-auth-test-workspace {
+      display: grid;
+      grid-template-columns: minmax(210px, 250px) minmax(330px, .9fr) minmax(360px, 1.1fr);
+      min-height: 620px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+    .approval-auth-test-column { min-width: 0; border-right: 1px solid var(--line); }
+    .approval-auth-test-column:last-child { border-right: 0; }
+    .approval-auth-step-list { padding: 8px; }
+    .approval-auth-step-option {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 25px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      margin: 0 0 4px;
+      padding: 8px;
+      color: var(--text);
+      text-align: left;
+      background: transparent;
+      border-color: transparent;
+    }
+    .approval-auth-step-option:hover { background: #f8fafc; }
+    .approval-auth-step-option.active { color: var(--primary); background: var(--primary-soft); border-color: #9cc6f6; }
+    .approval-auth-step-number { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; font-size: 11px; }
+    .approval-auth-test-context,
+    .approval-auth-test-result { padding: 14px 15px; }
+    .approval-auth-context-empty { padding: 18px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); text-align: center; background: #f8fafc; }
+    .approval-auth-context-object { margin-top: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+    .approval-auth-context-object h4 { margin: 0 0 8px; }
+    .approval-auth-result-tabs { margin: 10px 0; }
+    .approval-auth-result-explanation { min-height: 52px; margin-bottom: 10px; padding: 9px 11px; border: 1px solid #bdd8f7; border-radius: 7px; background: #f1f7ff; color: #244d77; }
+    .approval-auth-run-task-list { padding: 10px; }
+    .approval-auth-run-task-card {
+      display: grid;
+      grid-template-columns: minmax(210px, 1.3fr) repeat(3, minmax(110px, .65fr)) auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .approval-auth-run-task-card span { display: block; color: var(--muted); font-size: 12px; }
+    .approval-auth-run-breadcrumb { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+    .approval-auth-run-breadcrumb button { padding: 0; color: var(--primary); background: transparent; border: 0; }
     @media (max-width: 1500px) {
       [data-module="approvalAuthorization"] > .grid-2 { grid-template-columns: 1fr; }
       [data-module="approvalAuthorization"] > .grid-2 > * { min-width: 0; }
@@ -2074,6 +2218,9 @@
       .approval-auth-watch-head,
       .approval-auth-watch-actions { grid-column: 1 / -1; }
       .approval-auth-watch-actions { flex-direction: row; justify-content: flex-start; }
+      .approval-auth-test-workspace { grid-template-columns: minmax(210px, 250px) minmax(0, 1fr); }
+      .approval-auth-test-result-column { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+      .approval-auth-test-column:nth-child(2) { border-right: 0; }
     }
     pre {
       max-height: 360px;
@@ -2141,7 +2288,23 @@
     }
     @media (max-width: 720px) {
       .approval-auth-run-modal,
-      .approval-auth-log-modal { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+      .approval-auth-log-modal,
+      .approval-auth-config-modal { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+      .approval-auth-task-workspace,
+      .approval-auth-test-workspace { grid-template-columns: 1fr; }
+      .approval-auth-task-sidebar,
+      .approval-auth-test-column { border-right: 0; border-bottom: 1px solid var(--line); }
+      .approval-auth-task-list { max-height: 230px; overflow: auto; }
+      .approval-auth-step-list { display: flex; overflow-x: auto; }
+      .approval-auth-step-option { min-width: 190px; }
+      .approval-auth-field-grid,
+      .approval-auth-config-summary,
+      .approval-auth-choice-grid,
+      .approval-auth-run-task-card,
+      .approval-auth-kv-row { grid-template-columns: 1fr; }
+      .approval-auth-task-form-head { flex-direction: column; }
+      .approval-auth-workspace-tabs { overflow-x: auto; }
+      .approval-auth-workspace-tabs button { min-width: max-content; }
       .approval-auth-watch-card { grid-template-columns: 1fr; }
       .approval-auth-watch-head,
       .approval-auth-watch-actions { grid-column: auto; }
@@ -4337,134 +4500,228 @@
 
     <section class="module-panel" data-module="approvalAuthorization">
       <div class="toolbar">
-        <h2>审批流自动授权</h2>
+        <div>
+          <h2>审批流自动授权</h2>
+          <div class="muted">按审批结果执行 Doris 与外部数据平台授权，并保留可审计的运行证据。</div>
+        </div>
         <div class="actions">
           <button id="approvalAuthRefreshBtn" type="button">刷新</button>
           <button id="approvalAuthNewConfigBtn" type="button">新建配置</button>
-          <button id="approvalAuthSaveConfigBtn" class="primary" type="button">保存配置</button>
-          <button id="approvalAuthRunBtn" type="button">完整运行</button>
-          <button id="approvalAuthWatchScanBtn" type="button">监听扫描一次</button>
         </div>
       </div>
       <div id="approvalAuthMessage" class="message"></div>
-      <div id="approvalAuthWatchStatusCard" class="approval-auth-watch-card disabled" aria-live="polite"></div>
-      <div class="grid-2">
-        <div class="detail">
-          <h3>流程配置</h3>
-          <label for="approvalAuthConfigSelect">已有配置</label>
-          <select id="approvalAuthConfigSelect"></select>
-          <label for="approvalAuthName">配置名称</label>
-          <input id="approvalAuthName" placeholder="例如：全流程审批授权">
-          <label for="approvalAuthDorisConnection">Doris 连接</label>
-          <select id="approvalAuthDorisConnection"></select>
-          <div class="approval-auth-credential-row">
-            <div>
-              <label for="approvalAuthWorkflowBaseUrl">审批系统地址</label>
-              <input id="approvalAuthWorkflowBaseUrl" placeholder="http://23.47.200.117:8000">
-            </div>
-            <div>
-              <label for="approvalAuthWorkflowUsername">审批系统用户名</label>
-              <input id="approvalAuthWorkflowUsername">
-            </div>
-          </div>
-          <label for="approvalAuthWorkflowPassword">审批系统密码</label>
-          <input id="approvalAuthWorkflowPassword" type="password" placeholder="留空表示保持原密码">
-          <div class="approval-auth-credential-row">
-            <div>
-              <label for="approvalAuthYoudataBaseUrl">有数系统地址</label>
-              <input id="approvalAuthYoudataBaseUrl" placeholder="http://23.213.177.10">
-            </div>
-            <div>
-              <label for="approvalAuthYoudataEmail">有数登录名</label>
-              <input id="approvalAuthYoudataEmail">
-            </div>
-          </div>
-          <label for="approvalAuthYoudataPassword">有数密码</label>
-          <input id="approvalAuthYoudataPassword" type="password" placeholder="留空表示保持原密码">
-          <label for="approvalAuthDefaultDorisPassword">新建 Doris 用户默认密码</label>
-          <input id="approvalAuthDefaultDorisPassword" type="password" placeholder="留空表示保持原密码">
-          <label class="checkbox-row" style="margin-top: 8px">
-            <input id="approvalAuthDebugLogSensitivePayloads" type="checkbox">
-            <span>启用诊断日志模式（仅测试环境，输出完整 token 和请求内容）</span>
-          </label>
-          <div id="approvalAuthWatchSettings" tabindex="-1">
-          <label class="checkbox-row" style="margin-top: 8px">
-            <input id="approvalAuthAutoWatchEnabled" type="checkbox">
-            <span>启用定时监听待办申请</span>
-          </label>
-          <div class="grid-2">
-            <div>
-              <label for="approvalAuthAutoWatchInterval">监听间隔（分钟）</label>
-              <input id="approvalAuthAutoWatchInterval" type="number" min="1" max="1440" step="1" value="5">
-            </div>
-            <div>
-              <label for="approvalAuthAutoWatchMaxItems">每轮处理数量</label>
-              <input id="approvalAuthAutoWatchMaxItems" type="number" min="1" max="100" step="1" value="1">
-            </div>
-          </div>
-          <div id="approvalAuthAutoWatchScheduleHint" class="muted" style="margin-top: 8px">启用后会按监听间隔定时扫描待办。</div>
-          </div>
-          <label class="checkbox-row" style="margin-top: 8px">
-            <input id="approvalAuthUpdateAuditStatusAfterSuccess" type="checkbox" checked>
-            <span>授权成功后回写审批状态</span>
-          </label>
-          <div class="grid-2">
-            <div>
-              <label for="approvalAuthMappingDatabase">单位与数据库映射表所属库</label>
-              <input id="approvalAuthMappingDatabase" value="ai_recovery">
-            </div>
-            <div>
-              <label for="approvalAuthAuthInfoDatabase">授权信息表所属库</label>
-              <input id="approvalAuthAuthInfoDatabase" value="ai_recovery">
-            </div>
-          </div>
-          <label for="approvalAuthApiAddPaths">apiAdd 授权目录</label>
-          <input id="approvalAuthApiAddPaths" placeholder="例如：API自动授权；多个目录用英文逗号分隔">
-          <div class="hint">保存后写入 <code>api_add_defaults.paths</code>，并以数组提交给有数 <code>apiAdd</code> 接口。</div>
-          <label for="approvalAuthImportPermissionPaths">importDataPermissions 授权目录</label>
-          <input id="approvalAuthImportPermissionPaths" placeholder="例如：API授权">
-          <div class="hint">仅支持一个目录名称；保存后写入 <code>import_permissions_defaults.path</code>，并以单元素数组提交给有数 <code>importDataPermissions</code> 接口。</div>
-          <label for="approvalAuthConfigJson">高级配置 JSON</label>
-          <textarea id="approvalAuthConfigJson" rows="12"></textarea>
-        </div>
-        <div class="detail">
-          <h3>单步测试</h3>
-          <label for="approvalAuthStepKey">测试步骤</label>
-          <select id="approvalAuthStepKey">
-            <option value="login">1. 审批系统登录</option>
-            <option value="todo_list">2. 获取待办申请列表</option>
-            <option value="detail">3. 获取申请详情</option>
-            <option value="department_mapping">4. 查询部门数据库映射</option>
-            <option value="data_list">5. 获取授权数据列表</option>
-            <option value="table_schema_lookup">6. 查询表所属 schema</option>
-            <option value="auth_info_insert">7. 写入授权信息表</option>
-            <option value="internal_grant">8. 内部 Doris 用户与表授权</option>
-            <option value="youdata_token">9. 获取有数 token</option>
-            <option value="api_add">10. 创建有数数据连接</option>
-            <option value="import_permissions">11. 导入有数人员权限</option>
-            <option value="audit_status_update">12. 回写审批状态</option>
-          </select>
-          <label for="approvalAuthStepContext">测试上下文 JSON</label>
-          <textarea id="approvalAuthStepContext" rows="12">{
-  "apply_flow_id": "",
-  "workflow_token": "",
-  "youdata_token": ""
-}</textarea>
-          <div class="actions" style="margin-top: 8px">
-            <button id="approvalAuthTestStepBtn" class="primary" type="button">运行当前步骤</button>
-          </div>
-          <h3 style="margin-top: 14px">步骤结果</h3>
-          <pre id="approvalAuthStepResult" class="detail" style="white-space: pre-wrap; max-height: 360px; overflow: auto"></pre>
-        </div>
+      <div id="approvalAuthWorkspaceTabs" class="approval-auth-workspace-tabs" aria-label="审批流自动授权子模块">
+        <button class="active" type="button" data-approval-auth-workspace="tasks">授权任务</button>
+        <button type="button" data-approval-auth-workspace="testing">上下文测试</button>
+        <button type="button" data-approval-auth-workspace="runs">运行记录</button>
       </div>
-      <div class="detail" style="margin-top: 14px">
-        <h3>运行记录</h3>
-        <div class="muted" style="margin-bottom: 8px">点击“查看日志”后，在独立窗口中按申请和步骤查看详细内容。</div>
-        <div id="approvalAuthRunList" class="list">
-          <div class="muted" style="padding: 10px">暂无运行记录。</div>
+
+      <section class="approval-auth-workspace-panel" data-approval-auth-workspace-panel="tasks">
+        <div class="approval-auth-task-workspace">
+          <aside class="approval-auth-task-sidebar">
+            <div class="approval-auth-section-toolbar"><div><h3>授权任务</h3><span id="approvalAuthTaskCount" class="muted">0 个任务</span></div></div>
+            <select id="approvalAuthConfigSelect" class="approval-auth-hidden" aria-label="已有配置"></select>
+            <div id="approvalAuthTaskList" class="approval-auth-task-list"><div class="muted" style="padding: 14px">暂无授权任务。</div></div>
+          </aside>
+          <div class="approval-auth-task-form">
+            <div class="approval-auth-task-form-head">
+              <div><h3 id="approvalAuthTaskFormTitle">新建授权任务</h3><span class="muted">基础连接与凭据；详细运行参数在“高级配置”中维护。</span></div>
+              <div class="actions">
+                <button id="approvalAuthAdvancedConfigBtn" type="button">高级配置</button>
+                <button id="approvalAuthRunBtn" type="button">完整运行</button>
+                <button id="approvalAuthWatchScanBtn" type="button">监听扫描一次</button>
+                <button id="approvalAuthSaveConfigBtn" class="primary" type="button">保存配置</button>
+              </div>
+            </div>
+            <div id="approvalAuthWatchStatusCard" class="approval-auth-watch-card disabled" aria-live="polite"></div>
+            <div class="approval-auth-form-section">
+              <h3>任务信息</h3><span class="muted">名称用于区分不同业务授权流程，保存后不会改变执行步骤。</span>
+              <div class="approval-auth-field-grid">
+                <div class="approval-auth-form-field"><label for="approvalAuthName">配置名称</label><input id="approvalAuthName" placeholder="例如：培训数据审批授权"><span class="approval-auth-field-help">用于任务列表、运行记录和审计日志展示。</span></div>
+                <div class="approval-auth-form-field"><label for="approvalAuthDorisConnection">Doris 连接</label><select id="approvalAuthDorisConnection"></select><span class="approval-auth-field-help">用于用户创建、映射查询、授权信息写入和数据权限授予。</span></div>
+              </div>
+            </div>
+            <div class="approval-auth-form-section">
+              <h3>审批系统连接</h3><span class="muted">读取待办、申请详情和授权数据，并在成功后回写审批状态。</span>
+              <div class="approval-auth-field-grid">
+                <div class="approval-auth-form-field"><label for="approvalAuthWorkflowBaseUrl">审批系统地址</label><input id="approvalAuthWorkflowBaseUrl" placeholder="http://审批系统地址:8000"><span class="approval-auth-field-help">只填写服务根地址，具体接口路径在高级配置中维护。</span></div>
+                <div class="approval-auth-form-field"><label for="approvalAuthWorkflowUsername">审批系统用户名</label><input id="approvalAuthWorkflowUsername"><span class="approval-auth-field-help">用于登录审批系统的服务账号。</span></div>
+                <div class="approval-auth-form-field"><label for="approvalAuthWorkflowPassword">审批系统密码</label><input id="approvalAuthWorkflowPassword" type="password" placeholder="留空表示保持原密码"><span class="approval-auth-field-help">编辑已有任务时留空不会清除原密码。</span></div>
+              </div>
+            </div>
+            <div class="approval-auth-form-section">
+              <h3>外部数据平台与默认凭据</h3><span class="muted">用于创建外部数据连接并导入人员权限。</span>
+              <div class="approval-auth-field-grid">
+                <div class="approval-auth-form-field"><label for="approvalAuthYoudataBaseUrl">有数系统地址</label><input id="approvalAuthYoudataBaseUrl" placeholder="http://有数系统地址"><span class="approval-auth-field-help">具体令牌、连接和权限接口路径在高级配置中维护。</span></div>
+                <div class="approval-auth-form-field"><label for="approvalAuthYoudataEmail">有数登录名</label><input id="approvalAuthYoudataEmail"><span class="approval-auth-field-help">用于获取有数访问令牌。</span></div>
+                <div class="approval-auth-form-field"><label for="approvalAuthYoudataPassword">有数密码</label><input id="approvalAuthYoudataPassword" type="password" placeholder="留空表示保持原密码"><span class="approval-auth-field-help">编辑已有任务时留空不会清除原密码。</span></div>
+                <div class="approval-auth-form-field"><label for="approvalAuthDefaultDorisPassword">新建 Doris 用户默认密码</label><input id="approvalAuthDefaultDorisPassword" type="password" placeholder="留空表示保持原密码"><span class="approval-auth-field-help">仅在审批账号尚未存在时使用。</span></div>
+              </div>
+            </div>
+            <div class="approval-auth-form-section">
+              <div class="approval-auth-task-form-head"><div><h3>高级配置摘要</h3><span class="muted">结构化维护全部接口、映射、权限、监听与日志参数。</span></div><button type="button" data-approval-auth-open-advanced>打开高级配置</button></div>
+              <div id="approvalAuthConfigSummary" class="approval-auth-config-summary"></div>
+            </div>
+            <textarea id="approvalAuthConfigJson" class="approval-auth-hidden" aria-hidden="true"></textarea>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <section class="approval-auth-workspace-panel" data-approval-auth-workspace-panel="testing" hidden>
+        <div class="approval-auth-section-toolbar detail" style="margin-bottom: 12px">
+          <div><h3>上下文测试</h3><span class="muted">逐步验证参数、请求和结果；每一步是否产生写入仍遵循现有后台规则。</span></div>
+          <div style="min-width: 260px"><label for="approvalAuthTestConfigSelect" style="margin-top:0">测试任务</label><select id="approvalAuthTestConfigSelect"></select></div>
+        </div>
+        <div class="approval-auth-test-workspace">
+          <aside class="approval-auth-test-column">
+            <div class="approval-auth-section-toolbar"><div><h3>测试步骤</h3><span class="muted">按实际执行顺序</span></div></div>
+            <select id="approvalAuthStepKey" class="approval-auth-hidden" aria-label="测试步骤">
+              <option value="login">1. 审批系统登录</option><option value="todo_list">2. 获取待办申请列表</option><option value="detail">3. 获取申请详情</option><option value="department_mapping">4. 查询部门数据库映射</option><option value="data_list">5. 获取授权数据列表</option><option value="table_schema_lookup">6. 查询表所属 schema</option><option value="auth_info_insert">7. 写入授权信息表</option><option value="internal_grant">8. 内部 Doris 用户与表授权</option><option value="youdata_token">9. 获取有数 token</option><option value="api_add">10. 创建有数数据连接</option><option value="import_permissions">11. 导入有数人员权限</option><option value="audit_status_update">12. 回写审批状态</option>
+            </select>
+            <div id="approvalAuthStepListOptions" class="approval-auth-step-list"></div>
+          </aside>
+          <section class="approval-auth-test-column approval-auth-test-context">
+            <div class="approval-auth-section-toolbar"><div><h3 id="approvalAuthStepContextTitle">审批系统登录</h3><span id="approvalAuthStepContextDescription" class="muted"></span></div></div>
+            <div id="approvalAuthStepContextFields"></div>
+            <textarea id="approvalAuthStepContext" class="approval-auth-hidden" aria-hidden="true">{}</textarea>
+            <div class="actions" style="margin-top: 14px"><button id="approvalAuthTestStepBtn" class="primary" type="button">运行当前步骤</button><button id="approvalAuthResetStepContextBtn" type="button">重置上下文</button></div>
+          </section>
+          <section class="approval-auth-test-column approval-auth-test-result-column">
+            <div class="approval-auth-section-toolbar"><div><h3>测试结果</h3><span class="muted">按证据类型查看，不再堆叠原始内容。</span></div></div>
+            <div class="approval-auth-test-result">
+              <div id="approvalAuthStepResultSummary" class="approval-auth-run-summary"><div class="approval-auth-run-summary-item"><span>状态</span><strong>尚未运行</strong></div><div class="approval-auth-run-summary-item"><span>影响</span><strong>以当前步骤为准</strong></div></div>
+              <div id="approvalAuthStepResultTabs" class="tabbar approval-auth-result-tabs">
+                <button class="active" type="button" data-approval-auth-step-result-tab="overview">概览</button><button type="button" data-approval-auth-step-result-tab="request">请求</button><button type="button" data-approval-auth-step-result-tab="response">响应</button><button type="button" data-approval-auth-step-result-tab="extracted">提取结果</button><button type="button" data-approval-auth-step-result-tab="sql">SQL</button>
+              </div>
+              <div id="approvalAuthStepResultExplanation" class="approval-auth-result-explanation">概览说明当前步骤是否成功、执行时间和错误原因，不代表完整授权任务已经完成。</div>
+              <pre id="approvalAuthStepResult" class="detail" style="white-space: pre-wrap; max-height: 390px; overflow: auto">请选择步骤并填写所需上下文后运行。</pre>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="approval-auth-workspace-panel" data-approval-auth-workspace-panel="runs" hidden>
+        <div class="detail">
+          <div class="approval-auth-section-toolbar">
+            <div><h3>运行记录</h3><div id="approvalAuthRunBreadcrumb" class="approval-auth-run-breadcrumb"><span>先选择任务，再查看该任务的历次运行。</span></div></div>
+            <button id="approvalAuthRunBackBtn" type="button" hidden>返回全部任务</button>
+          </div>
+          <div id="approvalAuthRunTaskList" class="approval-auth-run-task-list"></div>
+          <div id="approvalAuthRunInstances" hidden>
+            <div id="approvalAuthRunList" class="list"><div class="muted" style="padding: 10px">暂无运行记录。</div></div>
+          </div>
+        </div>
+      </section>
     </section>
+
+    <div id="approvalAuthAdvancedConfigModal" class="modal-backdrop" hidden>
+      <section class="modal approval-auth-config-modal" role="dialog" aria-modal="true" aria-labelledby="approvalAuthAdvancedConfigTitle">
+        <div class="approval-auth-modal-toolbar">
+          <div><h2 id="approvalAuthAdvancedConfigTitle">高级配置</h2><div class="muted">所有字段继续保存为原有配置结构，不改变后台执行规则。</div></div>
+          <button id="approvalAuthAdvancedConfigCloseBtn" type="button">关闭</button>
+        </div>
+        <div id="approvalAuthAdvancedConfigMessage" class="message"></div>
+        <div class="approval-auth-config-modal-body">
+          <details class="approval-auth-config-group" open><summary>通用参数</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">控制请求超时和历史兼容值。</div>
+            <div class="approval-auth-field-grid">
+              <div class="approval-auth-form-field"><label for="approvalAuthTimeoutSeconds">接口超时时间（秒）</label><input id="approvalAuthTimeoutSeconds" type="number" min="1" max="600" value="60"><span class="approval-auth-field-help">单次外部接口请求最长等待时间，默认 60 秒。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthDateSuffix">历史日期后缀</label><input id="approvalAuthDateSuffix" placeholder="例如：0817"><span class="approval-auth-field-help">兼容保留字段；当前用户名后缀由待办创建时间自动计算。</span></div>
+            </div>
+            <div class="approval-auth-legacy-note" style="margin-top:10px">修改“历史日期后缀”不会覆盖当前按待办 createTime（创建时间）计算后缀的后台规则。</div>
+          </div></details>
+
+          <details class="approval-auth-config-group" open><summary>审批系统接口与返回字段</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">接口路径与字段路径均相对于任务基础地址和接口响应，不填写完整域名。</div>
+            <div class="approval-auth-field-grid">
+              <div class="approval-auth-form-field"><label for="approvalAuthLoginPath">登录接口路径</label><input id="approvalAuthLoginPath"><span class="approval-auth-field-help">获取审批系统令牌。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthTodoListPath">待办列表接口路径</label><input id="approvalAuthTodoListPath"><span class="approval-auth-field-help">读取当前账号待处理申请。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthDetailPath">申请详情接口路径</label><input id="approvalAuthDetailPath"><span class="approval-auth-field-help">按申请编号获取申请基础信息。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthDataListPath">授权数据接口路径</label><input id="approvalAuthDataListPath"><span class="approval-auth-field-help">读取申请关联的数据表和授权级别。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthTodoPage">待办起始页</label><input id="approvalAuthTodoPage" type="number" min="1"><span class="approval-auth-field-help">待办列表首次请求页码。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthTodoRows">待办每页数量</label><input id="approvalAuthTodoRows" type="number" min="1"><span class="approval-auth-field-help">每次待办请求的最大记录数。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthDataListRows">授权数据每页数量</label><input id="approvalAuthDataListRows" type="number" min="1"><span class="approval-auth-field-help">每个申请读取授权明细的最大记录数。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthWorkflowTokenPath">令牌字段路径</label><input id="approvalAuthWorkflowTokenPath"><span class="approval-auth-field-help">从登录响应中提取令牌，例如 data.token。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthWorkflowTokenHeader">令牌请求头名称</label><input id="approvalAuthWorkflowTokenHeader"><span class="approval-auth-field-help">后续请求携带令牌的请求头名称。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthWorkflowTokenPrefix">令牌前缀</label><input id="approvalAuthWorkflowTokenPrefix"><span class="approval-auth-field-help">为空表示直接使用令牌；如需 Bearer（持有者令牌）可在此填写。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthTodoItemsPath">待办数组字段路径</label><input id="approvalAuthTodoItemsPath"><span class="approval-auth-field-help">从待办响应中定位申请数组。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthDetailDataPath">详情数据字段路径</label><input id="approvalAuthDetailDataPath"><span class="approval-auth-field-help">从详情响应中定位业务对象。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthDataListResultPath">授权数组字段路径</label><input id="approvalAuthDataListResultPath"><span class="approval-auth-field-help">从授权数据响应中定位明细数组。</span></div>
+            </div>
+          </div></details>
+
+          <details class="approval-auth-config-group"><summary>单位、数据库与授权信息映射</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">确定申请单位映射到哪个数据库，并记录最终授权结果。</div>
+            <div class="approval-auth-field-grid">
+              <div class="approval-auth-form-field"><label for="approvalAuthMappingDatabase">映射表所属库</label><input id="approvalAuthMappingDatabase"><span class="approval-auth-field-help">单位与数据库映射表所在 Doris 数据库。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthMappingTable">映射表名称</label><input id="approvalAuthMappingTable"><span class="approval-auth-field-help">按部门查询目标数据库的表。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthMappingDepartmentColumn">部门列名称</label><input id="approvalAuthMappingDepartmentColumn"><span class="approval-auth-field-help">映射表中存放申请部门的列。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthMappingDatabaseColumn">数据库列名称</label><input id="approvalAuthMappingDatabaseColumn"><span class="approval-auth-field-help">映射表中存放目标数据库名称的列。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthAuthInfoDatabase">授权信息表所属库</label><input id="approvalAuthAuthInfoDatabase"><span class="approval-auth-field-help">授权结果记录表所在 Doris 数据库。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthAuthInfoTable">授权信息表名称</label><input id="approvalAuthAuthInfoTable"><span class="approval-auth-field-help">写入申请、用户、资源和权限结果。</span></div>
+            </div>
+          </div></details>
+
+          <details class="approval-auth-config-group"><summary>有数令牌与数据连接创建</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">配置有数登录和 apiAdd（新增数据连接接口）的固定请求参数。</div>
+            <div class="approval-auth-field-grid">
+              <div class="approval-auth-form-field"><label for="approvalAuthYoudataTokenPath">有数令牌接口路径</label><input id="approvalAuthYoudataTokenPath"><span class="approval-auth-field-help">使用有数账号密码获取访问令牌。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthYoudataTokenType">有数令牌类型</label><input id="approvalAuthYoudataTokenType"><span class="approval-auth-field-help">保持与目标系统登录接口要求一致。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthYoudataTokenResultPath">有数令牌返回路径</label><input id="approvalAuthYoudataTokenResultPath"><span class="approval-auth-field-help">从响应中提取访问令牌。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddPath">数据连接创建接口路径</label><input id="approvalAuthApiAddPath"><span class="approval-auth-field-help">调用 apiAdd 创建或登记数据连接。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddIdPath">连接编号返回路径</label><input id="approvalAuthApiAddIdPath"><span class="approval-auth-field-help">从创建响应中提取连接编号。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddPaths">授权目录</label><input id="approvalAuthApiAddPaths" placeholder="多个目录用英文逗号分隔"><span class="approval-auth-field-help">写入 api_add_defaults.paths，并以数组提交。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddProjectId">项目编号</label><input id="approvalAuthApiAddProjectId" type="number"><span class="approval-auth-field-help">目标有数项目编号。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddType">连接类型编号</label><input id="approvalAuthApiAddType" type="number"><span class="approval-auth-field-help">目标系统定义的数据连接类型。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddServer">Doris 服务地址</label><input id="approvalAuthApiAddServer"><span class="approval-auth-field-help">为空时继续使用运行步骤已有的动态值。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddPort">Doris 服务端口</label><input id="approvalAuthApiAddPort"><span class="approval-auth-field-help">默认 9030。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddDriver">驱动名称</label><input id="approvalAuthApiAddDriver"><span class="approval-auth-field-help">目标平台登记的数据源驱动标识。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddAuthType">认证方式</label><input id="approvalAuthApiAddAuthType"><span class="approval-auth-field-help">写入 parameters.authType。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthApiAddDorisCatalog">Doris 目录</label><input id="approvalAuthApiAddDorisCatalog"><span class="approval-auth-field-help">写入 parameters.dorisCatalog。</span></div>
+              <div class="approval-auth-form-field"><label class="checkbox-row"><input id="approvalAuthApiAddSkipTest" type="checkbox"><span>跳过连接测试</span></label><span class="approval-auth-field-help">对应 skipTest；保持原字符串 true/false 提交格式。</span></div>
+              <div class="approval-auth-form-field"><label class="checkbox-row"><input id="approvalAuthApiAddNullSafeEqual" type="checkbox"><span>启用空值安全比较</span></label><span class="approval-auth-field-help">对应 nullSafeEqual 布尔值。</span></div>
+            </div>
+          </div></details>
+
+          <details class="approval-auth-config-group"><summary>人员权限导入</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">控制 importDataPermissions（导入人员权限接口）的路径、目标角色、资源类型和权限集合。</div>
+            <div class="approval-auth-field-grid">
+              <div class="approval-auth-form-field"><label for="approvalAuthImportPermissionsPath">权限导入接口路径</label><input id="approvalAuthImportPermissionsPath"><span class="approval-auth-field-help">向有数导入人员资源权限。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthImportPermissionsRoleIdPath">角色编号返回路径</label><input id="approvalAuthImportPermissionsRoleIdPath"><span class="approval-auth-field-help">从导入响应中提取角色编号。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthImportPermissionPaths">授权目录</label><input id="approvalAuthImportPermissionPaths"><span class="approval-auth-field-help">仅支持一个目录，并以单元素数组提交。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthImportProjectId">项目编号</label><input id="approvalAuthImportProjectId" type="number"><span class="approval-auth-field-help">目标有数项目编号。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthImportType">导入类型编号</label><input id="approvalAuthImportType" type="number"><span class="approval-auth-field-help">目标系统定义的导入类型。</span></div>
+              <div class="approval-auth-form-field"><label for="approvalAuthImportRoleName">角色名称</label><input id="approvalAuthImportRoleName"><span class="approval-auth-field-help">为空时继续使用步骤运行时计算的角色名称。</span></div>
+            </div>
+            <h4 style="margin:14px 0 8px">导入资源类型</h4>
+            <div class="approval-auth-choice-grid"><label class="checkbox-row"><input id="approvalAuthImportResourceDataConnection" type="checkbox" checked><span>数据连接（DATA_CONNECTION）</span></label></div>
+            <h4 style="margin:14px 0 8px">授予权限</h4>
+            <div id="approvalAuthYoudataPermissionOptions" class="approval-auth-choice-grid"></div>
+          </div></details>
+
+          <details class="approval-auth-config-group"><summary>审批状态回写</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">只有前置必需步骤成功后才按现有后台规则执行回写。</div>
+            <div class="approval-auth-field-grid"><div class="approval-auth-form-field"><label for="approvalAuthAuditStatusUpdatePath">状态回写接口路径</label><input id="approvalAuthAuditStatusUpdatePath"><span class="approval-auth-field-help">将授权完成状态回写到审批系统。</span></div><div class="approval-auth-form-field"><label class="checkbox-row"><input id="approvalAuthUpdateAuditStatusAfterSuccess" type="checkbox" checked><span>授权成功后回写审批状态</span></label><span class="approval-auth-field-help">关闭后完整运行不执行最后的状态回写步骤。</span></div></div>
+            <div style="margin-top:12px"><div class="approval-auth-task-form-head"><div><h4 style="margin:0">回写请求默认参数</h4><span class="muted">每一行代表一个请求字段，值支持文本、数字、布尔值、数组或对象。</span></div><button id="approvalAuthAddAuditBodyDefaultBtn" type="button">新增参数</button></div><div id="approvalAuthAuditBodyDefaults" class="approval-auth-kv-list"></div></div>
+          </div></details>
+
+          <details id="approvalAuthWatchSettings" class="approval-auth-config-group"><summary>自动监听</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">控制后台是否持续扫描、扫描周期、单轮数量与重复申请处理。</div>
+            <label class="checkbox-row"><input id="approvalAuthAutoWatchEnabled" type="checkbox"><span>启用定时监听待办申请</span></label>
+            <div class="approval-auth-field-grid" style="margin-top:10px"><div class="approval-auth-form-field"><label for="approvalAuthAutoWatchInterval">监听间隔（分钟）</label><input id="approvalAuthAutoWatchInterval" type="number" min="1" max="1440" step="1" value="5"><span class="approval-auth-field-help">允许 1–1440 分钟。</span></div><div class="approval-auth-form-field"><label for="approvalAuthAutoWatchMaxItems">每轮处理数量</label><input id="approvalAuthAutoWatchMaxItems" type="number" min="1" max="100" step="1" value="1"><span class="approval-auth-field-help">允许 1–100 条。</span></div></div>
+            <label class="checkbox-row" style="margin-top:10px"><input id="approvalAuthAutoWatchSkipStatusUpdated" type="checkbox" checked><span>跳过已成功回写审批状态的申请</span></label>
+            <div id="approvalAuthAutoWatchScheduleHint" class="muted" style="margin-top:8px">启用后会按监听间隔定时扫描待办。</div>
+          </div></details>
+
+          <details class="approval-auth-config-group"><summary>日志与安全</summary><div class="approval-auth-config-group-body">
+            <div class="approval-auth-config-group-intro">诊断日志只用于受控测试环境，不应作为生产默认配置。</div>
+            <label class="checkbox-row"><input id="approvalAuthDebugLogSensitivePayloads" type="checkbox"><span>启用诊断日志模式</span></label>
+            <div class="approval-auth-legacy-note" style="margin-top:10px">启用后 token（令牌）和完整请求内容可能出现在日志中；密码、密钥等字段仍按后台规则脱敏。</div>
+          </div></details>
+        </div>
+        <div class="actions approval-auth-modal-actions"><button id="approvalAuthAdvancedConfigCancelBtn" type="button">取消</button><button id="approvalAuthAdvancedConfigSaveBtn" class="primary" type="button">保存高级配置</button></div>
+      </section>
+    </div>
 
     <div id="approvalAuthRunModal" class="modal-backdrop" hidden>
       <section class="modal approval-auth-run-modal" role="dialog" aria-modal="true" aria-labelledby="approvalAuthRunModalTitle">
@@ -6266,6 +6523,10 @@
       let approvalAuthSelectedLogId = "";
       let approvalAuthLogTab = "overview";
       let approvalAuthWatchSettingsDirty = false;
+      let approvalAuthWorkspace = "tasks";
+      let approvalAuthSelectedRunConfigId = "";
+      let approvalAuthStepTestLog = null;
+      let approvalAuthStepResultTab = "overview";
       let resourceProvisioningPreviewData = null;
       let resourceProvisioningBatches = [];
       let resourceProvisioningSelectedBatchId = "";
@@ -6523,6 +6784,11 @@
         approvalAuthSelectedLogId = "";
         approvalAuthLogTab = "overview";
         approvalAuthWatchSettingsDirty = false;
+        approvalAuthWorkspace = "tasks";
+        approvalAuthSelectedRunConfigId = "";
+        approvalAuthStepTestLog = null;
+        approvalAuthStepResultTab = "overview";
+        if ($("approvalAuthAdvancedConfigModal")) $("approvalAuthAdvancedConfigModal").hidden = true;
         if ($("approvalAuthLogModal")) $("approvalAuthLogModal").hidden = true;
         if ($("approvalAuthRunModal")) $("approvalAuthRunModal").hidden = true;
         resourceProvisioningPreviewData = null;
@@ -6982,6 +7248,8 @@
         setPermissionVisibility("approvalAuthRefreshBtn", hasAction("batchAuthorization:read"));
         setPermissionVisibility("approvalAuthNewConfigBtn", hasAction("batchAuthorization:manage"));
         setPermissionVisibility("approvalAuthSaveConfigBtn", hasAction("batchAuthorization:manage"));
+        setPermissionVisibility("approvalAuthAdvancedConfigBtn", hasAction("batchAuthorization:manage"));
+        setPermissionVisibility("approvalAuthAdvancedConfigSaveBtn", hasAction("batchAuthorization:manage"));
         setPermissionVisibility("approvalAuthTestStepBtn", hasAction("batchAuthorization:execute"));
         setPermissionVisibility("approvalAuthRunBtn", hasAction("batchAuthorization:execute"));
         setPermissionVisibility("approvalAuthWatchScanBtn", hasAction("batchAuthorization:execute"));
@@ -10840,7 +11108,7 @@
         if (!connections.length && hasAction("connections:read")) await loadConnections();
         const [configs, runs] = await Promise.all([
           api("/api/v1/approval-authorization/configs"),
-          api("/api/v1/approval-authorization/runs?limit=50")
+          api("/api/v1/approval-authorization/runs?limit=200")
         ]);
         approvalAuthConfigs = configs || [];
         approvalAuthRuns = runs || [];
@@ -10862,6 +11130,147 @@
       function renderApprovalAuthConfigOptions() {
         const options = approvalAuthConfigs.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === approvalAuthSelectedConfigId ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
         $("approvalAuthConfigSelect").innerHTML = `<option value="">新建配置</option>${options}`;
+        if ($("approvalAuthTestConfigSelect")) $("approvalAuthTestConfigSelect").innerHTML = `<option value="">请选择已保存任务</option>${options}`;
+        if ($("approvalAuthTestConfigSelect")) $("approvalAuthTestConfigSelect").value = approvalAuthSelectedConfigId || "";
+        renderApprovalAuthTaskList();
+        renderApprovalAuthRunTaskList();
+      }
+
+      function renderApprovalAuthTaskList() {
+        const box = $("approvalAuthTaskList");
+        if (!box) return;
+        if ($("approvalAuthTaskCount")) $("approvalAuthTaskCount").textContent = `${approvalAuthConfigs.length} 个任务`;
+        box.innerHTML = approvalAuthConfigs.map((item) => {
+          const state = approvalAuthWatchState(item);
+          return `<button type="button" class="${item.id === approvalAuthSelectedConfigId ? "active" : ""}" data-approval-auth-config="${escapeHtml(item.id)}">
+            <span class="approval-auth-task-list-title"><strong>${escapeHtml(item.name)}</strong><span class="badge ${state.badge}">${escapeHtml(state.label)}</span></span>
+            <small>${escapeHtml(approvalAuthAutoWatchScheduleText(item.config || {}))}</small>
+          </button>`;
+        }).join("") || '<div class="muted" style="padding: 14px">暂无授权任务，请点击“新建配置”。</div>';
+      }
+
+      function switchApprovalAuthWorkspace(workspace) {
+        approvalAuthWorkspace = ["tasks", "testing", "runs"].includes(workspace) ? workspace : "tasks";
+        document.querySelectorAll("[data-approval-auth-workspace]").forEach((button) => button.classList.toggle("active", button.getAttribute("data-approval-auth-workspace") === approvalAuthWorkspace));
+        document.querySelectorAll("[data-approval-auth-workspace-panel]").forEach((panel) => { panel.hidden = panel.getAttribute("data-approval-auth-workspace-panel") !== approvalAuthWorkspace; });
+        if ($("approvalAuthNewConfigBtn")) $("approvalAuthNewConfigBtn").hidden = approvalAuthWorkspace !== "tasks";
+        if (approvalAuthWorkspace === "testing") renderApprovalAuthStepContextTemplate();
+        if (approvalAuthWorkspace === "runs") renderApprovalAuthRuns();
+      }
+
+      const approvalAuthPermissionOptions = [
+        ["view", "查看数据"], ["addModel", "新增模型"], ["customSql", "自定义 SQL"],
+        ["sqlFetch", "查询数据"], ["sqlFetchCopyData", "复制查询结果"], ["sqlFetchExport", "导出查询结果"],
+        ["sqlFetchShare", "共享查询结果"], ["updateData", "更新数据"], ["relationship", "维护关联关系"]
+      ];
+
+      function approvalAuthMergedConfig(value) {
+        const defaults = approvalAuthDefaultConfigJson();
+        const saved = value || {};
+        const merged = {
+          ...defaults,
+          ...saved,
+          api_add_defaults: { ...defaults.api_add_defaults, ...(saved.api_add_defaults || {}), parameters: { ...defaults.api_add_defaults.parameters, ...(saved.api_add_defaults?.parameters || {}) } },
+          import_permissions_defaults: { ...defaults.import_permissions_defaults, ...(saved.import_permissions_defaults || {}) }
+        };
+        if (saved.api_add_defaults && !("paths" in saved.api_add_defaults) && "path" in saved.api_add_defaults) merged.api_add_defaults.paths = saved.api_add_defaults.path;
+        return merged;
+      }
+
+      function approvalAuthSetValue(id, value) {
+        const field = $(id);
+        if (!field) return;
+        if (field.type === "checkbox") field.checked = Boolean(value);
+        else field.value = value === undefined || value === null ? "" : String(value);
+      }
+
+      function renderApprovalAuthAuditBodyDefaults(value) {
+        const box = $("approvalAuthAuditBodyDefaults");
+        if (!box) return;
+        const entries = Object.entries(value || {});
+        box.innerHTML = entries.map(([key, itemValue]) => approvalAuthAuditBodyDefaultRow(key, itemValue)).join("") || '<div class="muted">当前没有默认参数；运行时只提交后台步骤生成的必要字段。</div>';
+      }
+
+      function approvalAuthAuditBodyDefaultRow(key = "", value = "") {
+        const serialized = typeof value === "string" ? value : JSON.stringify(value);
+        return `<div class="approval-auth-kv-row"><div><label>字段名称</label><input data-approval-auth-audit-body-key value="${escapeHtml(key)}"></div><div><label>默认值</label><input data-approval-auth-audit-body-value value="${escapeHtml(serialized)}"><span class="approval-auth-field-help">数字、布尔值、数组或对象按 JSON 值解析；其他内容按文本保存。</span></div><button type="button" data-approval-auth-remove-audit-body>删除</button></div>`;
+      }
+
+      function renderApprovalAuthAdvancedConfig(value) {
+        const config = approvalAuthMergedConfig(value);
+        const fields = {
+          approvalAuthTimeoutSeconds: config.timeout_seconds,
+          approvalAuthDateSuffix: config.date_suffix || "",
+          approvalAuthLoginPath: config.login_path,
+          approvalAuthTodoListPath: config.todo_list_path,
+          approvalAuthDetailPath: config.detail_path,
+          approvalAuthDataListPath: config.data_list_path,
+          approvalAuthTodoPage: config.todo_page,
+          approvalAuthTodoRows: config.todo_rows,
+          approvalAuthDataListRows: config.data_list_rows,
+          approvalAuthWorkflowTokenPath: config.workflow_token_path,
+          approvalAuthWorkflowTokenHeader: config.workflow_token_header,
+          approvalAuthWorkflowTokenPrefix: config.workflow_token_prefix,
+          approvalAuthTodoItemsPath: config.todo_items_path,
+          approvalAuthDetailDataPath: config.detail_data_path,
+          approvalAuthDataListResultPath: config.data_list_result_path,
+          approvalAuthMappingDatabase: config.mapping_database,
+          approvalAuthMappingTable: config.mapping_table,
+          approvalAuthMappingDepartmentColumn: config.mapping_department_column,
+          approvalAuthMappingDatabaseColumn: config.mapping_database_column,
+          approvalAuthAuthInfoDatabase: config.auth_info_database,
+          approvalAuthAuthInfoTable: config.auth_info_table,
+          approvalAuthYoudataTokenPath: config.youdata_token_path,
+          approvalAuthYoudataTokenType: config.youdata_token_type,
+          approvalAuthYoudataTokenResultPath: config.youdata_token_result_path,
+          approvalAuthApiAddPath: config.api_add_path,
+          approvalAuthApiAddIdPath: config.api_add_id_path,
+          approvalAuthApiAddPaths: Array.isArray(config.api_add_defaults.paths) ? config.api_add_defaults.paths.join(",") : "",
+          approvalAuthApiAddProjectId: config.api_add_defaults.projectId,
+          approvalAuthApiAddType: config.api_add_defaults.type,
+          approvalAuthApiAddServer: config.api_add_defaults.server,
+          approvalAuthApiAddPort: config.api_add_defaults.port,
+          approvalAuthApiAddDriver: config.api_add_defaults.driver,
+          approvalAuthApiAddAuthType: config.api_add_defaults.parameters?.authType,
+          approvalAuthApiAddDorisCatalog: config.api_add_defaults.parameters?.dorisCatalog,
+          approvalAuthImportPermissionsPath: config.import_permissions_path,
+          approvalAuthImportPermissionsRoleIdPath: config.import_permissions_role_id_path,
+          approvalAuthImportPermissionPaths: Array.isArray(config.import_permissions_defaults.path) ? config.import_permissions_defaults.path[0] || "" : "",
+          approvalAuthImportProjectId: config.import_permissions_defaults.projectId,
+          approvalAuthImportType: config.import_permissions_defaults.type,
+          approvalAuthImportRoleName: config.import_permissions_defaults.roleName,
+          approvalAuthAuditStatusUpdatePath: config.audit_status_update_path,
+          approvalAuthAutoWatchInterval: config.auto_watch_interval_minutes,
+          approvalAuthAutoWatchMaxItems: config.auto_watch_max_items_per_scan
+        };
+        Object.entries(fields).forEach(([id, fieldValue]) => approvalAuthSetValue(id, fieldValue));
+        approvalAuthSetValue("approvalAuthApiAddSkipTest", String(config.api_add_defaults.skipTest).toLowerCase() === "true");
+        approvalAuthSetValue("approvalAuthApiAddNullSafeEqual", config.api_add_defaults.nullSafeEqual);
+        approvalAuthSetValue("approvalAuthImportResourceDataConnection", (config.import_permissions_defaults.importResourceTypes || []).includes("DATA_CONNECTION"));
+        approvalAuthSetValue("approvalAuthUpdateAuditStatusAfterSuccess", config.update_audit_status_after_success !== false);
+        approvalAuthSetValue("approvalAuthAutoWatchEnabled", config.auto_watch_enabled);
+        approvalAuthSetValue("approvalAuthAutoWatchSkipStatusUpdated", config.auto_watch_skip_status_updated !== false);
+        approvalAuthSetValue("approvalAuthDebugLogSensitivePayloads", config.debug_log_sensitive_payloads);
+        if ($("approvalAuthYoudataPermissionOptions")) {
+          const selected = new Set(config.youdata_permissions || []);
+          $("approvalAuthYoudataPermissionOptions").innerHTML = approvalAuthPermissionOptions.map(([key, label]) => `<label class="checkbox-row"><input type="checkbox" data-approval-auth-permission="${escapeHtml(key)}" ${selected.has(key) ? "checked" : ""}><span>${escapeHtml(label)}（${escapeHtml(key)}）</span></label>`).join("");
+        }
+        renderApprovalAuthAuditBodyDefaults(config.audit_status_update_body_defaults);
+      }
+
+      function approvalAuthParseConfigValue(value) {
+        const text = String(value || "").trim();
+        if (!text) return "";
+        try { return JSON.parse(text); } catch (_) { return text; }
+      }
+
+      function approvalAuthCollectAuditBodyDefaults() {
+        const result = {};
+        $("approvalAuthAuditBodyDefaults")?.querySelectorAll(".approval-auth-kv-row").forEach((row) => {
+          const key = row.querySelector("[data-approval-auth-audit-body-key]")?.value.trim();
+          if (key) result[key] = approvalAuthParseConfigValue(row.querySelector("[data-approval-auth-audit-body-value]")?.value);
+        });
+        return result;
       }
 
       function approvalAuthDefaultConfigJson() {
@@ -10878,6 +11287,9 @@
           audit_status_update_body_defaults: {},
           detail_data_path: "data",
           data_list_result_path: "data.list",
+          todo_page: 1,
+          todo_rows: 1000,
+          data_list_rows: 9999,
           mapping_database: "ai_recovery",
           mapping_table: "单位与数据库映射表",
           mapping_department_column: "部门",
@@ -10891,6 +11303,8 @@
           api_add_id_path: "result.id",
           import_permissions_path: "/api/dash/role/importDataPermissions",
           import_permissions_role_id_path: "result",
+          timeout_seconds: 60,
+          youdata_permissions: ["view", "addModel", "customSql", "sqlFetch", "sqlFetchCopyData", "sqlFetchExport", "sqlFetchShare", "updateData", "relationship"],
           api_add_defaults: { projectId: 6, type: 124, paths: ["API自动授权"], server: "", port: "9030", skipTest: "false", parameters: { authType: "ldap", dorisCatalog: "internal" }, nullSafeEqual: false, driver: "mysql-connector-5.1.49" },
           import_permissions_defaults: { projectId: 6, roleName: "", path: ["API授权"], type: 0, importResourceTypes: ["DATA_CONNECTION"] },
           debug_log_sensitive_payloads: false,
@@ -10955,9 +11369,79 @@
         const field = $("approvalAuthStepContext");
         const step = $("approvalAuthStepKey")?.value || "login";
         if (!field) return;
-        if (!force && field.dataset.templateStep === step && field.value.trim()) return;
-        field.value = JSON.stringify(approvalAuthStepContextTemplate(step), null, 2);
+        if (force || field.dataset.templateStep !== step || !field.value.trim()) field.value = JSON.stringify(approvalAuthStepContextTemplate(step), null, 2);
         field.dataset.templateStep = step;
+        if (force) {
+          approvalAuthStepTestLog = null;
+          approvalAuthStepResultTab = "overview";
+          renderApprovalAuthStepTestResult();
+        }
+        renderApprovalAuthStepOptions();
+        renderApprovalAuthStepContextFields();
+      }
+
+      const approvalAuthStepDefinitions = [
+        ["login", "审批系统登录", "验证审批系统账号并获取令牌。", "调用登录接口，不修改业务数据。"],
+        ["todo_list", "获取待办申请列表", "读取当前账号待处理的审批申请。", "只读取待办列表。"],
+        ["detail", "获取申请详情", "按申请编号读取申请人、部门和创建时间。", "只读取指定申请详情。"],
+        ["department_mapping", "查询部门数据库映射", "根据部门名称查询目标 Doris 数据库。", "只执行映射查询。"],
+        ["data_list", "获取授权数据列表", "读取申请关联的数据表和授权级别。", "只读取授权明细。"],
+        ["table_schema_lookup", "查询表所属 schema", "查询每张授权表所属的 schema（模式）。", "只查询 Doris 元数据。"],
+        ["auth_info_insert", "写入授权信息表", "把申请与授权对象写入审计授权信息表。", "会写入授权信息表。"],
+        ["internal_grant", "内部 Doris 用户与表授权", "创建或复用用户并授予表权限。", "会改变 Doris 用户和权限。"],
+        ["youdata_token", "获取有数 token", "验证有数账号并获取访问令牌。", "调用登录接口，不创建授权。"],
+        ["api_add", "创建有数数据连接", "按数据库与用户信息创建有数数据连接。", "会在有数创建或登记数据连接。"],
+        ["import_permissions", "导入有数人员权限", "把连接资源权限授予目标人员。", "会改变有数人员权限。"],
+        ["audit_status_update", "回写审批状态", "将当前申请标记为已完成处理。", "会修改审批单处理状态。"]
+      ];
+
+      function renderApprovalAuthStepOptions() {
+        const box = $("approvalAuthStepListOptions");
+        if (!box) return;
+        const current = $("approvalAuthStepKey").value;
+        box.innerHTML = approvalAuthStepDefinitions.map(([key, name], index) => `<button type="button" class="approval-auth-step-option ${key === current ? "active" : ""}" data-approval-auth-step="${key}"><span class="approval-auth-step-number">${index + 1}</span><span>${escapeHtml(name)}</span></button>`).join("");
+      }
+
+      function approvalAuthContextInput(key, label, value, help, type = "text") {
+        const normalizedValue = type === "datetime-local" ? String(value || "").replace(" ", "T").slice(0, 16) : value || "";
+        return `<div class="approval-auth-form-field"><label>${escapeHtml(label)}</label><input type="${type}" data-approval-auth-context-field="${escapeHtml(key)}" value="${escapeHtml(normalizedValue)}"><span class="approval-auth-field-help">${escapeHtml(help)}</span></div>`;
+      }
+
+      function renderApprovalAuthStepContextFields() {
+        const step = $("approvalAuthStepKey")?.value || "login";
+        const definition = approvalAuthStepDefinitions.find(([key]) => key === step) || approvalAuthStepDefinitions[0];
+        const context = approvalAuthJson("approvalAuthStepContext");
+        if ($("approvalAuthStepContextTitle")) $("approvalAuthStepContextTitle").textContent = definition[1];
+        if ($("approvalAuthStepContextDescription")) $("approvalAuthStepContextDescription").textContent = definition[2];
+        let fields = "";
+        if (step === "detail") fields = approvalAuthContextInput("apply_flow_id", "申请编号", context.apply_flow_id, "必填；来自待办列表中的 applyFlowId。") + approvalAuthContextInput("todo_create_time", "待办创建时间", context.todo_create_time, "用于按 MMDD 生成当前任务所需日期后缀。", "datetime-local");
+        else if (step === "department_mapping") fields = approvalAuthContextInput("department", "申请部门", context.department, "必填；用于查询单位与数据库映射表。") ;
+        else if (step === "data_list" || step === "audit_status_update") fields = approvalAuthContextInput("apply_flow_id", "申请编号", context.apply_flow_id, "必填；用于定位当前审批申请。") ;
+        else if (step === "api_add") fields = approvalAuthContextInput("database_name", "数据库名称", context.database_name, "必填；需要创建连接的 Doris 数据库。") + approvalAuthContextInput("doris_username", "Doris 用户名", context.doris_username, "必填；连接使用的授权用户。") + approvalAuthContextInput("doris_password", "Doris 用户密码", context.doris_password, "仅用于本次连接请求，日志按敏感字段处理。", "password");
+        else if (step === "import_permissions") fields = approvalAuthContextInput("unique_ids", "人员唯一编号", (context.unique_ids || []).join(","), "一个或多个编号使用英文逗号分隔。") + approvalAuthContextInput("query_end_time", "授权截止时间", context.query_end_time, "目标权限的有效期截止时间。", "datetime-local") + approvalAuthContextInput("resource_id", "数据连接资源编号", context.resource_id, "由创建有数数据连接步骤返回。") ;
+        else if (step === "table_schema_lookup") {
+          const item = context.data_items?.[0] || {};
+          fields = `<div class="approval-auth-context-object"><h4>授权数据项</h4>${approvalAuthContextInput("data_item_title", "表名称", item.datatitle, "需要查询 schema（模式）的业务表名称。")}${approvalAuthContextInput("data_item_level", "数据级别", item.dataLevel, "审批申请中的数据授权级别。")}</div>`;
+        } else if (step === "auth_info_insert" || step === "internal_grant") {
+          const item = context.grant_records?.[0] || {};
+          fields = (step === "auth_info_insert" ? approvalAuthContextInput("apply_flow_id", "申请编号", context.apply_flow_id, "写入授权信息表的审批申请编号。") : approvalAuthContextInput("generated_username", "生成的 Doris 用户名", context.generated_username, "将被创建或复用的 Doris 用户名。")) + `<div class="approval-auth-context-object"><h4>授权记录</h4>${approvalAuthContextInput("grant_title", "表名称", item.datatitle, "本次授权的 Doris 表。")}${approvalAuthContextInput("grant_level", "数据级别", item.dataLevel, "审批申请中的授权级别。")}${approvalAuthContextInput("grant_schema", "Schema（模式）名称", item.schema_name, "该表所在的数据库模式。")}</div>`;
+        }
+        const content = fields ? `<div class="approval-auth-test-context">${fields}</div>` : '<div class="approval-auth-test-context"><div class="approval-auth-context-empty">当前步骤无需额外上下文，直接使用所选任务中已保存的连接与配置。</div></div>';
+        $("approvalAuthStepContextFields").innerHTML = `${content}<div class="approval-auth-result-explanation" style="margin:12px 15px 0"><strong>执行影响：</strong>${escapeHtml(definition[3])}</div>`;
+      }
+
+      function approvalAuthStructuredStepContext() {
+        const step = $("approvalAuthStepKey")?.value || "login";
+        const value = (key) => document.querySelector(`[data-approval-auth-context-field="${key}"]`)?.value.trim() || "";
+        if (step === "detail") return { apply_flow_id: value("apply_flow_id"), todo_create_time: value("todo_create_time").replace("T", " ") };
+        if (step === "department_mapping") return { department: value("department") };
+        if (step === "data_list" || step === "audit_status_update") return { apply_flow_id: value("apply_flow_id") };
+        if (step === "table_schema_lookup") return { data_items: [{ datatitle: value("data_item_title"), dataLevel: value("data_item_level") }] };
+        if (step === "auth_info_insert") return { apply_flow_id: value("apply_flow_id"), grant_records: [{ datatitle: value("grant_title"), dataLevel: value("grant_level"), schema_name: value("grant_schema") }] };
+        if (step === "internal_grant") return { generated_username: value("generated_username"), grant_records: [{ datatitle: value("grant_title"), dataLevel: value("grant_level"), schema_name: value("grant_schema") }] };
+        if (step === "api_add") return { database_name: value("database_name"), doris_username: value("doris_username"), doris_password: value("doris_password") };
+        if (step === "import_permissions") return { unique_ids: value("unique_ids").split(/[,\r\n]+/).map((item) => item.trim()).filter(Boolean), query_end_time: value("query_end_time").replace("T", " "), resource_id: value("resource_id") };
+        return {};
       }
 
       function approvalAuthAutoWatchScheduleText(config) {
@@ -11027,6 +11511,7 @@
       function renderApprovalAuthConfigForm() {
         const config = approvalAuthConfigs.find((item) => item.id === approvalAuthSelectedConfigId);
         approvalAuthWatchSettingsDirty = false;
+        if ($("approvalAuthTaskFormTitle")) $("approvalAuthTaskFormTitle").textContent = config?.name || "新建授权任务";
         $("approvalAuthName").value = config?.name || "";
         $("approvalAuthDorisConnection").value = config?.doris_connection_id || "";
         $("approvalAuthWorkflowBaseUrl").value = config?.workflow_base_url || "";
@@ -11036,26 +11521,54 @@
         $("approvalAuthYoudataEmail").value = config?.youdata_email || "";
         $("approvalAuthYoudataPassword").value = "";
         $("approvalAuthDefaultDorisPassword").value = "";
-        $("approvalAuthDebugLogSensitivePayloads").checked = !!config?.config?.debug_log_sensitive_payloads;
-        $("approvalAuthAutoWatchEnabled").checked = !!config?.config?.auto_watch_enabled;
-        $("approvalAuthAutoWatchInterval").value = String(config?.config?.auto_watch_interval_minutes || 5);
-        $("approvalAuthAutoWatchMaxItems").value = String(config?.config?.auto_watch_max_items_per_scan || 1);
-        $("approvalAuthUpdateAuditStatusAfterSuccess").checked = config?.config?.update_audit_status_after_success !== false;
-        const defaultConfig = approvalAuthDefaultConfigJson();
-        $("approvalAuthMappingDatabase").value = config?.config?.mapping_database || defaultConfig.mapping_database;
-        $("approvalAuthAuthInfoDatabase").value = config?.config?.auth_info_database || defaultConfig.auth_info_database;
-        const apiAddPaths = config?.config?.api_add_defaults?.paths || defaultConfig.api_add_defaults.paths;
-        $("approvalAuthApiAddPaths").value = Array.isArray(apiAddPaths) ? apiAddPaths.join(",") : "";
-        const importPermissionPaths = config?.config?.import_permissions_defaults?.path || defaultConfig.import_permissions_defaults.path;
-        $("approvalAuthImportPermissionPaths").value = Array.isArray(importPermissionPaths) ? String(importPermissionPaths[0] || "") : "";
         $("approvalAuthConfigJson").value = JSON.stringify(config?.config || approvalAuthDefaultConfigJson(), null, 2);
+        renderApprovalAuthAdvancedConfig(config?.config || approvalAuthDefaultConfigJson());
         $("approvalAuthAutoWatchScheduleHint").textContent = approvalAuthAutoWatchScheduleText(config?.config || {});
+        renderApprovalAuthConfigSummary(config?.config || approvalAuthDefaultConfigJson());
         renderApprovalAuthWatchStatus();
         renderApprovalAuthStepContextTemplate();
       }
 
+      function renderApprovalAuthConfigSummary(value) {
+        const box = $("approvalAuthConfigSummary");
+        if (!box) return;
+        const config = approvalAuthMergedConfig(value);
+        box.innerHTML = `
+          <div><span>审批接口</span><strong>4 个接口</strong></div>
+          <div><span>有数权限</span><strong>${(config.youdata_permissions || []).length} 项</strong></div>
+          <div><span>监听策略</span><strong>${config.auto_watch_enabled ? `${config.auto_watch_interval_minutes} 分钟 / ${config.auto_watch_max_items_per_scan} 条` : "已停用"}</strong></div>
+          <div><span>诊断日志</span><strong>${config.debug_log_sensitive_payloads ? "已开启" : "已关闭"}</strong></div>`;
+      }
+
+      function openApprovalAuthAdvancedConfig(focusWatch = false) {
+        renderApprovalAuthAdvancedConfig(approvalAuthJson("approvalAuthConfigJson"));
+        setMessage("approvalAuthAdvancedConfigMessage", "", "");
+        $("approvalAuthAdvancedConfigModal").hidden = false;
+        if (focusWatch) {
+          $("approvalAuthWatchSettings").open = true;
+          $("approvalAuthAutoWatchEnabled")?.focus();
+        } else {
+          $("approvalAuthAdvancedConfigCloseBtn")?.focus();
+        }
+      }
+
+      function closeApprovalAuthAdvancedConfig(discard = true) {
+        if (discard) {
+          approvalAuthWatchSettingsDirty = false;
+          renderApprovalAuthAdvancedConfig(approvalAuthJson("approvalAuthConfigJson"));
+          renderApprovalAuthWatchStatus();
+        }
+        $("approvalAuthAdvancedConfigModal").hidden = true;
+      }
+
+      async function saveApprovalAuthAdvancedConfig() {
+        await saveApprovalAuthConfig();
+        closeApprovalAuthAdvancedConfig(false);
+      }
+
       function newApprovalAuthConfig() {
         approvalAuthSelectedConfigId = "";
+        switchApprovalAuthWorkspace("tasks");
         renderApprovalAuthConfigOptions();
         renderApprovalAuthConfigForm();
         setMessage("approvalAuthMessage", "已切换为新建配置。", "");
@@ -11079,25 +11592,78 @@
         if (workflowPassword) payload.workflow_password = workflowPassword;
         if (youdataPassword) payload.youdata_password = youdataPassword;
         if (defaultPassword) payload.default_doris_password = defaultPassword;
+
+        const textFields = {
+          login_path: "approvalAuthLoginPath",
+          todo_list_path: "approvalAuthTodoListPath",
+          detail_path: "approvalAuthDetailPath",
+          data_list_path: "approvalAuthDataListPath",
+          workflow_token_path: "approvalAuthWorkflowTokenPath",
+          workflow_token_header: "approvalAuthWorkflowTokenHeader",
+          workflow_token_prefix: "approvalAuthWorkflowTokenPrefix",
+          todo_items_path: "approvalAuthTodoItemsPath",
+          detail_data_path: "approvalAuthDetailDataPath",
+          data_list_result_path: "approvalAuthDataListResultPath",
+          mapping_database: "approvalAuthMappingDatabase",
+          mapping_table: "approvalAuthMappingTable",
+          mapping_department_column: "approvalAuthMappingDepartmentColumn",
+          mapping_database_column: "approvalAuthMappingDatabaseColumn",
+          auth_info_database: "approvalAuthAuthInfoDatabase",
+          auth_info_table: "approvalAuthAuthInfoTable",
+          youdata_token_path: "approvalAuthYoudataTokenPath",
+          youdata_token_type: "approvalAuthYoudataTokenType",
+          youdata_token_result_path: "approvalAuthYoudataTokenResultPath",
+          api_add_path: "approvalAuthApiAddPath",
+          api_add_id_path: "approvalAuthApiAddIdPath",
+          import_permissions_path: "approvalAuthImportPermissionsPath",
+          import_permissions_role_id_path: "approvalAuthImportPermissionsRoleIdPath",
+          audit_status_update_path: "approvalAuthAuditStatusUpdatePath"
+        };
+        Object.entries(textFields).forEach(([key, id]) => { config[key] = $(id).value.trim(); });
+        const dateSuffix = $("approvalAuthDateSuffix").value.trim();
+        if (dateSuffix) config.date_suffix = dateSuffix;
+        else delete config.date_suffix;
+        config.todo_page = Math.max(1, Number($("approvalAuthTodoPage").value || 1));
+        config.todo_rows = Math.max(1, Number($("approvalAuthTodoRows").value || 1000));
+        config.data_list_rows = Math.max(1, Number($("approvalAuthDataListRows").value || 9999));
+        config.timeout_seconds = Math.max(1, Math.min(600, Number($("approvalAuthTimeoutSeconds").value || 60)));
         config.debug_log_sensitive_payloads = $("approvalAuthDebugLogSensitivePayloads").checked;
         config.auto_watch_enabled = $("approvalAuthAutoWatchEnabled").checked;
         config.auto_watch_interval_minutes = Math.max(1, Math.min(1440, Number($("approvalAuthAutoWatchInterval").value || 5)));
         config.auto_watch_max_items_per_scan = Math.max(1, Math.min(100, Number($("approvalAuthAutoWatchMaxItems").value || 1)));
-        config.auto_watch_skip_status_updated = config.auto_watch_skip_status_updated !== false;
+        config.auto_watch_skip_status_updated = $("approvalAuthAutoWatchSkipStatusUpdated").checked;
         config.update_audit_status_after_success = $("approvalAuthUpdateAuditStatusAfterSuccess").checked;
-        config.mapping_database = $("approvalAuthMappingDatabase").value.trim();
-        config.auth_info_database = $("approvalAuthAuthInfoDatabase").value.trim();
-        if (!config.mapping_database || !config.auth_info_database) throw new Error("请填写映射表和授权信息表所属库。");
-        config.api_add_defaults = { ...(config.api_add_defaults || {}) };
+        config.audit_status_update_body_defaults = approvalAuthCollectAuditBodyDefaults();
+        if (!config.mapping_database || !config.mapping_table || !config.auth_info_database || !config.auth_info_table) throw new Error("请完整填写映射表和授权信息表的库名与表名。");
+
+        const knownPermissions = new Set(approvalAuthPermissionOptions.map(([key]) => key));
+        const preservedPermissions = (config.youdata_permissions || []).filter((item) => !knownPermissions.has(item));
+        config.youdata_permissions = [...preservedPermissions, ...Array.from(document.querySelectorAll("[data-approval-auth-permission]:checked")).map((field) => field.getAttribute("data-approval-auth-permission"))];
+        config.api_add_defaults = { ...(config.api_add_defaults || {}), parameters: { ...(config.api_add_defaults?.parameters || {}) } };
         config.api_add_defaults.paths = $("approvalAuthApiAddPaths").value
           .split(/[,\r\n]+/)
           .map((item) => item.trim())
           .filter(Boolean);
         if (!config.api_add_defaults.paths.length) throw new Error("请至少填写一个 apiAdd 授权目录。");
+        config.api_add_defaults.projectId = Number($("approvalAuthApiAddProjectId").value || 0);
+        config.api_add_defaults.type = Number($("approvalAuthApiAddType").value || 0);
+        config.api_add_defaults.server = $("approvalAuthApiAddServer").value.trim();
+        config.api_add_defaults.port = $("approvalAuthApiAddPort").value.trim();
+        config.api_add_defaults.driver = $("approvalAuthApiAddDriver").value.trim();
+        config.api_add_defaults.skipTest = $("approvalAuthApiAddSkipTest").checked ? "true" : "false";
+        config.api_add_defaults.nullSafeEqual = $("approvalAuthApiAddNullSafeEqual").checked;
+        config.api_add_defaults.parameters.authType = $("approvalAuthApiAddAuthType").value.trim();
+        config.api_add_defaults.parameters.dorisCatalog = $("approvalAuthApiAddDorisCatalog").value.trim();
         config.import_permissions_defaults = { ...(config.import_permissions_defaults || {}) };
         const importPermissionPath = $("approvalAuthImportPermissionPaths").value.trim();
         if (!importPermissionPath || /[,\r\n]/.test(importPermissionPath)) throw new Error("importDataPermissions 授权目录只支持一个不含逗号或换行的目录名称。");
         config.import_permissions_defaults.path = [importPermissionPath];
+        config.import_permissions_defaults.projectId = Number($("approvalAuthImportProjectId").value || 0);
+        config.import_permissions_defaults.type = Number($("approvalAuthImportType").value || 0);
+        config.import_permissions_defaults.roleName = $("approvalAuthImportRoleName").value.trim();
+        const existingResourceTypes = config.import_permissions_defaults.importResourceTypes || [];
+        const preservedResourceTypes = existingResourceTypes.filter((item) => item !== "DATA_CONNECTION");
+        config.import_permissions_defaults.importResourceTypes = $("approvalAuthImportResourceDataConnection").checked ? [...preservedResourceTypes, "DATA_CONNECTION"] : preservedResourceTypes;
         return payload;
       }
 
@@ -11125,13 +11691,42 @@
 
       async function testApprovalAuthStep() {
         if (!approvalAuthSelectedConfigId) throw new Error("请先选择或保存配置。");
+        const context = approvalAuthStructuredStepContext();
+        $("approvalAuthStepContext").value = JSON.stringify(context, null, 2);
         const result = await api(`/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/test-step`, {
           method: "POST",
-          body: JSON.stringify({ step_key: $("approvalAuthStepKey").value, context: approvalAuthJson("approvalAuthStepContext") })
+          body: JSON.stringify({ step_key: $("approvalAuthStepKey").value, context })
         });
-        $("approvalAuthStepResult").textContent = JSON.stringify(result.log, null, 2);
+        approvalAuthStepTestLog = result.log;
+        approvalAuthStepResultTab = "overview";
+        renderApprovalAuthStepTestResult();
         await refreshApprovalAuthorizationRunsOnly();
         setMessage("approvalAuthMessage", `步骤测试完成：${result.log.step_name}`, result.log.status === "success" ? "ok" : "error");
+      }
+
+      function renderApprovalAuthStepTestResult() {
+        const log = approvalAuthStepTestLog;
+        document.querySelectorAll("[data-approval-auth-step-result-tab]").forEach((button) => button.classList.toggle("active", button.getAttribute("data-approval-auth-step-result-tab") === approvalAuthStepResultTab));
+        const explanations = {
+          overview: "概览说明当前步骤是否成功、执行时间和错误原因，不代表完整授权任务已经完成。",
+          request: "请求展示已脱敏的请求地址、请求头和请求体，用于核对实际提交参数。",
+          response: "响应展示外部系统或 Doris 返回的原始结果，敏感字段继续遵循后台脱敏规则。",
+          extracted: "提取结果展示从响应中识别并传递给后续步骤的结构化字段。",
+          sql: "SQL 展示本步骤执行的结构化查询语言、参数和数据库返回结果；非数据库步骤显示暂无数据。"
+        };
+        if ($("approvalAuthStepResultExplanation")) $("approvalAuthStepResultExplanation").textContent = explanations[approvalAuthStepResultTab];
+        if (!log) {
+          $("approvalAuthStepResult").textContent = "请选择步骤并填写所需上下文后运行。";
+          return;
+        }
+        if ($("approvalAuthStepResultSummary")) $("approvalAuthStepResultSummary").innerHTML = `<div class="approval-auth-run-summary-item"><span>状态</span><strong>${escapeHtml(log.status || "-")}</strong></div><div class="approval-auth-run-summary-item"><span>步骤</span><strong>${escapeHtml(log.step_name || "-")}</strong></div><div class="approval-auth-run-summary-item"><span>申请编号</span><strong>${escapeHtml(log.apply_flow_id || "-")}</strong></div>`;
+        let value;
+        if (approvalAuthStepResultTab === "request") value = log.request_data;
+        else if (approvalAuthStepResultTab === "response") value = log.response_data;
+        else if (approvalAuthStepResultTab === "extracted") value = log.extracted_data;
+        else if (approvalAuthStepResultTab === "sql") value = { sql: log.sql_text || null, params: log.sql_params || null, result: log.sql_result || null };
+        else value = { message: log.message || null, error_message: log.error_message || null, status: log.status || null, started_at: log.started_at || null, finished_at: log.finished_at || null };
+        $("approvalAuthStepResult").textContent = approvalAuthPrettyValue(value);
       }
 
       async function runApprovalAuthorization() {
@@ -11165,17 +11760,50 @@
       }
 
       async function refreshApprovalAuthorizationRunsOnly() {
-        approvalAuthRuns = await api("/api/v1/approval-authorization/runs?limit=50");
+        approvalAuthRuns = await api("/api/v1/approval-authorization/runs?limit=200");
         renderApprovalAuthRuns();
+      }
+
+      function renderApprovalAuthRunTaskList() {
+        const box = $("approvalAuthRunTaskList");
+        if (!box) return;
+        box.innerHTML = approvalAuthConfigs.map((config) => {
+          const runs = approvalAuthRuns.filter((run) => String(run.config_id) === String(config.id));
+          const latest = runs[0];
+          const success = runs.filter((run) => run.state === "success").length;
+          const failed = runs.filter((run) => ["failed", "partial_failed", "update_failed"].includes(run.state)).length;
+          return `<div class="approval-auth-run-task-card">
+            <div><strong>${escapeHtml(config.name)}</strong><span>任务编号：${escapeHtml(config.id)}</span></div>
+            <div><span>已加载运行</span><strong>${runs.length} 次</strong></div>
+            <div><span>成功 / 失败</span><strong>${success} / ${failed}</strong></div>
+            <div><span>最近运行</span><strong>${latest ? formatTime(latest.started_at || latest.created_at) : "暂无"}</strong></div>
+            <button type="button" data-approval-auth-run-config="${escapeHtml(config.id)}">查看运行</button>
+          </div>`;
+        }).join("") || '<div class="muted" style="padding: 18px">暂无授权任务。</div>';
       }
 
       function renderApprovalAuthRuns() {
         const box = $("approvalAuthRunList");
-        if (!approvalAuthRuns.length) {
+        renderApprovalAuthRunTaskList();
+        if (!box) return;
+        if (!approvalAuthSelectedRunConfigId) {
+          $("approvalAuthRunTaskList").hidden = false;
+          $("approvalAuthRunInstances").hidden = true;
+          $("approvalAuthRunBackBtn").hidden = true;
+          $("approvalAuthRunBreadcrumb").innerHTML = "<span>先选择任务，再查看该任务的历次运行。</span>";
+          return;
+        }
+        const selectedConfig = approvalAuthConfigs.find((item) => String(item.id) === String(approvalAuthSelectedRunConfigId));
+        const filteredRuns = approvalAuthRuns.filter((run) => String(run.config_id) === String(approvalAuthSelectedRunConfigId));
+        $("approvalAuthRunTaskList").hidden = true;
+        $("approvalAuthRunInstances").hidden = false;
+        $("approvalAuthRunBackBtn").hidden = false;
+        $("approvalAuthRunBreadcrumb").innerHTML = `<span>全部任务</span><span>›</span><strong>${escapeHtml(selectedConfig?.name || "已删除任务")}</strong><span>› 历次运行</span>`;
+        if (!filteredRuns.length) {
           box.innerHTML = '<div class="muted" style="padding: 10px">暂无运行记录。</div>';
           return;
         }
-        box.innerHTML = approvalAuthRuns.map((run) => {
+        box.innerHTML = filteredRuns.map((run) => {
           const runConfig = approvalAuthConfigForRun(run);
           const watchState = approvalAuthWatchState(runConfig);
           return `
@@ -20880,6 +21508,10 @@
         $("approvalAuthRefreshBtn")?.addEventListener("click", () => {
           refreshApprovalAuthorizationAll().catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
         });
+        $("approvalAuthWorkspaceTabs")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-workspace]");
+          if (button) switchApprovalAuthWorkspace(button.getAttribute("data-approval-auth-workspace") || "tasks");
+        });
         $("approvalAuthNewConfigBtn")?.addEventListener("click", newApprovalAuthConfig);
         $("approvalAuthSaveConfigBtn")?.addEventListener("click", () => {
           saveApprovalAuthConfig().catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
@@ -20893,12 +21525,60 @@
         $("approvalAuthTestStepBtn")?.addEventListener("click", () => {
           testApprovalAuthStep().catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
         });
+        $("approvalAuthResetStepContextBtn")?.addEventListener("click", () => renderApprovalAuthStepContextTemplate(true));
         $("approvalAuthStepKey")?.addEventListener("change", () => renderApprovalAuthStepContextTemplate(true));
+        $("approvalAuthStepListOptions")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-step]");
+          if (!button) return;
+          $("approvalAuthStepKey").value = button.getAttribute("data-approval-auth-step") || "login";
+          renderApprovalAuthStepContextTemplate(true);
+        });
+        $("approvalAuthStepResultTabs")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-step-result-tab]");
+          if (!button) return;
+          approvalAuthStepResultTab = button.getAttribute("data-approval-auth-step-result-tab") || "overview";
+          renderApprovalAuthStepTestResult();
+        });
         $("approvalAuthConfigSelect")?.addEventListener("change", (event) => {
           approvalAuthSelectedConfigId = event.target.value;
           renderApprovalAuthConfigForm();
+          renderApprovalAuthTaskList();
         });
-        ["approvalAuthAutoWatchEnabled", "approvalAuthAutoWatchInterval", "approvalAuthAutoWatchMaxItems"].forEach((id) => {
+        $("approvalAuthTaskList")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-config]");
+          if (!button) return;
+          approvalAuthSelectedConfigId = button.getAttribute("data-approval-auth-config") || "";
+          $("approvalAuthConfigSelect").value = approvalAuthSelectedConfigId;
+          if ($("approvalAuthTestConfigSelect")) $("approvalAuthTestConfigSelect").value = approvalAuthSelectedConfigId;
+          renderApprovalAuthConfigForm();
+          renderApprovalAuthTaskList();
+        });
+        $("approvalAuthTestConfigSelect")?.addEventListener("change", (event) => {
+          approvalAuthSelectedConfigId = event.target.value;
+          $("approvalAuthConfigSelect").value = approvalAuthSelectedConfigId;
+          renderApprovalAuthConfigForm();
+          renderApprovalAuthTaskList();
+        });
+        $("approvalAuthAdvancedConfigBtn")?.addEventListener("click", () => openApprovalAuthAdvancedConfig());
+        document.querySelectorAll("[data-approval-auth-open-advanced]").forEach((button) => button.addEventListener("click", () => openApprovalAuthAdvancedConfig()));
+        $("approvalAuthAdvancedConfigCloseBtn")?.addEventListener("click", () => closeApprovalAuthAdvancedConfig(true));
+        $("approvalAuthAdvancedConfigCancelBtn")?.addEventListener("click", () => closeApprovalAuthAdvancedConfig(true));
+        $("approvalAuthAdvancedConfigSaveBtn")?.addEventListener("click", () => {
+          saveApprovalAuthAdvancedConfig().catch((e) => setMessage("approvalAuthAdvancedConfigMessage", e.message, "error"));
+        });
+        $("approvalAuthAdvancedConfigModal")?.addEventListener("click", (event) => {
+          if (event.target === $("approvalAuthAdvancedConfigModal")) closeApprovalAuthAdvancedConfig(true);
+        });
+        $("approvalAuthAddAuditBodyDefaultBtn")?.addEventListener("click", () => {
+          const empty = $("approvalAuthAuditBodyDefaults")?.querySelector(":scope > .muted");
+          if (empty) empty.remove();
+          $("approvalAuthAuditBodyDefaults")?.insertAdjacentHTML("beforeend", approvalAuthAuditBodyDefaultRow());
+        });
+        $("approvalAuthAuditBodyDefaults")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-remove-audit-body]");
+          if (button) button.closest(".approval-auth-kv-row")?.remove();
+        });
+        ["approvalAuthAutoWatchEnabled", "approvalAuthAutoWatchInterval", "approvalAuthAutoWatchMaxItems", "approvalAuthAutoWatchSkipStatusUpdated"].forEach((id) => {
           $(id)?.addEventListener("change", markApprovalAuthWatchSettingsDirty);
           $(id)?.addEventListener("input", markApprovalAuthWatchSettingsDirty);
         });
@@ -20907,11 +21587,20 @@
           if (!button) return;
           const action = button.getAttribute("data-approval-auth-watch-action");
           if (action === "edit") {
-            $("approvalAuthWatchSettings")?.scrollIntoView({ behavior: "smooth", block: "center" });
-            $("approvalAuthAutoWatchEnabled")?.focus();
+            openApprovalAuthAdvancedConfig(true);
           } else if (action === "save") {
             saveApprovalAuthConfig().catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
           }
+        });
+        $("approvalAuthRunTaskList")?.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-approval-auth-run-config]");
+          if (!button) return;
+          approvalAuthSelectedRunConfigId = button.getAttribute("data-approval-auth-run-config") || "";
+          renderApprovalAuthRuns();
+        });
+        $("approvalAuthRunBackBtn")?.addEventListener("click", () => {
+          approvalAuthSelectedRunConfigId = "";
+          renderApprovalAuthRuns();
         });
         $("approvalAuthRunList")?.addEventListener("click", (event) => {
           const button = event.target.closest("[data-approval-auth-run]");
@@ -20949,6 +21638,7 @@
           if (event.key !== "Escape") return;
           if (!$("approvalAuthLogModal")?.hidden) closeApprovalAuthLogModal();
           else if (!$("approvalAuthRunModal")?.hidden) closeApprovalAuthRunModal();
+          else if (!$("approvalAuthAdvancedConfigModal")?.hidden) closeApprovalAuthAdvancedConfig(true);
         });
         $("resourceProvisioningRefreshBtn").addEventListener("click", () => {
           refreshResourceProvisioningAll().catch((e) => {

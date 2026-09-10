@@ -248,3 +248,71 @@ skipped
 - 保存监听启用和停用状态后必须刷新配置并按服务端返回值回读；页面刷新或重新进入模块后状态保持一致。
 - 需验证未选择配置、监听停用、监听开启和配置禁用四类展示，以及间隔和每轮处理数量修改前后的未保存提示。
 - 需回归现有配置保存、完整运行、监听扫描一次、单步测试和运行日志分层窗口。
+
+## 9. 2026-09-10 配置、测试与运行记录工作区重组
+
+### 9.1 背景与目标
+
+现有页面把流程配置、原始高级配置 JSON、单步测试和所有任务的运行记录纵向堆叠在同一页面。配置项缺少逐项解释，测试上下文以原始 JSON 暴露，运行记录未先按任务归类，导致配置、调试和审计三类工作互相干扰。
+
+本次将“审批流自动授权”重组为三个独立子模块：
+
+1. “授权任务”：管理多个授权任务、基础连接和运行策略。
+2. “上下文测试”：选择已有任务和步骤，以结构化字段维护测试上下文并查看分类结果。
+3. “运行记录”：先展示全部任务的运行汇总，再进入某个任务的历次运行，最后查看某次运行下的申请与步骤日志。
+
+### 9.2 高级配置结构化规则
+
+- 页面不再提供可直接编辑的整段高级配置 JSON。
+- “高级配置”通过独立弹窗维护，并提供保存、关闭、字段说明、默认值、取值范围和风险提示。
+- 弹窗按“通用参数、审批接口、映射规则、数据连接、人员权限、状态回写、自动监听、日志安全”分组。
+- `api_add_defaults`、`import_permissions_defaults`、`parameters` 等嵌套对象拆成明确字段；`audit_status_update_body_defaults` 使用键值行维护。
+- `youdata_permissions` 和 `importResourceTypes` 使用可解释的复选项维护。
+- 历史 `date_suffix` 继续显示为兼容字段，但明确说明当前用户名后缀由待办 `createTime` 自动计算，避免误认为修改该字段会改变当前执行规则。
+- 保存时必须从服务端已回读配置开始，只覆盖页面已维护的键；未知根键和未知嵌套键原样保留，避免旧版本或定制配置丢失。
+
+结构化弹窗必须覆盖当前标准配置中的全部字段：
+
+- 通用：`date_suffix`、`timeout_seconds`。
+- 审批接口：`login_path`、`todo_list_path`、`detail_path`、`data_list_path`、`todo_page`、`todo_rows`、`data_list_rows`、`workflow_token_path`、`workflow_token_header`、`workflow_token_prefix`、`todo_items_path`、`detail_data_path`、`data_list_result_path`。
+- 映射：`mapping_database`、`mapping_table`、`mapping_department_column`、`mapping_database_column`、`auth_info_database`、`auth_info_table`。
+- 数据连接：`youdata_token_path`、`youdata_token_type`、`youdata_token_result_path`、`api_add_path`、`api_add_id_path` 及 `api_add_defaults` 全部标准子项。
+- 人员权限：`import_permissions_path`、`import_permissions_role_id_path`、`youdata_permissions` 及 `import_permissions_defaults` 全部标准子项。
+- 状态回写：`audit_status_update_path`、`audit_status_update_body_defaults`、`update_audit_status_after_success`。
+- 自动监听：`auto_watch_enabled`、`auto_watch_interval_minutes`、`auto_watch_max_items_per_scan`、`auto_watch_skip_status_updated`。
+- 日志安全：`debug_log_sensitive_payloads`。
+
+### 9.3 上下文测试规则
+
+- 上下文测试为独立子模块，不再与任务编辑表单并排挤压。
+- 仍调用原 `POST /configs/{config_id}/test-step` 接口，请求字段继续为 `step_key` 和 `context`。
+- 根据步骤动态显示结构化输入字段；数组对象使用明确的业务字段，不要求用户编写 JSON。
+- 测试结果按“概览、请求、响应、提取结果、SQL”分类展示，并说明每一类结果的来源、用途和敏感信息处理规则。
+- 不改变各步骤是否产生外部写入的既有语义；页面必须提示当前步骤的实际影响。
+
+### 9.4 运行记录分层规则
+
+运行记录固定为三级：
+
+1. 任务汇总：每个授权任务一行，展示累计运行、最近状态、最近时间和成功/失败统计。
+2. 任务运行：点击任务后展示该任务的每次运行记录，不混入其他任务。
+3. 运行详情：复用现有按 `applyFlowId` 分组和步骤详情窗口，继续展示概览、请求、响应、提取结果和 SQL。
+
+单步测试产生的运行记录仍按后端返回值参与任务统计，不改变现有数据语义。
+
+### 9.5 兼容性边界
+
+- 只调整 `static/ui.html` 的布局、配置映射和交互，不修改后端执行器、API、数据库表、调度线程、步骤顺序、幂等规则、状态回写规则或权限点。
+- 原配置请求的 `config` 对象键名、类型和嵌套结构保持不变。
+- 原“保存配置、完整运行、监听扫描一次、单步测试、查看日志”入口继续调用原接口。
+- 自动监听状态卡仍以服务端已保存值为准；弹窗中未保存的修改必须显示未保存提示，不得冒充已生效状态。
+
+### 9.6 验收要求
+
+- 服务端已有配置的全部标准键均可在结构化弹窗中正确回填，保存后请求结构与保存前兼容，未知键不丢失。
+- 新建任务使用现有默认配置，必填密码、Doris 连接和目录校验规则保持不变。
+- 启用、停用自动监听后保存并刷新，页面回读值与服务端一致。
+- 12 个单步测试入口均可切换到对应结构化上下文，提交仍生成与原接口相同的上下文对象。
+- 运行记录能够完成“全部任务 → 某任务运行 → 某次运行申请/步骤日志”的逐级访问和返回。
+- 最大化、左右半屏、还原窗口以及 1366×768 至 1920×1080 范围无页面级横向溢出；弹窗内容内部滚动，保存和关闭按钮始终可达。
+- 回归批量授权中心、完整运行、监听扫描、日志脱敏和现有权限可见性。
