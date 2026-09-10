@@ -6346,6 +6346,7 @@
       let currentDetailId = null;
       let detailRefreshTimer = null;
       let cleanupCurrentPlan = null;
+      let cleanupCurrentPlanFingerprint = "";
       let cleanupSelectedTargets = new Set();
       let cleanupCatalogTargets = [];
       let cleanupCatalogObjects = [];
@@ -7314,7 +7315,7 @@
         setPermissionVisibility("cleanupCatalogBtn", hasAction("cleanup:read"));
         setPermissionVisibility("cleanupPlanBtn", hasAction("cleanup:read"));
         setPermissionVisibility("cleanupExecuteBtn", hasAction("cleanup:execute"));
-        setPermissionState("cleanupExecuteBtn", hasAction("cleanup:execute") && (!cleanupCurrentPlan || cleanupCurrentPlan.can_execute));
+        setPermissionState("cleanupExecuteBtn", hasAction("cleanup:execute") && Boolean(cleanupCurrentPlan?.can_execute));
         updateDataPlatformModeButtons();
       }
 
@@ -19291,6 +19292,25 @@
         };
       }
 
+      function cleanupPlanFingerprint(body) {
+        return JSON.stringify({
+          connection_id: body.connection_id || "",
+          target_names: [...(body.target_names || [])].sort((a, b) => String(a).localeCompare(String(b))),
+          drop_storage: Boolean(body.drop_storage),
+          cleanup_files: Boolean(body.cleanup_files)
+        });
+      }
+
+      function invalidateCleanupPlan(message = "清理条件已变化，请重新生成并核对清理计划。") {
+        const hadPlan = Boolean(cleanupCurrentPlan);
+        cleanupCurrentPlan = null;
+        cleanupCurrentPlanFingerprint = "";
+        $("cleanupPlanPanel").hidden = true;
+        $("cleanupExecuteBtn").disabled = true;
+        $("cleanupResult").textContent = "";
+        if (hadPlan && message) setMessage("cleanupMessage", message, "warn");
+      }
+
       function updateCleanupConnectionOptions() {
         const profile = selectedProfile("cleanupConnection");
         const engine = profile?.engine || "";
@@ -19341,6 +19361,7 @@
       function toggleCleanupTarget(name, checked) {
         if (checked) cleanupSelectedTargets.add(name);
         else cleanupSelectedTargets.delete(name);
+        invalidateCleanupPlan();
         updateCleanupSelectionSummary();
         const input = $(`cleanup-check-${cssSafeId(name)}`);
         if (input) input.checked = cleanupSelectedTargets.has(name);
@@ -19352,6 +19373,7 @@
         cleanupCatalogTargets.forEach((target) => {
           if (!cleanupTargetProtected(target)) cleanupSelectedTargets.add(target.name);
         });
+        invalidateCleanupPlan();
         renderCleanupCatalog({
           targets: cleanupCatalogTargets,
           objects: cleanupCatalogObjects,
@@ -19362,6 +19384,7 @@
 
       function clearCleanupSelection() {
         cleanupSelectedTargets.clear();
+        invalidateCleanupPlan();
         renderCleanupCatalog({
           targets: cleanupCatalogTargets,
           objects: cleanupCatalogObjects,
@@ -19432,6 +19455,7 @@
           method: "POST",
           body: JSON.stringify(body)
         });
+        cleanupCurrentPlanFingerprint = cleanupPlanFingerprint(body);
         renderCleanupPlan(cleanupCurrentPlan);
         setMessage(
           "cleanupMessage",
@@ -19496,6 +19520,10 @@
       async function cleanupExecutePlan() {
         const body = cleanupRequestBody();
         if (!cleanupCurrentPlan || !cleanupCurrentPlan.can_execute) throw new Error("请先生成可执行的清理计划。");
+        if (cleanupPlanFingerprint(body) !== cleanupCurrentPlanFingerprint) {
+          invalidateCleanupPlan();
+          throw new Error("清理条件已变化，请重新生成并核对清理计划。");
+        }
         if (!body.target_names.length) throw new Error("请先选择要清理的目标。");
         const preview = body.target_names.slice(0, 20).join("\n");
         const more = body.target_names.length > 20 ? `\n... 还有 ${body.target_names.length - 20} 个目标` : "";
@@ -21764,6 +21792,7 @@
           cleanupCatalogObjects = [];
           cleanupProtectedTargets = new Set();
           cleanupCurrentPlan = null;
+          cleanupCurrentPlanFingerprint = "";
           updateCleanupSelectionSummary();
           $("cleanupPlanPanel").hidden = true;
         });
@@ -21789,6 +21818,9 @@
           const input = event.target.closest("[data-cleanup-check]");
           if (!input || input.disabled) return;
           toggleCleanupTarget(input.getAttribute("data-cleanup-check") || "", input.checked);
+        });
+        ["cleanupDropStorage", "cleanupFiles"].forEach((id) => {
+          $(id).addEventListener("change", () => invalidateCleanupPlan());
         });
         $("dorisEncryptAddKeywordBtn").addEventListener("click", addDorisEncryptKeyword);
         $("dorisEncryptKeywordInput").addEventListener("keydown", (event) => {
