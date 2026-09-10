@@ -6107,13 +6107,13 @@
       <details id="dataAutomationCreatePanel" class="data-automation-config-card"><summary><strong id="dataAutomationFormTitle">新建业务数据流</strong> <span class="hint">仅登记既有任务引用，不复制凭据</span></summary><input id="dataAutomationEditingId" type="hidden"><div class="grid" style="margin-top:12px">
         <div><label for="dataAutomationName">业务流名称</label><input id="dataAutomationName" placeholder="例如：案件登记数据安全流"></div>
         <div><label for="dataAutomationDomain">业务域</label><input id="dataAutomationDomain" placeholder="例如：审计案件"></div>
-        <div><label for="dataAutomationRestoreTemplate">Oracle 恢复模板任务 ID</label><input id="dataAutomationRestoreTemplate" placeholder="UUID"></div>
-        <div><label for="dataAutomationSyncNode">Oracle → Doris ODS 全表同步组件 ID</label><input id="dataAutomationSyncNode" placeholder="UUID"></div>
-        <div><label for="dataAutomationWorkflowVersion">DWD 标准化工作流版本 ID</label><input id="dataAutomationWorkflowVersion" placeholder="UUID"></div>
-        <div><label for="dataAutomationSm4Task">ODS SM4 任务定义 ID</label><input id="dataAutomationSm4Task" placeholder="UUID"></div>
+        <div><label for="dataAutomationRestoreTemplate">Oracle 恢复模板</label><select id="dataAutomationRestoreTemplate"><option value="">请选择恢复模板</option></select><span class="hint" data-reference-summary-for="dataAutomationRestoreTemplate">按任务名称、目标和状态选择。</span></div>
+        <div><label for="dataAutomationSyncNode">Oracle → Doris ODS 全表同步任务</label><select id="dataAutomationSyncNode"><option value="">请选择数据同步任务</option></select><span class="hint" data-reference-summary-for="dataAutomationSyncNode">只显示当前有效的数据同步任务。</span></div>
+        <div><label for="dataAutomationWorkflowVersion">DWD 标准化生产版本</label><select id="dataAutomationWorkflowVersion"><option value="">请选择工作流生产版本</option></select><span class="hint" data-reference-summary-for="dataAutomationWorkflowVersion">生产版本会随安全编排冻结。</span></div>
+        <div><label for="dataAutomationSm4Task">ODS SM4 加密任务</label><select id="dataAutomationSm4Task"><option value="">请选择 SM4 任务</option></select><span class="hint" data-reference-summary-for="dataAutomationSm4Task">显示任务名称、修订号和源数据库。</span></div>
         <div><label for="dataAutomationStandardDatabase">标准资产数据库</label><input id="dataAutomationStandardDatabase" placeholder="例如：DWD"></div>
         <div><label for="dataAutomationStandardTable">标准资产表名</label><input id="dataAutomationStandardTable" placeholder="例如：CASE_REGISTER_STANDARD"></div>
-        <div><label for="dataAutomationStandardConnection">标准资产 Doris 连接 ID</label><input id="dataAutomationStandardConnection" placeholder="可选 UUID"></div>
+        <div><label for="dataAutomationStandardConnection">标准资产 Doris 连接</label><select id="dataAutomationStandardConnection"><option value="">不指定连接</option></select><span class="hint" data-reference-summary-for="dataAutomationStandardConnection">用于唯一定位 DWD 标准资产。</span></div>
         <div><label for="dataAutomationPattern">DMP 文件规则</label><input id="dataAutomationPattern" value="*.dmp"></div>
         <div><label for="dataAutomationInterval">监听间隔（分钟）</label><input id="dataAutomationInterval" type="number" min="1" max="1440" value="5"></div>
         <div><label for="dataAutomationStable">文件稳定等待（秒）</label><input id="dataAutomationStable" type="number" min="10" value="60"></div>
@@ -7997,6 +7997,7 @@
         }
         if (next === "dataAutomation" && hasAction("dataPlatform:read")) {
           refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error"));
+          refreshDataAutomationReferences().catch((e) => setMessage("dataAutomationMessage", `任务引用加载失败：${e.message}`, "error"));
         }
         if (next === "dataLineage" && hasAction("dataPlatform:read")) {
           refreshOpenMetadata().catch((e) => setMessage("openMetadataMessage", e.message, "error"));
@@ -22885,6 +22886,93 @@
         renderDataFlowLedger(await api("/api/v1/data-automation/orchestration/ledger"));
       }
 
+      function preserveDataAutomationReference(options, value) {
+        const selected = String(value || "");
+        if (!selected || options.some((item) => String(item.value) === selected)) return options;
+        return [...options, {
+          value: selected,
+          label: `历史引用 · ${shortId(selected)}`,
+          summary: "当前任务列表中不可见；保持原值，重新选择后才会替换。",
+          historical: true
+        }];
+      }
+
+      function setDataAutomationReferenceOptions(id, options, emptyLabel, value) {
+        const select = $(id);
+        if (!select) return;
+        const selected = String(value ?? select.value ?? "");
+        const rows = preserveDataAutomationReference(options, selected);
+        select.innerHTML = `<option value="">${escapeHtml(emptyLabel)}</option>` + rows.map((item) =>
+          `<option value="${escapeHtml(item.value)}" data-summary="${escapeHtml(item.summary || item.label)}" ${String(item.value) === selected ? "selected" : ""}>${escapeHtml(item.label)}${item.historical ? "（当前不可用）" : ""}</option>`
+        ).join("");
+        select.value = selected;
+      }
+
+      function updateDataAutomationReferenceSummary(id) {
+        const select = $(id);
+        const summary = document.querySelector(`[data-reference-summary-for="${id}"]`);
+        if (!select || !summary) return;
+        const option = select.selectedOptions?.[0];
+        summary.textContent = option?.value ? (option.dataset.summary || option.textContent) : "未绑定；保存时对应引用为空。";
+        summary.classList.toggle("warning", Boolean(option?.textContent?.includes("当前不可用")));
+      }
+
+      function renderDataAutomationReferenceOptions(values = {}) {
+        const workflowNames = new Map(dataPlatformWorkflows.map((item) => [String(item.workflow_id), item.name || "未命名工作流"]));
+        const selectedValues = {
+          dataAutomationRestoreTemplate: values.restore_template_task_id ?? $("dataAutomationRestoreTemplate")?.value,
+          dataAutomationSyncNode: values.data_sync_node_id ?? $("dataAutomationSyncNode")?.value,
+          dataAutomationWorkflowVersion: values.standard_workflow_version_id ?? $("dataAutomationWorkflowVersion")?.value,
+          dataAutomationSm4Task: values.sm4_task_definition_id ?? $("dataAutomationSm4Task")?.value,
+          dataAutomationStandardConnection: values.standard_connection_id ?? $("dataAutomationStandardConnection")?.value
+        };
+        setDataAutomationReferenceOptions("dataAutomationRestoreTemplate", currentTasks.filter((task) => task.engine === "oracle").map((task) => ({
+          value: task.id,
+          label: `${task.target_schema || "待确定目标"} · ${shortId(task.id)} · ${task.state || "未知状态"}`,
+          summary: `恢复目标：${task.target_schema || "运行时确定"}；来源：${task.remote_directory || "未记录"}；状态：${task.state || "未知"}`
+        })), "请选择恢复模板", selectedValues.dataAutomationRestoreTemplate);
+        setDataAutomationReferenceOptions("dataAutomationSyncNode", dataPlatformComponentTasks("data_sync").map((task) => ({
+          value: task.node_id,
+          label: `${task.name || "未命名同步任务"} · V${Number(task.revision || 1)}`,
+          summary: `来源：${task.config?.source_catalog || task.config?.source_database || "待运行确定"}；目标：${task.config?.target_database || "未配置"}；修订：V${Number(task.revision || 1)}`
+        })), "请选择数据同步任务", selectedValues.dataAutomationSyncNode);
+        setDataAutomationReferenceOptions("dataAutomationWorkflowVersion", dataPlatformVersions.filter((version) => version.channel === "prod").map((version) => ({
+          value: version.version_id,
+          label: `${workflowNames.get(String(version.workflow_id)) || "未命名工作流"} · 生产 V${Number(version.version_no || 1)} · ${dataPlatformVersionStatusLabels[version.status] || version.status || "未知状态"}`,
+          summary: `工作流：${workflowNames.get(String(version.workflow_id)) || "未命名"}；生产版本：V${Number(version.version_no || 1)}；状态：${dataPlatformVersionStatusLabels[version.status] || version.status || "未知"}`
+        })), "请选择工作流生产版本", selectedValues.dataAutomationWorkflowVersion);
+        setDataAutomationReferenceOptions("dataAutomationSm4Task", dorisEncryptTaskDefinitions.map((task) => ({
+          value: task.task_id,
+          label: `${task.name || "未命名 SM4 任务"} · V${Number(task.revision || 1)} · ${task.database || "未配置源库"}`,
+          summary: `源数据库：${task.database || "未配置"}；修订：V${Number(task.revision || 1)}；覆盖合同：${(task.coverage_contracts || []).length} 条`
+        })), "请选择 SM4 任务", selectedValues.dataAutomationSm4Task);
+        setDataAutomationReferenceOptions("dataAutomationStandardConnection", connections.filter((item) => item.engine === "doris").map((item) => ({
+          value: item.id,
+          label: `${item.name || "未命名连接"} · ${item.host || "-"}:${item.port || "-"}`,
+          summary: `Doris 连接：${item.name || "未命名"}；地址：${item.host || "-"}:${item.port || "-"}`
+        })), "不指定连接", selectedValues.dataAutomationStandardConnection);
+        Object.keys(selectedValues).forEach(updateDataAutomationReferenceSummary);
+      }
+
+      async function refreshDataAutomationReferences() {
+        const [tasks, nodes, workflows, versions, sm4Tasks, connectionRows] = await Promise.all([
+          api("/api/v1/tasks?limit=200"),
+          api("/api/v1/data-platform/nodes"),
+          api("/api/v1/data-platform/workflows"),
+          api("/api/v1/data-platform/versions"),
+          api("/api/v1/doris-encryption/task-definitions"),
+          api("/api/v1/database-connections")
+        ]);
+        currentTasks = tasks;
+        dataPlatformNodes = nodes.nodes || [];
+        dataPlatformWorkflows = workflows.workflows || [];
+        dataPlatformVersions = versions.versions || [];
+        dorisEncryptTaskDefinitions = sm4Tasks.tasks || [];
+        dorisEncryptTaskDefinitionsLoaded = true;
+        connections = connectionRows;
+        renderDataAutomationReferenceOptions();
+      }
+
       function openDataAutomationForm(flow = null) {
         const target = flow?.standard_target || {};
         const targetSpec = (target.assets || [target]).find(item => item?.database || item?.table_name) || {};
@@ -22892,13 +22980,15 @@
         $("dataAutomationFormTitle").textContent = flow ? "配置业务数据流" : "新建业务数据流";
         $("dataAutomationName").value = flow?.name || "";
         $("dataAutomationDomain").value = flow?.business_domain || "";
-        $("dataAutomationRestoreTemplate").value = flow?.restore_template_task_id || "";
-        $("dataAutomationSyncNode").value = flow?.data_sync_node_id || "";
-        $("dataAutomationWorkflowVersion").value = flow?.standard_workflow_version_id || "";
-        $("dataAutomationSm4Task").value = flow?.sm4_task_definition_id || "";
+        renderDataAutomationReferenceOptions({
+          restore_template_task_id: flow?.restore_template_task_id || "",
+          data_sync_node_id: flow?.data_sync_node_id || "",
+          standard_workflow_version_id: flow?.standard_workflow_version_id || "",
+          sm4_task_definition_id: flow?.sm4_task_definition_id || "",
+          standard_connection_id: targetSpec.connection_id || ""
+        });
         $("dataAutomationStandardDatabase").value = targetSpec.database || "";
         $("dataAutomationStandardTable").value = targetSpec.table_name || "";
-        $("dataAutomationStandardConnection").value = targetSpec.connection_id || "";
         $("dataAutomationPattern").value = flow?.file_pattern || "*.dmp";
         $("dataAutomationInterval").value = flow?.watch_interval_minutes || 5;
         $("dataAutomationStable").value = flow?.stable_wait_seconds || 60;
@@ -22915,6 +23005,9 @@
           const flow = (dataFlowLedger?.flows || []).find(item => item.pipeline_id === selectedDataFlowId);
           if (!flow) return setMessage("dataAutomationMessage", "请先选择一条业务数据流。", "warn");
           openDataAutomationForm(flow);
+        });
+        ["dataAutomationRestoreTemplate", "dataAutomationSyncNode", "dataAutomationWorkflowVersion", "dataAutomationSm4Task", "dataAutomationStandardConnection"].forEach((id) => {
+          $(id)?.addEventListener("change", () => updateDataAutomationReferenceSummary(id));
         });
         $("dataAutomationCreateBtn")?.addEventListener("click", async () => {
           try {
