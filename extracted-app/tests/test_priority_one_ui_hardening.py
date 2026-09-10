@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 UI_HTML = Path(__file__).parents[1] / "src" / "recovery_service" / "static" / "ui.html"
 
 

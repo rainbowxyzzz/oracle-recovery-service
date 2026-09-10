@@ -5718,8 +5718,12 @@
             </select>
             <label for="dataPlatformNodeDesc">说明</label>
             <input id="dataPlatformNodeDesc" placeholder="这一步做什么、由谁负责">
-            <label for="dataPlatformNodeConfig">节点参数</label>
-            <textarea id="dataPlatformNodeConfig" rows="6" spellcheck="false">{}</textarea>
+            <label>节点参数</label>
+            <div id="dataPlatformNodeConfigSummary" class="structured-config-summary">当前未配置节点参数。</div>
+            <div class="actions" style="margin-top: 8px">
+              <button id="dataPlatformNodeConfigOpenBtn" type="button">配置节点参数</button>
+            </div>
+            <textarea id="dataPlatformNodeConfig" class="structured-config-hidden" aria-hidden="true">{}</textarea>
             <div class="actions" style="margin-top: 10px">
               <button id="dataPlatformNodeSaveBtn" class="primary" type="submit">保存节点</button>
               <button id="dataPlatformManualTemplateBtn" type="button">人工模板</button>
@@ -5882,9 +5886,16 @@
               <div><label for="dataPlatformSyncPrimaryKeys">主键字段</label><input id="dataPlatformSyncPrimaryKeys" placeholder="逗号分隔；主键更新模式必填"></div>
               <div><label for="dataPlatformSyncBatchSize">批量行数</label><input id="dataPlatformSyncBatchSize" type="number" min="100" max="10000" value="1000"></div>
             </div>
-            <label for="dataPlatformSyncColumnMapping">字段映射 JSON</label>
-            <textarea id="dataPlatformSyncColumnMapping" rows="6" spellcheck="false">[]</textarea>
-            <div class="hint">留空数组表示按源表全部字段同名同步；自定义格式：[{"source_name":"id","target_name":"id","target_type":"BIGINT"}]</div>
+            <label>字段映射</label>
+            <div class="table-wrap structured-config-scroll" style="max-height: 260px">
+              <table class="structured-config-table" style="min-width: 620px">
+                <thead><tr><th>源字段</th><th>目标字段</th><th>目标类型</th><th class="structured-config-action">操作</th></tr></thead>
+                <tbody id="dataPlatformSyncColumnMappingRows"></tbody>
+              </table>
+            </div>
+            <div class="actions" style="margin-top: 8px"><button id="dataPlatformSyncColumnMappingAddBtn" type="button">新增字段映射</button></div>
+            <textarea id="dataPlatformSyncColumnMapping" class="structured-config-hidden" aria-hidden="true">[]</textarea>
+            <div class="hint">不配置表示按源表全部字段同名同步；目标类型为空时沿用源字段类型。</div>
           </div>
           <div id="dataPlatformChangeTriggerFields" hidden>
             <div class="grid-2">
@@ -5936,6 +5947,35 @@
             <button id="dataPlatformTreeDialogSubmitBtn" class="primary" type="submit">确认</button>
           </div>
         </form>
+      </div>
+      <div id="dataPlatformNodeConfigModal" class="modal-backdrop" hidden>
+        <div class="modal structured-config-modal" role="dialog" aria-modal="true" aria-labelledby="dataPlatformNodeConfigTitle">
+          <div class="toolbar">
+            <div>
+              <h2 id="dataPlatformNodeConfigTitle">节点参数</h2>
+              <div class="hint">参数名称保持不变；按实际值选择文本、数字、布尔值、空值或 JSON 类型。</div>
+            </div>
+            <button id="dataPlatformNodeConfigCloseBtn" type="button" title="关闭">×</button>
+          </div>
+          <div class="structured-config-scroll table-wrap">
+            <table class="structured-config-table" style="min-width: 720px">
+              <thead><tr><th>参数名称</th><th>类型</th><th>参数值</th><th class="structured-config-action">操作</th></tr></thead>
+              <tbody id="dataPlatformNodeConfigRows"></tbody>
+            </table>
+          </div>
+          <div class="actions"><button id="dataPlatformNodeConfigAddBtn" type="button">新增参数</button></div>
+          <details class="structured-config-json">
+            <summary>高级 JSON（兼容旧配置）</summary>
+            <div class="hint">适合批量粘贴复杂对象；应用后会同步到上方参数表。</div>
+            <textarea id="dataPlatformNodeConfigJson" rows="8" spellcheck="false"></textarea>
+            <div class="actions"><button id="dataPlatformNodeConfigApplyJsonBtn" type="button">应用 JSON</button></div>
+          </details>
+          <div id="dataPlatformNodeConfigEditorMessage" class="message"></div>
+          <div class="actions">
+            <button id="dataPlatformNodeConfigCancelBtn" type="button">取消</button>
+            <button id="dataPlatformNodeConfigSaveBtn" class="primary" type="button">保存节点参数</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -18589,12 +18629,124 @@
         }
       }
 
+      function dataPlatformNodeConfigDraft(config = {}) {
+        return Object.entries(config || {}).map(([key, value]) => ({
+          key,
+          type: value === null ? "null" : Array.isArray(value) || typeof value === "object" ? "json" : typeof value,
+          value: value === null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value)
+        }));
+      }
+
+      function renderDataPlatformNodeConfigRows(rows) {
+        const box = $("dataPlatformNodeConfigRows");
+        if (!rows.length) {
+          box.innerHTML = '<tr data-structured-empty><td colspan="4" class="muted">暂无节点参数，请点击“新增参数”。</td></tr>';
+          return;
+        }
+        box.innerHTML = rows.map((row) => `<tr data-node-config-row>
+          <td><input data-node-config-key value="${escapeHtml(row.key || "")}" placeholder="参数名称"></td>
+          <td><select data-node-config-type>
+            <option value="string" ${row.type === "string" ? "selected" : ""}>文本</option>
+            <option value="number" ${row.type === "number" ? "selected" : ""}>数字</option>
+            <option value="boolean" ${row.type === "boolean" ? "selected" : ""}>布尔值</option>
+            <option value="null" ${row.type === "null" ? "selected" : ""}>空值</option>
+            <option value="json" ${row.type === "json" ? "selected" : ""}>JSON</option>
+          </select></td>
+          <td><input data-node-config-value value="${escapeHtml(row.value ?? "")}" placeholder="参数值；布尔值填写 true 或 false"></td>
+          <td><button class="danger" type="button" data-node-config-remove>删除</button></td>
+        </tr>`).join("");
+      }
+
+      function readDataPlatformNodeConfigDraftRows() {
+        return Array.from(document.querySelectorAll("[data-node-config-row]")).map((row) => ({
+          key: row.querySelector("[data-node-config-key]").value.trim(),
+          type: row.querySelector("[data-node-config-type]").value,
+          value: row.querySelector("[data-node-config-value]").value.trim()
+        }));
+      }
+
+      function collectDataPlatformNodeConfig(validate = true) {
+        const config = {};
+        readDataPlatformNodeConfigDraftRows().forEach((row, index) => {
+          if (!row.key && !row.value) return;
+          if (!row.key) throw new Error(`第 ${index + 1} 个节点参数未填写参数名称。`);
+          if (validate && Object.prototype.hasOwnProperty.call(config, row.key)) throw new Error(`节点参数“${row.key}”重复。`);
+          if (row.type === "null") config[row.key] = null;
+          else if (row.type === "number") {
+            const value = Number(row.value);
+            if (!row.value || !Number.isFinite(value)) throw new Error(`节点参数“${row.key}”必须填写有效数字。`);
+            config[row.key] = value;
+          } else if (row.type === "boolean") {
+            if (!["true", "false"].includes(row.value.toLowerCase())) throw new Error(`节点参数“${row.key}”的布尔值只能填写 true 或 false。`);
+            config[row.key] = row.value.toLowerCase() === "true";
+          } else if (row.type === "json") {
+            try { config[row.key] = JSON.parse(row.value); }
+            catch (_) { throw new Error(`节点参数“${row.key}”不是有效 JSON。`); }
+          } else config[row.key] = row.value;
+        });
+        return config;
+      }
+
+      function renderDataPlatformNodeConfigSummary() {
+        const box = $("dataPlatformNodeConfigSummary");
+        if (!box) return;
+        try {
+          const config = parseJsonInput("dataPlatformNodeConfig", {});
+          const keys = Object.keys(config || {});
+          box.innerHTML = keys.length
+            ? `<strong>${keys.length} 个参数</strong><div>${escapeHtml(keys.slice(0, 6).join("、"))}${keys.length > 6 ? ` 等 ${keys.length} 项` : ""}</div>`
+            : "当前未配置节点参数。";
+        } catch (error) {
+          box.innerHTML = `<strong>旧配置待检查</strong><div>${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      function setDataPlatformNodeConfig(config) {
+        $("dataPlatformNodeConfig").value = JSON.stringify(config || {}, null, 2);
+        renderDataPlatformNodeConfigSummary();
+      }
+
+      function openDataPlatformNodeConfigEditor() {
+        try {
+          const config = parseJsonInput("dataPlatformNodeConfig", {});
+          if (!config || Array.isArray(config) || typeof config !== "object") throw new Error("节点参数必须是 JSON 对象。");
+          renderDataPlatformNodeConfigRows(dataPlatformNodeConfigDraft(config));
+          $("dataPlatformNodeConfigJson").value = JSON.stringify(config, null, 2);
+          setMessage("dataPlatformNodeConfigEditorMessage", "", "");
+          $("dataPlatformNodeConfigModal").hidden = false;
+        } catch (error) {
+          setMessage("dataPlatformNodeMessage", error.message, "error");
+        }
+      }
+
+      function closeDataPlatformNodeConfigEditor() {
+        $("dataPlatformNodeConfigModal").hidden = true;
+      }
+
+      function applyDataPlatformNodeConfigJson() {
+        const value = $("dataPlatformNodeConfigJson").value.trim() || "{}";
+        let config;
+        try { config = JSON.parse(value); } catch (_) { throw new Error("节点参数必须是有效 JSON。"); }
+        if (!config || Array.isArray(config) || typeof config !== "object") throw new Error("节点参数必须是 JSON 对象。");
+        renderDataPlatformNodeConfigRows(dataPlatformNodeConfigDraft(config));
+        setMessage("dataPlatformNodeConfigEditorMessage", "JSON 已应用到参数表，点击保存后生效。", "ok");
+      }
+
+      function saveDataPlatformNodeConfigEditor() {
+        try {
+          setDataPlatformNodeConfig(collectDataPlatformNodeConfig());
+          closeDataPlatformNodeConfigEditor();
+        } catch (error) {
+          setMessage("dataPlatformNodeConfigEditorMessage", error.message, "error");
+        }
+      }
+
       function resetDataPlatformNodeForm() {
         dataPlatformEditingNodeId = "";
         $("dataPlatformNodeName").value = "";
         $("dataPlatformNodeType").value = "manual";
         $("dataPlatformNodeDesc").value = "";
-        $("dataPlatformNodeConfig").value = "{}";
+        setDataPlatformNodeConfig({});
         $("dataPlatformNodeSaveBtn").textContent = "保存节点";
         renderDataPlatformNodes();
       }
@@ -18606,7 +18758,7 @@
         $("dataPlatformNodeName").value = node.name || "";
         $("dataPlatformNodeType").value = node.node_type || "manual";
         $("dataPlatformNodeDesc").value = node.description || "";
-        $("dataPlatformNodeConfig").value = JSON.stringify(node.config || {}, null, 2);
+        setDataPlatformNodeConfig(node.config || {});
         $("dataPlatformNodeSaveBtn").textContent = "保存修改";
         renderDataPlatformNodes();
       }
@@ -19275,6 +19427,56 @@
         ).join("");
       }
 
+      function renderDataPlatformSyncColumnMappings(mappings = []) {
+        if (!Array.isArray(mappings)) throw new Error("字段映射必须是数组。");
+        const box = $("dataPlatformSyncColumnMappingRows");
+        $("dataPlatformSyncColumnMapping").value = JSON.stringify(mappings, null, 2);
+        if (!mappings.length) {
+          box.innerHTML = '<tr data-structured-empty><td colspan="4" class="muted">未配置字段映射，将按源表全部字段同名同步。</td></tr>';
+          return;
+        }
+        box.innerHTML = mappings.map((item) => `<tr data-sync-column-mapping-row data-original="${escapeHtml(encodeURIComponent(JSON.stringify(item || {})))}">
+          <td><input data-sync-mapping-field="source_name" value="${escapeHtml(item.source_name || "")}" placeholder="源字段"></td>
+          <td><input data-sync-mapping-field="target_name" value="${escapeHtml(item.target_name || "")}" placeholder="目标字段"></td>
+          <td><input data-sync-mapping-field="target_type" value="${escapeHtml(item.target_type || "")}" placeholder="例如 BIGINT；可留空"></td>
+          <td><button class="danger" type="button" data-sync-column-mapping-remove>删除</button></td>
+        </tr>`).join("");
+      }
+
+      function readDataPlatformSyncColumnMappingDraft() {
+        return Array.from(document.querySelectorAll("[data-sync-column-mapping-row]")).map((row) => {
+          let original = {};
+          try { original = JSON.parse(decodeURIComponent(row.dataset.original || "%7B%7D")); } catch (_) {}
+          return {
+            ...original,
+            source_name: row.querySelector('[data-sync-mapping-field="source_name"]').value.trim(),
+            target_name: row.querySelector('[data-sync-mapping-field="target_name"]').value.trim(),
+            target_type: row.querySelector('[data-sync-mapping-field="target_type"]').value.trim()
+          };
+        });
+      }
+
+      function collectDataPlatformSyncColumnMappings(validate = true) {
+        const mappings = readDataPlatformSyncColumnMappingDraft().filter((item, index) => {
+          const hasAny = Boolean(item.source_name || item.target_name || item.target_type);
+          if (!hasAny) return false;
+          if (validate && (!item.source_name || !item.target_name)) throw new Error(`第 ${index + 1} 条字段映射必须填写源字段和目标字段。`);
+          return true;
+        });
+        if (validate) {
+          const targets = mappings.map((item) => item.target_name.toLowerCase());
+          if (new Set(targets).size !== targets.length) throw new Error("字段映射存在重复的目标字段。");
+        }
+        $("dataPlatformSyncColumnMapping").value = JSON.stringify(mappings, null, 2);
+        return mappings;
+      }
+
+      function addDataPlatformSyncColumnMapping() {
+        const mappings = readDataPlatformSyncColumnMappingDraft();
+        mappings.push({ source_name: "", target_name: "", target_type: "" });
+        renderDataPlatformSyncColumnMappings(mappings);
+      }
+
       function openDataPlatformCapabilityDialog(key) {
         const node = dataPlatformCanvasNodes().find((item) => String(item.key) === String(key));
         if (!node || !["data_sync", "change_trigger"].includes(node.node_type)) throw new Error("当前节点不支持此配置弹窗。");
@@ -19295,7 +19497,7 @@
           $("dataPlatformSyncInitialWatermark").value = config.initial_watermark_value ?? "";
           $("dataPlatformSyncPrimaryKeys").value = (config.primary_keys || []).join(",");
           $("dataPlatformSyncBatchSize").value = Number(config.batch_size || 1000);
-          $("dataPlatformSyncColumnMapping").value = JSON.stringify(config.column_mapping || [], null, 2);
+          renderDataPlatformSyncColumnMappings(config.column_mapping || []);
         } else {
           const condition = (config.conditions || [])[0] || {};
           $("dataPlatformTriggerSourceType").value = config.source_type || "direct";
@@ -19348,7 +19550,7 @@
             initial_watermark_value: $("dataPlatformSyncInitialWatermark").value.trim() || null,
             primary_keys: parseDorisEncryptAutoList($("dataPlatformSyncPrimaryKeys").value),
             batch_size: Number($("dataPlatformSyncBatchSize").value || 1000),
-            column_mapping: JSON.parse($("dataPlatformSyncColumnMapping").value || "[]")
+            column_mapping: collectDataPlatformSyncColumnMappings()
           };
         } else {
           const metric = $("dataPlatformTriggerMetric").value;
@@ -22324,22 +22526,44 @@
         });
         $("dataPlatformManualTemplateBtn").addEventListener("click", () => {
           $("dataPlatformNodeType").value = "manual";
-          $("dataPlatformNodeConfig").value = "{}";
+          setDataPlatformNodeConfig({});
         });
         $("dataPlatformSm3TemplateBtn").addEventListener("click", () => {
           $("dataPlatformNodeType").value = "sm3_mapping";
-          $("dataPlatformNodeConfig").value = JSON.stringify({
+          setDataPlatformNodeConfig({
             target: "dorisSm3",
             note: "点击节点进入 SM3 映射脱敏配置"
-          }, null, 2);
+          });
         });
         $("dataPlatformSm4TemplateBtn").addEventListener("click", () => {
           $("dataPlatformNodeType").value = "sm4_batch";
-          $("dataPlatformNodeConfig").value = JSON.stringify({
+          setDataPlatformNodeConfig({
             target: "dorisEncrypt",
             task_definition_id: "选择或新建 SM4 任务后自动写入",
             task_definition_name: "SM4 任务名称"
-          }, null, 2);
+          });
+        });
+        $("dataPlatformNodeConfigOpenBtn").addEventListener("click", openDataPlatformNodeConfigEditor);
+        $("dataPlatformNodeConfigAddBtn").addEventListener("click", () => {
+          const rows = readDataPlatformNodeConfigDraftRows();
+          rows.push({ key: "", type: "string", value: "" });
+          renderDataPlatformNodeConfigRows(rows);
+        });
+        $("dataPlatformNodeConfigSaveBtn").addEventListener("click", saveDataPlatformNodeConfigEditor);
+        $("dataPlatformNodeConfigCancelBtn").addEventListener("click", closeDataPlatformNodeConfigEditor);
+        $("dataPlatformNodeConfigCloseBtn").addEventListener("click", closeDataPlatformNodeConfigEditor);
+        $("dataPlatformNodeConfigApplyJsonBtn").addEventListener("click", () => {
+          try { applyDataPlatformNodeConfigJson(); }
+          catch (error) { setMessage("dataPlatformNodeConfigEditorMessage", error.message, "error"); }
+        });
+        $("dataPlatformNodeConfigRows").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-node-config-remove]");
+          if (!button) return;
+          button.closest("[data-node-config-row]")?.remove();
+          if (!document.querySelector("[data-node-config-row]")) renderDataPlatformNodeConfigRows([]);
+        });
+        $("dataPlatformNodeConfigModal").addEventListener("click", (event) => {
+          if (event.target === $("dataPlatformNodeConfigModal")) closeDataPlatformNodeConfigEditor();
         });
         document.querySelectorAll("[data-platform-add-capability]").forEach((button) => {
           button.addEventListener("click", () => {
@@ -22540,6 +22764,13 @@
         });
         $("dataPlatformCapabilityDialogCloseBtn").addEventListener("click", closeDataPlatformCapabilityDialog);
         $("dataPlatformCapabilityDialogCancelBtn").addEventListener("click", closeDataPlatformCapabilityDialog);
+        $("dataPlatformSyncColumnMappingAddBtn").addEventListener("click", addDataPlatformSyncColumnMapping);
+        $("dataPlatformSyncColumnMappingRows").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-sync-column-mapping-remove]");
+          if (!button) return;
+          button.closest("[data-sync-column-mapping-row]")?.remove();
+          if (!document.querySelector("[data-sync-column-mapping-row]")) renderDataPlatformSyncColumnMappings([]);
+        });
         $("dataPlatformCloseScheduleManagerBtn").addEventListener("click", closeDataPlatformScheduleManager);
         $("dataPlatformScheduleSearch").addEventListener("input", renderDataPlatformSchedules);
         $("dataPlatformScheduleStateFilter").addEventListener("change", renderDataPlatformSchedules);
