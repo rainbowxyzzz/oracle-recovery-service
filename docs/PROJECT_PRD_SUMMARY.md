@@ -1,5 +1,7 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-09-11 Oracle 双字符集还原目标：保留现有 `ZHS16GBK` Oracle 21c，还原启动入口必须使用同一镜像自动创建或启动独立的 `AL32UTF8` Oracle 21c；两个目标使用独立数据和表空间目录、共享 DMP 输入目录。嵌入式 Oracle 导入优先从精确匹配的导出日志识别源字符集；无日志时由 `SQLFILE` 探测识别 `ORA-39346` 或 `AL32UTF8` 到非 Unicode 目标的高风险转换，在正式导入和目标清理前切换到 UTF 目标。返回码 `5` 不单独触发切换，UTF 目标不可用时禁止降级到 `ZHS16GBK`。详见 `docs/ORACLE_RESTORE_CAPABILITY_IMPROVEMENT_PRD_20260714.md` 第 19 节。
+
 2026-09-11 一级优先级交互强化：数据库清理计划与连接、目标及删除选项绑定，任一输入变化立即作废旧计划；数据流业务引用改为按名称和版本选择并保留历史引用；SM4 安全访问覆盖合同、离线开发节点参数和同步字段映射改为结构化维护，同时继续写回原有 UUID、`coverage_contracts`、节点 `config` 和 `column_mapping` 结构，不改变后台执行规则。详见 `docs/PRIORITY_ONE_UI_HARDENING_PRD_20260911.md`。
 
 2026-09-09 双服务器离线交付：A 服务器固定使用 Docker 17.03 兼容的业务 Docker Run 包，复用已验证的 `20260909-data-automation-reliable-dispatch-r1` 镜像并离线携带系统 MySQL 8.4、Redis 7-alpine；B 服务器固定使用 Docker Engine 20.10+、Docker Compose 2.2.3+ 独立运行 OpenMetadata 1.13.0、其独立元数据库和 Elasticsearch 9.3.0。两台服务器通过 B 的 `8585` 宿主机地址和服务端 Token 通信，不共享 Docker 网络，不打包 Airflow，也不重新构建业务镜像。详见 `docs/OPENMETADATA_SSO_PRD.md`。

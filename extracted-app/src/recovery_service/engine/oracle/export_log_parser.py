@@ -49,6 +49,8 @@ class OracleExportLogManifest:
     source_release: str = ""
     database_release: str = ""
     edition: str = ""
+    source_character_set: str = ""
+    source_nchar_character_set: str = ""
     job_name: str = ""
     started_at: str = ""
     finished_at: str = ""
@@ -108,6 +110,8 @@ class OracleExportLogManifest:
             "tool": self.tool,
             "source_status": self.source_status,
             "export_mode": self.export_mode,
+            "source_character_set": self.source_character_set,
+            "source_nchar_character_set": self.source_nchar_character_set,
             "source_schemas": list(self.schemas),
             "dump_files": list(self.dump_files),
             "dumpfile_pattern": self.dumpfile_pattern,
@@ -150,6 +154,15 @@ def parse_oracle_export_log(text: str) -> OracleExportLogManifest:
     manifest.source_release = export_header
     manifest.database_release = _first_match(text, r"(?m)^Version\s+([0-9.]+)\s*$")
     manifest.edition = _first_match(text, r"Connected to:\s+Oracle Database\s+(.+?Edition)\s+Release")
+    charset_match = re.search(
+        r"Export done in\s+([A-Za-z0-9_]+)\s+character set"
+        r"(?:\s+and\s+([A-Za-z0-9_]+)\s+NCHAR character set)?",
+        text,
+        re.IGNORECASE,
+    )
+    if charset_match:
+        manifest.source_character_set = charset_match.group(1).upper()
+        manifest.source_nchar_character_set = (charset_match.group(2) or "").upper()
     manifest.started_at = _first_match(text, r"(?m)^Export:\s+Release\s+[0-9.]+\s+-\s+Production\s+on\s+(.+)$")
 
     params = _parse_parfile_values(lines)

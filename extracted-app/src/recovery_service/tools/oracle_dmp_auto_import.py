@@ -139,6 +139,10 @@ class ProbeResult:
     sqlfile: Optional[str] = None
     failure_code: Optional[str] = None
     attempts: List[Dict[str, object]] = field(default_factory=list)
+    source_character_set: str = ""
+    source_nchar_character_set: str = ""
+    target_character_set: str = ""
+    target_nchar_character_set: str = ""
 
 
 @dataclass
@@ -186,6 +190,10 @@ class ImportPlan:
     export_log_assisted: bool = False
     export_log_summary: Dict[str, object] = field(default_factory=dict)
     job_name: str = ""
+    source_character_set: str = ""
+    source_nchar_character_set: str = ""
+    target_character_set: str = ""
+    target_nchar_character_set: str = ""
 
 
 @dataclass
@@ -958,12 +966,37 @@ def has_legacy_exp_marker(text: str) -> bool:
     return "ORA-39143" in text or "original export" in text.lower()
 
 
-def has_comment_charset_loss(text: str) -> bool:
-    return "ORA-39346" in text and "COMMENT" in text.upper()
+def parse_datapump_character_sets(text: str) -> Dict[str, str]:
+    values = {
+        "source_character_set": "",
+        "source_nchar_character_set": "",
+        "target_character_set": "",
+        "target_nchar_character_set": "",
+    }
+    for prefix, side in (("Export", "source"), ("Import", "target")):
+        match = re.search(
+            rf"{prefix} done in\s+([A-Za-z0-9_]+)\s+character set"
+            rf"(?:\s+and\s+([A-Za-z0-9_]+)\s+NCHAR character set)?",
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            values[f"{side}_character_set"] = match.group(1).upper()
+            values[f"{side}_nchar_character_set"] = (match.group(2) or "").upper()
+    return values
+
+
+def has_unsafe_charset_conversion(text: str) -> bool:
+    charsets = parse_datapump_character_sets(text)
+    source = charsets["source_character_set"]
+    target = charsets["target_character_set"]
+    return source == "AL32UTF8" and bool(target) and target != "AL32UTF8"
 
 
 def classify_probe_failure(text: str) -> str:
     upper = text.upper()
+    if "ORA-39346" in upper or has_unsafe_charset_conversion(text):
+        return "character_set_incompatible"
     if "UNABLE TO FIND USER" in upper and "NO MATCHING ENTRIES IN PASSWD FILE" in upper:
         return "docker_user_resolution_failed"
     if "ORA-39087" in upper:
@@ -1002,14 +1035,19 @@ def probe_attempt(
         f"{getattr(args, 'job_name', 'ORS_IMPORT_JOB')}_P{attempt_number}",
         extra_params,
     )
+    charset_info = parse_datapump_character_sets(combined)
+    failure_code = classify_probe_failure(combined)
+    if result.returncode == 0 and failure_code == "unknown_dump_type":
+        failure_code = ""
     attempt = {
         "attempt": attempt_number,
         "returncode": result.returncode,
-        "failure_code": "" if result.returncode == 0 else classify_probe_failure(combined),
+        "failure_code": failure_code,
         "sqlfile": str(Path(ctx.probe_dir) / sqlfile_name),
         "logfile": str(Path(ctx.probe_dir) / logfile_name),
+        **charset_info,
     }
-    logger.event("probe_attempt", f"probe:{attempt_number}", "succeeded" if result.returncode == 0 else "failed", **attempt)
+    logger.event("probe_attempt", f"probe:{attempt_number}", "failed" if failure_code else "succeeded", **attempt)
     return result, sqlfile_text, logfile_text, combined, attempt
 
 
@@ -1022,7 +1060,7 @@ def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger)
     )
     attempts.append(attempt)
 
-    failure_code = classify_probe_failure(combined) if impdp_result.returncode != 0 else ""
+    failure_code = str(attempt["failure_code"])
     if failure_code in {"directory_invalid", "sqlfile_invalid"}:
         logger.log(
             f"[probe] {failure_code} detected; recreating and verifying DIRECTORY before one retry"
@@ -1034,9 +1072,11 @@ def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger)
         )
         attempts.append(attempt)
         combined = combined + "\n" + retry_combined
-        failure_code = classify_probe_failure(retry_combined) if impdp_result.returncode != 0 else ""
+        failure_code = str(attempt["failure_code"])
 
-    if impdp_result.returncode == 0 and not has_legacy_exp_marker(combined):
+    charset_info = parse_datapump_character_sets(combined)
+
+    if impdp_result.returncode == 0 and not failure_code and not has_legacy_exp_marker(combined):
         schemas, tablespaces, datafiles = parse_metadata(combined)
         return ProbeResult(
             dump_type="datapump",
@@ -1047,32 +1087,11 @@ def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger)
             sqlfile=str(attempt["sqlfile"]),
             notes=["Data Pump dump detected. Use impdp."],
             attempts=attempts,
+            source_character_set=charset_info["source_character_set"],
+            source_nchar_character_set=charset_info["source_nchar_character_set"],
+            target_character_set=charset_info["target_character_set"],
+            target_nchar_character_set=charset_info["target_nchar_character_set"],
         )
-
-    if not has_legacy_exp_marker(combined) and has_comment_charset_loss(combined):
-        logger.log("[probe] ORA-39346 on COMMENT detected; retrying metadata probe with EXCLUDE=COMMENT")
-        retry_result, _, _, retry_combined, attempt = probe_attempt(
-            args, ctx, logger, login, len(attempts) + 1, ["EXCLUDE=COMMENT"]
-        )
-        attempts.append(attempt)
-        if retry_result.returncode == 0 and not has_legacy_exp_marker(retry_combined):
-            schemas, tablespaces, datafiles = parse_metadata(retry_combined)
-            return ProbeResult(
-                dump_type="datapump",
-                schemas=schemas,
-                tablespaces=tablespaces,
-                datafiles=datafiles,
-                exclude_object_types=["COMMENT"],
-                probe_log=str(attempt["logfile"]),
-                sqlfile=str(attempt["sqlfile"]),
-                notes=[
-                    "Data Pump dump detected after retrying probe with EXCLUDE=COMMENT.",
-                    "ORA-39346 was raised for COMMENT metadata; COMMENT will be excluded from import to avoid character set conversion data loss.",
-                ],
-                attempts=attempts,
-            )
-        combined = combined + "\n" + retry_combined
-        failure_code = classify_probe_failure(retry_combined)
 
     if failure_code == "metadata_not_selected":
         return ProbeResult(
@@ -1086,6 +1105,10 @@ def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger)
                 "The dump may be DATA_ONLY or may require an import filter not available from the current metadata probe.",
                 "The system will not guess target structures or report this as an unknown dump type.",
             ],
+            source_character_set=charset_info["source_character_set"],
+            source_nchar_character_set=charset_info["source_nchar_character_set"],
+            target_character_set=charset_info["target_character_set"],
+            target_nchar_character_set=charset_info["target_nchar_character_set"],
         )
 
     if failure_code != "legacy_exp":
@@ -1100,6 +1123,10 @@ def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger)
                 "Inspect the probe logs before importing.",
                 impdp_result.stdout[-2000:],
             ],
+            source_character_set=charset_info["source_character_set"],
+            source_nchar_character_set=charset_info["source_nchar_character_set"],
+            target_character_set=charset_info["target_character_set"],
+            target_nchar_character_set=charset_info["target_nchar_character_set"],
         )
 
     legacy_cmd = (
@@ -1338,6 +1365,10 @@ def build_plan(args: argparse.Namespace, ctx: RuntimeContext, dump_spec: DumpSpe
         export_log_assisted=bool(export_log_summary),
         export_log_summary=export_log_summary,
         job_name=job_name,
+        source_character_set=probe.source_character_set,
+        source_nchar_character_set=probe.source_nchar_character_set,
+        target_character_set=probe.target_character_set,
+        target_nchar_character_set=probe.target_nchar_character_set,
     )
 
 
@@ -1350,6 +1381,8 @@ def _export_log_summary(args: argparse.Namespace) -> Dict[str, object]:
         "content_sha256": str(getattr(args, "export_log_sha256", "") or ""),
         "source_status": str(getattr(args, "export_log_status", "") or ""),
         "export_mode": str(getattr(args, "export_log_mode", "") or ""),
+        "source_character_set": str(getattr(args, "export_log_character_set", "") or ""),
+        "source_nchar_character_set": str(getattr(args, "export_log_nchar_character_set", "") or ""),
         "source_schemas": [item for item in str(getattr(args, "export_log_schemas", "") or "").split(",") if item],
         "dump_files": [item for item in str(getattr(args, "export_log_dump_files", "") or "").split(",") if item],
         "missing_object_count": int(getattr(args, "export_log_missing_count", 0) or 0),
@@ -1357,6 +1390,8 @@ def _export_log_summary(args: argparse.Namespace) -> Dict[str, object]:
 
 
 def validate_export_log_expectations(args: argparse.Namespace, dump_spec: DumpSpec, probe: ProbeResult) -> None:
+    if probe.failure_code:
+        return
     expected = _export_log_summary(args)
     if not expected:
         return
@@ -1834,6 +1869,10 @@ def build_report(
         "dump_type": plan.dump_type,
         "probe_failure_code": plan.probe_failure_code,
         "probe_attempts": plan.probe_attempts,
+        "source_character_set": plan.source_character_set,
+        "source_nchar_character_set": plan.source_nchar_character_set,
+        "target_character_set": plan.target_character_set,
+        "target_nchar_character_set": plan.target_nchar_character_set,
         "source_schemas": plan.source_schemas,
         "source_tablespaces": plan.source_tablespaces,
         "excluded_object_types": plan.excluded_object_types,
@@ -1908,6 +1947,8 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument("--export-log-sha256", default="", help="SHA256 of the decoded matched export log content.")
     parser.add_argument("--export-log-status", default="", help="Parsed source export status.")
     parser.add_argument("--export-log-mode", default="", help="Parsed source export mode.")
+    parser.add_argument("--export-log-character-set", default="", help="Source database character set parsed from the export log.")
+    parser.add_argument("--export-log-nchar-character-set", default="", help="Source database NCHAR character set parsed from the export log.")
     parser.add_argument("--export-log-schemas", default="", help="Comma-separated schemas parsed from the export log.")
     parser.add_argument("--export-log-dump-files", default="", help="Comma-separated DMP filenames parsed from the export log.")
     parser.add_argument("--export-log-missing-count", type=int, default=0, help="Number of source objects missing from the export log result.")

@@ -124,6 +124,14 @@ class Settings(BaseSettings):
     oracle_home_in_container: str = "/opt/oracle/product/19c/dbhome_1"
     oracle_directory: str = "RECOVERY_DMP_DIR"
     oracle_auto_import_python_bin: str = ""
+    oracle_charset_routing_enabled: bool = True
+    oracle_primary_character_set: str = "ZHS16GBK"
+    oracle_charset_primary_container_name: str = "oracle-recovery-oracle21c-ee"
+    oracle_utf8_container_name: str = "oracle-recovery-oracle21c-utf8"
+    oracle_utf8_pdb: str = "ORCLPDBUTF8"
+    oracle_utf8_target_host: str = ""
+    oracle_utf8_host_port: int = 1523
+    oracle_utf8_character_set: str = "AL32UTF8"
     sqlserver_target_mode: str = "auto"
     sqlserver_target_host: str = ""
     sqlserver_image: str = "f191949a09a6"

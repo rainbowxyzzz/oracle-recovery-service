@@ -114,6 +114,9 @@ class OracleExportLogFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "PROJECTLIB"):
             tool.validate_export_log_expectations(args, dump_spec, probe)
 
+        probe.failure_code = "character_set_incompatible"
+        tool.validate_export_log_expectations(args, dump_spec, probe)
+
     def test_sftp_close_supports_sync_exit(self):
         client = AsyncSSHClient(RemoteHost("db-host"))
 

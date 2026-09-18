@@ -26,6 +26,9 @@ case "$1" in
         printf '%s\n' "$sql" >> "$MOCK_LOG"
         case "$sql" in
           *'select open_mode'*) echo 'READ WRITE' ;;
+          *NLS_CHARACTERSET*)
+            printf 'CHARSET=%s\nNCHAR=%s\n' "${MOCK_CHARACTERSET:-ZHS16GBK}" "${MOCK_NCHAR_CHARACTERSET:-AL16UTF16}"
+            ;;
           *TEMP_META=*)
             [ "${MOCK_METADATA_ERROR:-0}" = 0 ] || exit 7
             printf 'Session altered.\nTEMP_META=%s\n' "${MOCK_METADATA:-NO:8192}"
@@ -108,6 +111,16 @@ def test_disabled_temp_preserves_old_behavior(tmp_path):
     assert "initialization completed" in result.stdout
 
 
+def test_character_set_mismatch_stops_startup(tmp_path):
+    result, _ = run_initializer(
+        tmp_path,
+        ORACLE21C_CHARACTERSET="AL32UTF8",
+        MOCK_CHARACTERSET="ZHS16GBK",
+    )
+    assert result.returncode != 0
+    assert "expected AL32UTF8" in result.stderr
+
+
 @pytest.mark.parametrize("overrides", [
     {"MOCK_METADATA_ERROR": "1"}, {"MOCK_METADATA": "garbage"},
     {"MOCK_CREATE_ERROR": "1"}, {"ORACLE21C_TEMPFILE_MAX_SIZE": "0G"},
@@ -125,6 +138,7 @@ def test_script_text_and_shell_syntax():
     assert not raw.startswith(b"\xef\xbb\xbf")
     assert b"\r" not in raw
     assert raw.count(b"docker exec -u 54321:54321") == 3
+    assert b"NLS_CHARACTERSET" in raw and b"NLS_NCHAR_CHARACTERSET" in raw
     result = subprocess.run([BASH, "-c", 'sh -n "$1"', "syntax", SCRIPT.as_posix()],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr

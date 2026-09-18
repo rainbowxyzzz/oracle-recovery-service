@@ -44,6 +44,27 @@ def _auto_import_tablespace_size(value: str, fallback: str) -> str:
     return normalized
 
 
+def _export_log_cli_args(export_log: dict) -> list[str]:
+    manifest = export_log.get("manifest") or {}
+    values = (
+        ("--export-log-name", export_log.get("filename")),
+        ("--export-log-sha256", manifest.get("content_sha256")),
+        ("--export-log-status", manifest.get("source_status")),
+        ("--export-log-mode", manifest.get("export_mode")),
+        ("--export-log-character-set", manifest.get("source_character_set")),
+        ("--export-log-nchar-character-set", manifest.get("source_nchar_character_set")),
+        ("--export-log-schemas", ",".join(manifest.get("source_schemas") or [])),
+        ("--export-log-dump-files", ",".join(manifest.get("dump_files") or [])),
+    )
+    args: list[str] = []
+    for option, value in values:
+        normalized = str(value or "").strip()
+        if normalized:
+            args.extend([option, normalized])
+    args.extend(["--export-log-missing-count", str(manifest.get("missing_object_count") or 0)])
+    return args
+
+
 @dataclass
 class OraclePreflightCheck:
     code: str
@@ -204,25 +225,7 @@ class OracleAutoImportRunner:
         elif oracle_directory:
             command_args.extend(["--directory-object", oracle_directory])
         if export_log:
-            manifest = export_log.get("manifest") or {}
-            command_args.extend(
-                [
-                    "--export-log-name",
-                    str(export_log.get("filename") or ""),
-                    "--export-log-sha256",
-                    str(manifest.get("content_sha256") or ""),
-                    "--export-log-status",
-                    str(manifest.get("source_status") or ""),
-                    "--export-log-mode",
-                    str(manifest.get("export_mode") or ""),
-                    "--export-log-schemas",
-                    ",".join(manifest.get("source_schemas") or []),
-                    "--export-log-dump-files",
-                    ",".join(manifest.get("dump_files") or []),
-                    "--export-log-missing-count",
-                    str(manifest.get("missing_object_count") or 0),
-                ]
-            )
+            command_args.extend(_export_log_cli_args(export_log))
         if execute:
             command_args.append("--execute")
 

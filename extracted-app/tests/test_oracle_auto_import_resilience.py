@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 from recovery_service.core.models.task import RecoveryTask
 from recovery_service.orchestrator.oracle_auto_import_runner import (
     OracleAutoImportRunner,
+    _export_log_cli_args,
     oracle_datapump_job_candidates,
     oracle_datapump_job_name,
 )
@@ -23,6 +24,29 @@ except ImportError:
 
 
 class OracleAutoImportResilienceTests(unittest.TestCase):
+    def test_export_log_cli_omits_unknown_optional_character_sets(self):
+        args = _export_log_cli_args(
+            {
+                "filename": "UTF_AUDIT_SRC.log",
+                "manifest": {
+                    "content_sha256": "abc123",
+                    "source_status": "clean_success",
+                    "export_mode": "schemas",
+                    "source_character_set": "",
+                    "source_nchar_character_set": "",
+                    "source_schemas": ["UTF_AUDIT_SRC"],
+                    "dump_files": ["UTF_AUDIT_SRC.dmp"],
+                    "missing_object_count": 0,
+                },
+            }
+        )
+
+        self.assertNotIn("--export-log-character-set", args)
+        self.assertNotIn("--export-log-nchar-character-set", args)
+        self.assertIn("--export-log-schemas", args)
+        self.assertIn("UTF_AUDIT_SRC", args)
+        self.assertEqual(args[-2:], ["--export-log-missing-count", "0"])
+
     @unittest.skipUnless(os.name == "posix", "fcntl run locks are only available on POSIX hosts")
     def test_same_run_directory_cannot_be_locked_twice(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -383,11 +407,32 @@ class OracleAutoImportResilienceTests(unittest.TestCase):
             "ORA-31640: unable to open dump file": "dump_file_inaccessible",
             "ORA-31655: no data or metadata objects selected": "metadata_not_selected",
             "ORA-39143: dump file may be an original export dump file": "legacy_exp",
+            'ORA-39346: data loss in character set conversion for object VIEW:"XSZZ"."V1"': "character_set_incompatible",
+            (
+                "import done in ZHS16GBK character set and AL16UTF16 NCHAR character set\n"
+                "export done in AL32UTF8 character set and AL16UTF16 NCHAR character set"
+            ): "character_set_incompatible",
             "ORA-39002: invalid operation": "unknown_dump_type",
         }
         for message, expected in cases.items():
             with self.subTest(message=message):
                 self.assertEqual(tool.classify_probe_failure(message), expected)
+
+    def test_datapump_character_sets_are_extracted_for_audit(self):
+        text = (
+            "Import done in ZHS16GBK character set and AL16UTF16 NCHAR character set\n"
+            "Export done in AL32UTF8 character set and AL16UTF16 NCHAR character set"
+        )
+
+        self.assertEqual(
+            tool.parse_datapump_character_sets(text),
+            {
+                "source_character_set": "AL32UTF8",
+                "source_nchar_character_set": "AL16UTF16",
+                "target_character_set": "ZHS16GBK",
+                "target_nchar_character_set": "AL16UTF16",
+            },
+        )
 
     def test_serialized_plan_never_contains_executable_commands(self):
         plan = SimpleNamespace()
@@ -466,6 +511,54 @@ class OracleAutoImportResilienceTests(unittest.TestCase):
             self.assertEqual(len(result.attempts), 2)
             create.assert_called_once()
             verify.assert_called_once()
+
+    def test_character_set_loss_stops_probe_without_excluding_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            output = (
+                "Import done in ZHS16GBK character set and AL16UTF16 NCHAR character set\n"
+                "Export done in AL32UTF8 character set and AL16UTF16 NCHAR character set\n"
+                'ORA-39346: data loss in character set conversion for object COMMENT:"XSZZ"."T1"'
+            )
+            attempt = {
+                "attempt": 1,
+                "returncode": 5,
+                "failure_code": "character_set_incompatible",
+                "sqlfile": str(tmp_path / "probe.sql"),
+                "logfile": str(tmp_path / "probe.log"),
+            }
+            args = argparse.Namespace(
+                username="system",
+                password="secret",
+                connect="@ORCLPDB1",
+                directory_object="DIR_TEST_123",
+                container="oracle",
+            )
+            ctx = tool.RuntimeContext(
+                run_id="task_charset",
+                run_dir=str(tmp_path),
+                probe_dir=str(tmp_path / "probe"),
+                cleanup_dir=str(tmp_path / "cleanup"),
+                import_dir=str(tmp_path / "import"),
+                local_plan_path=str(tmp_path / "plan.json"),
+                container_import_dir="/tmp/auto/task_charset",
+                dumpfile_arg="test.dmp",
+                dump_display_name="test.dmp",
+            )
+            logger = tool.RunLogger(tmp_path, "system", "secret")
+            with patch.object(
+                tool,
+                "probe_attempt",
+                return_value=(subprocess.CompletedProcess([], 5, output), "", "", output, attempt),
+            ) as probe_attempt:
+                result = tool.probe_dump(args, ctx, logger)
+
+            self.assertEqual(result.dump_type, "probe_failed")
+            self.assertEqual(result.failure_code, "character_set_incompatible")
+            self.assertEqual(result.exclude_object_types, [])
+            self.assertEqual(result.source_character_set, "AL32UTF8")
+            self.assertEqual(result.target_character_set, "ZHS16GBK")
+            probe_attempt.assert_called_once()
 
     def test_runner_manifest_rejects_parent_paths(self):
         stdout = "run.log\t12\t100.5\n../secret\t10\t100.5\nprobe/a.log\t4\t101.5\n"

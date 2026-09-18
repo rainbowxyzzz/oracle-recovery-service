@@ -11,6 +11,8 @@ fi
 CONTAINER=${ORACLE21C_CONTAINER:-oracle-recovery-oracle21c-ee}
 ORACLE_PDB=${ORACLE21C_PDB:-ORCLPDB1}
 ORACLE_PASSWORD=${ORACLE21C_PASSWORD:-}
+ORACLE_CHARACTERSET=${ORACLE21C_CHARACTERSET:-ZHS16GBK}
+ORACLE_NCHAR_CHARACTERSET=${ORACLE21C_NCHAR_CHARACTERSET:-AL16UTF16}
 TIMEOUT=${ORACLE21C_STARTUP_TIMEOUT_SECONDS:-1800}
 TEMP_AUTO_EXTEND=${ORACLE21C_TEMP_AUTO_EXTEND:-true}
 TEMPFILE_NAME=${ORACLE21C_TEMPFILE_NAME:-temp_recovery_01.dbf}
@@ -97,6 +99,21 @@ where directory_name in ('RECOVERY_DMP_DIR', 'RECOVERY_TABLESPACE_DIR')
 order by directory_name;
 exit
 SQL
+
+CHARSET_OUTPUT=$(oracle_sql <<SQL
+whenever sqlerror exit sql.sqlcode
+set heading off feedback off pages 0 lines 240 verify off echo off
+alter session set container=$ORACLE_PDB;
+select 'CHARSET=' || value from nls_database_parameters where parameter = 'NLS_CHARACTERSET';
+select 'NCHAR=' || value from nls_database_parameters where parameter = 'NLS_NCHAR_CHARACTERSET';
+exit
+SQL
+) || fail "could not read database character sets"
+ACTUAL_CHARACTERSET=$(printf '%s\n' "$CHARSET_OUTPUT" | sed -n 's/^[[:space:]]*CHARSET=//p' | tr -d '\r' | tail -n 1)
+ACTUAL_NCHAR_CHARACTERSET=$(printf '%s\n' "$CHARSET_OUTPUT" | sed -n 's/^[[:space:]]*NCHAR=//p' | tr -d '\r' | tail -n 1)
+[ "$ACTUAL_CHARACTERSET" = "$ORACLE_CHARACTERSET" ] || fail "database character set is ${ACTUAL_CHARACTERSET:-unknown}; expected $ORACLE_CHARACTERSET"
+[ "$ACTUAL_NCHAR_CHARACTERSET" = "$ORACLE_NCHAR_CHARACTERSET" ] || fail "database NCHAR character set is ${ACTUAL_NCHAR_CHARACTERSET:-unknown}; expected $ORACLE_NCHAR_CHARACTERSET"
+log "database character sets verified: $ACTUAL_CHARACTERSET / $ACTUAL_NCHAR_CHARACTERSET"
 
 if [ "$TEMP_AUTO_EXTEND" = "true" ]; then
   log "ensuring TEMP tablespace has recovery tempfile $TEMPFILE_NAME"

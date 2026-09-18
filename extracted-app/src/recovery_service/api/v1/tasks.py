@@ -60,6 +60,20 @@ def _secret_value(secret) -> str:
     return secret.get_secret_value() if secret else ""
 
 
+def _is_platform_managed_oracle_target(conn, settings) -> bool:
+    if conn is None:
+        return True
+    managed_names = {
+        str(settings.oracle_container_name or "").strip(),
+        str(settings.oracle_charset_primary_container_name or "").strip(),
+    }
+    profile_names = {
+        str(conn.container_name or "").strip(),
+        str(conn.host or "").strip(),
+    }
+    return bool((managed_names - {""}) & (profile_names - {""}))
+
+
 async def _target_profile(db: AsyncSession, connection_id, engine: str):
     if not connection_id:
         return None
@@ -322,6 +336,7 @@ async def create_embedded_oracle_task(
         else (settings.oracle_host_port if settings.oracle_target_host else 1521)
     )
     oracle_service = (conn.service_name or conn.database) if conn else settings.oracle_pdb
+    oracle_target_connection = f"{oracle_target_host}:{oracle_target_port}/{oracle_service}"
     oracle_admin_user = conn.username if conn else "SYSTEM"
     oracle_admin_password = conn_password or settings.oracle_pwd
     oracle_container = conn.container_name if conn and conn.container_name else settings.oracle_container_name
@@ -338,6 +353,7 @@ async def create_embedded_oracle_task(
         "password": encrypt_secret(oracle_password, enc),
         "directory": direct_dmp_host_path,
     }
+    impdp_options: dict[str, object] = {}
     professional = {
         "source": source_config,
         "oracle_docker": {
@@ -365,7 +381,7 @@ async def create_embedded_oracle_task(
             "chmod_mode": "777",
         },
         "target": {
-            "connection": f"{oracle_target_host}:{oracle_target_port}/{oracle_service}",
+            "connection": oracle_target_connection,
             "admin_user": oracle_admin_user,
             "admin_password": encrypt_secret(oracle_admin_password, enc),
             "generated_user_password": encrypt_secret(generated_password, enc),
@@ -377,9 +393,22 @@ async def create_embedded_oracle_task(
             "direct_dmp_host_path": direct_dmp_host_path,
             "accept_export_log_gaps": body.accept_export_log_gaps,
         },
-        "impdp": {},
+        "impdp": impdp_options,
     }
-    impdp_options = professional["impdp"]
+    utf8_target_host = settings.oracle_utf8_target_host or settings.oracle_utf8_container_name
+    utf8_target_port = settings.oracle_utf8_host_port if settings.oracle_utf8_target_host else 1521
+    professional["character_set_routing"] = {
+        "enabled": bool(
+            settings.oracle_charset_routing_enabled
+            and _is_platform_managed_oracle_target(conn, settings)
+        ),
+        "primary_character_set": settings.oracle_primary_character_set,
+        "utf8": {
+            "container": settings.oracle_utf8_container_name,
+            "connection": f"{utf8_target_host}:{utf8_target_port}/{settings.oracle_utf8_pdb}",
+            "character_set": settings.oracle_utf8_character_set,
+        },
+    }
     if body.impdp_parallel:
         impdp_options["parallel"] = body.impdp_parallel
     if body.impdp_metrics is not None:
@@ -406,7 +435,7 @@ async def create_embedded_oracle_task(
         remote_user=source_config["user"],
         remote_password_enc=source_config["password"],
         remote_directory=source_config["directory"],
-        target_connection=professional["target"]["connection"],
+        target_connection=oracle_target_connection,
         target_admin_user=oracle_admin_user,
         target_admin_password_enc=encrypt_secret(oracle_admin_password, enc),
         options=options,

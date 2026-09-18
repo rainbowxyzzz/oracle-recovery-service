@@ -11,6 +11,7 @@ Export: Release 19.0.0.0.0 - Production on Wed Jul 1 18:00:02 2026
 Version 19.11.0.0.0
 Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
 ;;; ***************************************************************************
+Export done in AL32UTF8 character set and AL16UTF16 NCHAR character set
 ;;; Parfile values:
 ;;;  parfile:  tables=HFASP.T_A,PROJECTLIB.T_B,
 ;;;  _parfile: PROJECTLIB.T_B,PROJECTLIB.T_C,
@@ -39,6 +40,8 @@ class OracleExportLogParserTests(unittest.TestCase):
         self.assertTrue(manifest.recognized)
         self.assertEqual(manifest.tool, "expdp")
         self.assertEqual(manifest.source_status, "completed_with_errors")
+        self.assertEqual(manifest.source_character_set, "AL32UTF8")
+        self.assertEqual(manifest.source_nchar_character_set, "AL16UTF16")
         self.assertEqual(manifest.job_name, '"SYSTEM"."SYS_EXPORT_TABLE_04"')
         self.assertEqual(manifest.export_mode, "tables")
         self.assertEqual(manifest.schemas, ["ASSET", "HFASP", "PROJECTLIB"])

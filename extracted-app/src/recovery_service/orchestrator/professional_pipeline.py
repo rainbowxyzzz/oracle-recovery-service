@@ -1,5 +1,5 @@
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from importlib import import_module
 from pathlib import PurePosixPath
 
@@ -66,6 +66,50 @@ class MatchedExportLog:
     manifest: OracleExportLogManifest
     binding: ExportLogBinding
 
+
+def _route_managed_oracle_target(
+    job,
+    routing: dict,
+    source_character_set: str,
+    *,
+    force_utf8: bool = False,
+):
+    source_charset = (source_character_set or "").strip().upper()
+    primary_charset = str(routing.get("primary_character_set") or "ZHS16GBK").strip().upper()
+    decision = {
+        "source_character_set": source_charset,
+        "selected_character_set": primary_charset,
+        "selected_container": job.oracle_docker.container,
+        "selected_connection": job.target.connection_string,
+        "reason": "routing_disabled" if not routing.get("enabled") else "primary_target",
+        "rerouted": False,
+    }
+    if not routing.get("enabled"):
+        return job, decision
+    if not (force_utf8 or source_charset == "AL32UTF8"):
+        return job, decision
+
+    utf8 = routing.get("utf8") or {}
+    container = str(utf8.get("container") or "").strip()
+    connection = str(utf8.get("connection") or "").strip()
+    character_set = str(utf8.get("character_set") or "AL32UTF8").strip().upper()
+    if not container or not connection:
+        raise RemoteAccessError("UTF 字符集 Oracle 目标未完整配置，禁止回退到中文字符集目标继续导入。")
+
+    routed_job = replace(
+        job,
+        oracle_docker=replace(job.oracle_docker, container=container),
+        target=replace(job.target, connection_string=connection),
+    )
+    decision.update(
+        selected_character_set=character_set,
+        selected_container=container,
+        selected_connection=connection,
+        reason="probe_character_set_incompatible" if force_utf8 else "source_character_set",
+        rerouted=force_utf8,
+    )
+    return routed_job, decision
+
 import_plan = import_module("recovery_service.engine.import.import_plan")
 should_retry_with_impdp = import_plan.should_retry_with_impdp
 ImportPlan = import_plan.ImportPlan
@@ -88,6 +132,7 @@ class ProfessionalRecoveryPipeline:
         manual_dumpfile = (import_source.get("manual_dumpfile") or "").strip()
         impdp_options = config.get("impdp") or {}
         impdp_options = _normalize_impdp_options(impdp_options)
+        character_set_routing = config.get("character_set_routing") or {}
         direct_import = import_source_mode == "direct"
         execute_import = bool(config.get("auto_confirm", True))
         accept_export_log_gaps = bool(import_source.get("accept_export_log_gaps", False))
@@ -245,6 +290,25 @@ class ProfessionalRecoveryPipeline:
                 "匹配的 Oracle 导出日志显示源备份不完整。请查看缺失对象，确认后勾选"
                 "“允许源导出存在缺失对象”并重新提交。"
             )
+
+        job, charset_route = _route_managed_oracle_target(
+            job,
+            character_set_routing,
+            export_log_manifest.source_character_set if export_log_manifest else "",
+        )
+        target = job.target
+        record_task_event(
+            task_id,
+            event_type="oracle_charset_route",
+            title="Oracle 字符集目标选择完成",
+            status="succeeded",
+            message=(
+                f"源字符集={charset_route['source_character_set'] or '待探测'}；"
+                f"目标字符集={charset_route['selected_character_set']}；"
+                f"目标容器={charset_route['selected_container']}。"
+            ),
+            payload=charset_route,
+        )
 
         username = derive_identifier(_group_name(group), prefix="U")
         tablespace_name = derive_identifier(username, prefix="TS")
@@ -429,43 +493,82 @@ class ProfessionalRecoveryPipeline:
             record_task_event(
                 task_id,
                 event_type="oracle_auto_import_runtime",
-                title="Oracle 19c 导入运行控制已建立",
+                title="Oracle 导入运行控制已建立",
                 status="running",
                 message=f"Data Pump Job：{runtime.get('job_name') or '-'}",
                 payload=runtime,
             )
 
-        auto_result = OracleAutoImportRunner().run(
-            task_id=str(task_id),
-            oracle_host=oracle_host,
-            group=group,
-            dmp_host_path=job.oracle_docker.dmp_host_path,
-            dmp_container_path=job.oracle_docker.dmp_container_path,
-            tablespace_container_path=job.oracle_docker.tablespace_container_path,
-            container=job.oracle_docker.container,
-            target=target,
-            target_user_password=user_password,
-            oracle_home_in_container=job.oracle_docker.oracle_home_in_container,
-            oracle_directory=job.oracle_docker.oracle_directory if direct_import else None,
-            execute=execute_import,
-            manual_dumpfile=manual_dumpfile if direct_import else None,
-            export_log=(
-                {
-                    "remote_path": str(
-                        PurePosixPath(job.oracle_docker.dmp_host_path)
-                        / matched_export_log.artifact.filename
-                    ),
-                    "filename": matched_export_log.artifact.filename,
-                    "manifest": export_log_manifest.expectation_dict(),
-                    "binding": matched_export_log.binding.to_dict(),
-                    "accept_source_gaps": accept_export_log_gaps,
-                }
-                if matched_export_log and export_log_manifest
-                else None
-            ),
-            on_event=record_oracle_stream_event,
-            on_runtime=record_oracle_runtime,
-        )
+        def run_auto_import(active_job):
+            return OracleAutoImportRunner().run(
+                task_id=str(task_id),
+                oracle_host=oracle_host,
+                group=group,
+                dmp_host_path=active_job.oracle_docker.dmp_host_path,
+                dmp_container_path=active_job.oracle_docker.dmp_container_path,
+                tablespace_container_path=active_job.oracle_docker.tablespace_container_path,
+                container=active_job.oracle_docker.container,
+                target=active_job.target,
+                target_user_password=user_password,
+                oracle_home_in_container=active_job.oracle_docker.oracle_home_in_container,
+                oracle_directory=active_job.oracle_docker.oracle_directory if direct_import else None,
+                execute=execute_import,
+                manual_dumpfile=manual_dumpfile if direct_import else None,
+                export_log=(
+                    {
+                        "remote_path": str(
+                            PurePosixPath(active_job.oracle_docker.dmp_host_path)
+                            / matched_export_log.artifact.filename
+                        ),
+                        "filename": matched_export_log.artifact.filename,
+                        "manifest": export_log_manifest.expectation_dict(),
+                        "binding": matched_export_log.binding.to_dict(),
+                        "accept_source_gaps": accept_export_log_gaps,
+                    }
+                    if matched_export_log and export_log_manifest
+                    else None
+                ),
+                on_event=record_oracle_stream_event,
+                on_runtime=record_oracle_runtime,
+            )
+
+        auto_result = run_auto_import(job)
+        prior_probe = None
+        if (
+            character_set_routing.get("enabled")
+            and charset_route["selected_character_set"] != "AL32UTF8"
+            and (auto_result.report or {}).get("probe_failure_code") == "character_set_incompatible"
+        ):
+            prior_probe = {
+                "run_id": auto_result.run_id,
+                "run_dir": auto_result.run_dir,
+                "container": job.oracle_docker.container,
+                "report": auto_result.report,
+            }
+            job, charset_route = _route_managed_oracle_target(
+                job,
+                character_set_routing,
+                str((auto_result.report or {}).get("source_character_set") or ""),
+                force_utf8=True,
+            )
+            target = job.target
+            visibility = _verify_dmp_files_visible_in_container(
+                oracle_host,
+                container=job.oracle_docker.container,
+                docker_bin=job.oracle_docker.docker_bin,
+                dmp_host_path=job.oracle_docker.dmp_host_path,
+                dmp_container_path=job.oracle_docker.dmp_container_path,
+                copied_files=prepared_files,
+            )
+            record_task_event(
+                task_id,
+                event_type="oracle_charset_reroute",
+                title="Oracle 字符集不兼容，已切换 UTF 目标",
+                status="succeeded",
+                message="探测阶段确认字符集转换存在数据损失；正式清理和导入尚未开始，现切换到 UTF 字符集目标重新探测。",
+                payload={**charset_route, "prior_probe": prior_probe, "visibility": visibility},
+            )
+            auto_result = run_auto_import(job)
         for check in auto_result.preflight_checks:
             check_state = str(check.get("state") or "info")
             record_task_event(
@@ -525,6 +628,8 @@ class ProfessionalRecoveryPipeline:
                 "masked_commands": plan_data.get("masked_commands", []),
                 "fallback_commands": plan_data.get("masked_fallback_commands", []),
                 "report": report_data,
+                "character_set_route": charset_route,
+                "prior_character_set_probe": prior_probe,
                 "preflight_checks": auto_result.preflight_checks,
                 "log_manifest": auto_result.log_manifest,
                 "timeline_event_count": len(auto_result.timeline),
@@ -552,6 +657,8 @@ class ProfessionalRecoveryPipeline:
                 "import_source_mode": import_source_mode,
                 "manual_dumpfile": manual_dumpfile,
                 "oracle_export_log_assisted": bool(matched_export_log),
+                "oracle_character_set_route": charset_route,
+                "oracle_prior_character_set_probe": prior_probe,
                 "oracle_export_log": (
                     export_log_manifest.to_dict() if export_log_manifest else {}
                 ),
