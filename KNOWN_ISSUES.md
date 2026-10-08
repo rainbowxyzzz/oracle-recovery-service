@@ -415,3 +415,28 @@ Windows 本地没有 `sshpass`，无法用 Linux 风格脚本自动传密码 SSH
 ### Do not
 
 不要因为当前无运行任务就直接删除 `mysql-recovery-target`；未确认其挂载数据和业务归属前只做只读检查。
+
+## VMware NAT and Docker bridges are down after networking is re-enabled
+
+### Symptom
+
+`192.168.150.128` 消失，VMware 日志出现 `Unsetting "ethernet0.connectionType"`；恢复 NAT 后 CentOS 的 `ens33` 仍没有地址。执行 `nmcli networking on` 后，宿主机可以连接 SSH，但 API 日志报 `No route to host`，容器内无法访问 `mysql` / `redis`，并且 `br-*` Docker 网桥处于 `DOWN`。
+
+### Cause
+
+虚拟机网卡被切换成了桥接模式，同时 CentOS 的全局网络状态被关闭。重新打开总网络时，如果没有 Docker 接口排除规则，`NetworkManager` 会接管 `docker0`、`br-*` 和 `veth*`，释放容器端口并破坏 Docker 自定义桥接。
+
+### Correct solution
+
+将虚拟机 `ethernet0.connectionType` 恢复并持久化为 `nat`，启用 `NetworkManager` 总网络和 `ens33`。在 `/etc/NetworkManager/conf.d/10-docker-unmanaged.conf` 固化：
+
+```ini
+[keyfile]
+unmanaged-devices=interface-name:docker0;interface-name:br-*;interface-name:veth*
+```
+
+随后重启 `NetworkManager`，确认 `ens33` 为 managed、Docker 接口为 unmanaged，再重启 Docker。最后验证 `br-*` 为 `UP`、容器内可连接 `mysql:3306` 和 `redis:6379`，并检查 API/Worker 日志。
+
+### Do not
+
+不要通过删除 Docker 网络、容器或数据卷解决；不要在 Docker 接口仍由 `NetworkManager` 管理时反复重启 Docker；不要因容器内 `No route to host` 修改业务代码。
