@@ -46,3 +46,15 @@ def test_approval_authorization_workspace_keeps_existing_contract_and_structures
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/test-step' in html
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/runs' in html
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/watch-scan' in html
+
+
+def test_approval_authorization_logs_show_business_summary_before_raw_details():
+    html = UI_HTML.read_text(encoding="utf-8")
+
+    assert "function approvalAuthBusinessSummary(log)" in html
+    assert 'log?.step_key === "todo_list"' in html
+    assert 'log?.step_key === "table_schema_lookup"' in html
+    assert 'log?.step_key === "import_permissions"' in html
+    assert 'approvalAuthLogTab === "overview"' in html
+    assert "状态分布" in html
+    assert "跳过明细" in html

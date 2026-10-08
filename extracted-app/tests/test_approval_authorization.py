@@ -7,13 +7,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from recovery_service.core.models.task import (
+    ApprovalAuthorizationCase,
     ApprovalAuthorizationConfig,
     ApprovalAuthorizationRun,
     ApprovalAuthorizationStepLog,
     Base,
     DatabaseConnectionProfile,
 )
-from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _normalized_config, _run_full_sync, _validate_import_permission_path
+from recovery_service.services.approval_authorization import (
+    _extract_department_name,
+    _normalized_config,
+    _Runtime,
+    _validate_import_permission_path,
+)
 
 
 class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
@@ -30,6 +36,7 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
                 ApprovalAuthorizationConfig.__table__,
                 ApprovalAuthorizationRun.__table__,
                 ApprovalAuthorizationStepLog.__table__,
+                ApprovalAuthorizationCase.__table__,
             ],
         )
         self.session = Session(self.engine, expire_on_commit=False)
@@ -105,9 +112,10 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
         self.assertEqual(log.extracted_data["audit_status_ready_count"], 3)
         self.assertEqual(log.extracted_data["audit_status_zero_count"], 2)
         self.assertEqual(log.extracted_data["audit_status_empty_count"], 1)
+        self.assertEqual(log.extracted_data["audit_status_counts"], {"0": 2, "1": 1, "空值": 1})
         self.assertEqual(log.request_data["headers"]["token"], "toke***-123")
 
-    def test_failed_table_schema_lookup_keeps_sql_trace(self):
+    def test_table_schema_lookup_skips_missing_table_and_keeps_sql_trace(self):
         runtime = self._runtime()
 
         def fake_query(sql, params):
@@ -117,19 +125,20 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
             return []
 
         with patch.object(runtime, "_query", side_effect=fake_query):
-            with self.assertRaises(ValueError):
-                runtime.execute_step(
-                    "table_schema_lookup",
-                    {"data_items": [{"datatitle": "T_MISSING", "dataLevel": "1"}]},
-                    "FLOW001",
-                )
+            result = runtime.execute_step(
+                "table_schema_lookup",
+                {"data_items": [{"datatitle": "T_MISSING", "dataLevel": "1"}]},
+                "FLOW001",
+            )
 
         log = self.session.query(ApprovalAuthorizationStepLog).one()
-        self.assertEqual(log.status, "failed")
+        self.assertEqual(result["grant_records"], [])
+        self.assertEqual(result["skipped_tables"][0]["reason"], "missing")
+        self.assertEqual(log.status, "skipped")
         self.assertEqual(log.apply_flow_id, "FLOW001")
         self.assertIn("information_schema.tables", log.sql_text)
-        self.assertEqual(log.sql_params["params"], ["DWD_%", "T_MISSING"])
-        self.assertEqual(log.sql_result["row_count"], 0)
+        self.assertEqual(log.sql_params["titles"], ["T_MISSING"])
+        self.assertEqual(log.sql_result["rows"], [])
 
     def test_audit_status_update_posts_workflow_token_and_id(self):
         runtime = self._runtime()
@@ -198,7 +207,7 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
         self.assertEqual(result["date_suffix"], "0801")
         self.assertEqual(result["generated_username"], "张三_1234_0801")
 
-    def test_auto_watch_retries_only_audit_status_after_import_success(self):
+    def test_old_import_log_does_not_mark_case_complete(self):
         self.session.add(
             ApprovalAuthorizationStepLog(
                 run_id=uuid.uuid4(),
@@ -210,29 +219,141 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
             )
         )
         self.session.commit()
+        runtime = self._runtime()
+        self.assertTrue(runtime.claim_apply_flow("FLOW001"))
+        case = self.session.query(ApprovalAuthorizationCase).one()
+        self.assertEqual(case.state, "running")
+        self.assertFalse(case.audit_status_updated)
+
+    def test_second_run_cannot_claim_same_active_apply_flow(self):
+        first = self._runtime()
+        self.assertTrue(first.claim_apply_flow("FLOW001"))
+        second_run_id = uuid.uuid4()
+        self.session.add(
+            ApprovalAuthorizationRun(
+                id=second_run_id,
+                config_id=self.config_id,
+                config_name="审批流测试配置",
+                state="running",
+            )
+        )
+        self.session.commit()
+        second = _Runtime(self.session, second_run_id, self.config_id)
+        self.assertFalse(second.claim_apply_flow("FLOW001"))
+
+    def test_api_add_reuses_exact_existing_connection(self):
+        runtime = self._runtime()
+        with patch.object(runtime, "_query", return_value=[{"resource_id": 88}]), patch.object(
+            runtime, "_post_json"
+        ) as post:
+            result = runtime.execute_step(
+                "api_add",
+                {
+                    "youdata_token": "token",
+                    "doris_username": "user_01",
+                    "doris_password": "secret",
+                    "database_name": "DWD_TEST",
+                },
+                "FLOW001",
+            )
+
+        self.assertEqual(result["resource_id"], 88)
+        post.assert_not_called()
+        log = self.session.query(ApprovalAuthorizationStepLog).one()
+        self.assertEqual(log.extracted_data["connection_action"], "reused")
+
+    def test_import_permissions_skips_identified_missing_user(self):
+        runtime = self._runtime()
         calls = []
 
-        def fake_execute(self, step_key, context, apply_flow_id):
-            calls.append(step_key)
-            if step_key == "login":
-                return {"workflow_token": "workflow-token"}
-            if step_key == "todo_list":
-                return {"apply_flow_ids": ["FLOW001"], "todo_rows": [{"id": "FLOW001", "auditStatus": 0}]}
-            if step_key == "audit_status_update":
-                return {"audit_status_updated": True}
-            raise AssertionError(f"unexpected step {step_key}")
+        def fake_post(url, body, headers=None):
+            calls.append(list(body["uniqueIds"]))
+            if len(calls) == 1:
+                runtime._last_http_response = {"body": {"message": "用户不存在: 13800000001"}}
+                raise ValueError("用户不存在")
+            return {"code": 200, "result": 9}
 
-        with patch.object(_Runtime, "execute_step", fake_execute), patch(
-            "recovery_service.services.approval_authorization.get_sync_session_factory",
-            return_value=lambda: Session(self.engine, expire_on_commit=False),
-        ):
-            _run_full_sync(self.run_id, self.config_id, {"mode": "auto_watch"})
+        with patch.object(runtime, "_post_json", side_effect=fake_post):
+            result = runtime.execute_step(
+                "import_permissions",
+                {
+                    "youdata_token": "token",
+                    "unique_ids": ["13800000001", "13800000002"],
+                    "query_end_time": "2026-12-31 10:00:00",
+                    "resource_id": 88,
+                    "api_add_name": "DWD_TEST_user_01",
+                },
+                "FLOW001",
+            )
 
-        self.assertEqual(calls, ["login", "todo_list", "audit_status_update"])
-        self.session.expire_all()
-        run = self.session.get(ApprovalAuthorizationRun, self.run_id)
-        self.assertEqual(run.state, "success")
-        self.assertEqual(run.success_count, 1)
+        self.assertEqual(calls, [["13800000001", "13800000002"], ["13800000002"]])
+        self.assertEqual(result["authorized_users"], ["13800000002"])
+        self.assertEqual(result["skipped_users"], ["13800000001"])
+        self.assertEqual(result["role_id"], 9)
+
+    def test_import_permissions_rejects_non_positive_role_id(self):
+        runtime = self._runtime()
+        with patch.object(runtime, "_post_json", return_value={"code": 200, "result": 0}):
+            with self.assertRaisesRegex(ValueError, "角色 id 不是有效正整数"):
+                runtime.execute_step(
+                    "import_permissions",
+                    {
+                        "youdata_token": "token",
+                        "unique_ids": ["13800000002"],
+                        "query_end_time": "2026-12-31 10:00:00",
+                        "resource_id": 88,
+                        "api_add_name": "DWD_TEST_user_01",
+                    },
+                    "FLOW001",
+                )
+
+    def test_auth_info_insert_only_inserts_missing_records(self):
+        runtime = self._runtime()
+        records = [
+            {"datatitle": "T_EXISTING", "dataLevel": "1", "schema_name": "DWD_TEST"},
+            {"datatitle": "T_NEW", "dataLevel": "2", "schema_name": "DWD_TEST"},
+        ]
+        with patch.object(runtime, "_query", return_value=[{"datatitle": "T_EXISTING"}]), patch.object(
+            runtime, "_execute_many", return_value=1
+        ) as execute_many:
+            result = runtime.execute_step(
+                "auth_info_insert",
+                {"apply_flow_id": "FLOW001", "grant_records": records},
+                "FLOW001",
+            )
+
+        self.assertEqual(result["insert_count"], 1)
+        self.assertEqual(result["reused_count"], 1)
+        self.assertEqual(execute_many.call_args.args[1][0][1], "T_NEW")
+
+    def test_post_json_rejects_explicit_business_failure(self):
+        runtime = self._runtime()
+
+        class FakeResponse:
+            status_code = 200
+            text = ""
+
+            @staticmethod
+            def json():
+                return {"code": 200, "success": False, "message": "failed"}
+
+        class FakeClient:
+            def __init__(self, **_kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            @staticmethod
+            def post(*_args, **_kwargs):
+                return FakeResponse()
+
+        with patch("recovery_service.services.approval_authorization.httpx.Client", FakeClient):
+            with self.assertRaisesRegex(ValueError, "业务返回失败"):
+                runtime._post_json("http://example/api", {})
 
 
 if __name__ == "__main__":

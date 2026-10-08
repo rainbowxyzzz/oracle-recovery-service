@@ -478,6 +478,8 @@ class ApprovalAuthorizationRun(Base):
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     total_count: Mapped[int] = mapped_column(Integer, default=0)
     success_count: Mapped[int] = mapped_column(Integer, default=0)
+    partial_count: Mapped[int] = mapped_column(Integer, default=0)
+    no_effect_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_count: Mapped[int] = mapped_column(Integer, default=0)
     skipped_count: Mapped[int] = mapped_column(Integer, default=0)
     current_apply_flow_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
@@ -509,6 +511,32 @@ class ApprovalAuthorizationStepLog(Base):
     sql_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class ApprovalAuthorizationCase(Base):
+    __tablename__ = "approval_authorization_cases"
+    __table_args__ = (
+        UniqueConstraint("config_id", "apply_flow_id", name="uq_approval_authorization_case"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
+    config_id: Mapped[uuid.UUID] = mapped_column(Uuid(), index=True)
+    apply_flow_id: Mapped[str] = mapped_column(String(128), index=True)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True, index=True)
+    state: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    current_step: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    connection_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    audit_status_updated: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    lock_owner: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(LONG_TEXT, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), index=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 

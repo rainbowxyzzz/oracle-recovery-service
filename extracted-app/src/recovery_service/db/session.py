@@ -90,6 +90,7 @@ async def init_db() -> None:
         await _ensure_batch_authorization_columns(conn)
         await _ensure_resource_provisioning_columns(conn)
         await _ensure_resource_permission_columns(conn)
+        await _ensure_approval_authorization_columns(conn)
         await _ensure_doris_csv_task_columns(conn)
         await _ensure_query_export_columns(conn)
         await _ensure_data_platform_folder_columns(conn)
@@ -197,6 +198,19 @@ async def _ensure_resource_permission_columns(conn) -> None:
             await conn.execute(
                 text(f"CREATE INDEX {index_name} ON resource_permission_rows ({column_name})")
             )
+
+
+async def _ensure_approval_authorization_columns(conn) -> None:
+    if conn.dialect.name not in {"mysql", "mariadb"}:
+        return
+    columns = await _table_columns(conn, "approval_authorization_runs")
+    migrations = {
+        "partial_count": "ALTER TABLE approval_authorization_runs ADD COLUMN partial_count INT NOT NULL DEFAULT 0 AFTER success_count",
+        "no_effect_count": "ALTER TABLE approval_authorization_runs ADD COLUMN no_effect_count INT NOT NULL DEFAULT 0 AFTER partial_count",
+    }
+    for column, sql in migrations.items():
+        if columns and column not in columns:
+            await conn.execute(text(sql))
 
 
 async def _ensure_recovery_task_stop_columns(conn) -> None:

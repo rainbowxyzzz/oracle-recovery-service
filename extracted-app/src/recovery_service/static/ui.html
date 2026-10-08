@@ -11824,44 +11824,60 @@
           $("approvalAuthStepResult").textContent = "请选择步骤并填写所需上下文后运行。";
           return;
         }
-        if ($("approvalAuthStepResultSummary")) $("approvalAuthStepResultSummary").innerHTML = `<div class="approval-auth-run-summary-item"><span>状态</span><strong>${escapeHtml(log.status || "-")}</strong></div><div class="approval-auth-run-summary-item"><span>步骤</span><strong>${escapeHtml(log.step_name || "-")}</strong></div><div class="approval-auth-run-summary-item"><span>申请编号</span><strong>${escapeHtml(log.apply_flow_id || "-")}</strong></div>`;
+        if ($("approvalAuthStepResultSummary")) $("approvalAuthStepResultSummary").innerHTML = `<div class="approval-auth-run-summary-item"><span>状态</span><strong>${escapeHtml(approvalAuthStatusLabel(log.status))}</strong></div><div class="approval-auth-run-summary-item"><span>步骤</span><strong>${escapeHtml(log.step_name || "-")}</strong></div><div class="approval-auth-run-summary-item"><span>申请编号</span><strong>${escapeHtml(log.apply_flow_id || "-")}</strong></div>`;
         let value;
         if (approvalAuthStepResultTab === "request") value = log.request_data;
         else if (approvalAuthStepResultTab === "response") value = log.response_data;
         else if (approvalAuthStepResultTab === "extracted") value = log.extracted_data;
         else if (approvalAuthStepResultTab === "sql") value = { sql: log.sql_text || null, params: log.sql_params || null, result: log.sql_result || null };
         else value = { message: log.message || null, error_message: log.error_message || null, status: log.status || null, started_at: log.started_at || null, finished_at: log.finished_at || null };
-        $("approvalAuthStepResult").textContent = approvalAuthPrettyValue(value);
+        if (approvalAuthStepResultTab === "overview") {
+          $("approvalAuthStepResult").innerHTML = approvalAuthBusinessSummary(log);
+        } else {
+          $("approvalAuthStepResult").textContent = approvalAuthPrettyValue(value);
+        }
       }
 
       async function runApprovalAuthorization() {
         if (!approvalAuthSelectedConfigId) throw new Error("请先选择或保存配置。");
-        const result = await api(`/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/runs`, {
-          method: "POST",
-          body: JSON.stringify({ context: {} })
-        });
-        approvalAuthSelectedRunId = result.id;
-        await refreshApprovalAuthorizationRunsOnly();
-        await openApprovalAuthRun(result.id);
-        setMessage("approvalAuthMessage", result.message || "完整运行已提交，可在运行记录中查看节点日志。", "ok");
-        window.setTimeout(() => {
-          if (approvalAuthSelectedRunId === result.id) openApprovalAuthRun(result.id).catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
-        }, 2000);
+        const button = $("approvalAuthRunBtn");
+        if (button) button.disabled = true;
+        try {
+          const result = await api(`/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/runs`, {
+            method: "POST",
+            body: JSON.stringify({ context: {} })
+          });
+          approvalAuthSelectedRunId = result.id;
+          await refreshApprovalAuthorizationRunsOnly();
+          await openApprovalAuthRun(result.id);
+          setMessage("approvalAuthMessage", result.message || "完整运行已提交，可在运行记录中查看节点日志。", "ok");
+          window.setTimeout(() => {
+            if (approvalAuthSelectedRunId === result.id) openApprovalAuthRun(result.id).catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
+          }, 2000);
+        } finally {
+          if (button) button.disabled = false;
+        }
       }
 
       async function runApprovalAuthorizationWatchScan() {
         if (!approvalAuthSelectedConfigId) throw new Error("请先选择或保存配置。");
-        const result = await api(`/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/watch-scan`, {
-          method: "POST",
-          body: JSON.stringify({ context: {} })
-        });
-        approvalAuthSelectedRunId = result.id;
-        await refreshApprovalAuthorizationRunsOnly();
-        await openApprovalAuthRun(result.id);
-        setMessage("approvalAuthMessage", result.message || "监听扫描已提交，可在运行记录中查看节点日志。", "ok");
-        window.setTimeout(() => {
-          if (approvalAuthSelectedRunId === result.id) openApprovalAuthRun(result.id).catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
-        }, 2000);
+        const button = $("approvalAuthWatchScanBtn");
+        if (button) button.disabled = true;
+        try {
+          const result = await api(`/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/watch-scan`, {
+            method: "POST",
+            body: JSON.stringify({ context: {} })
+          });
+          approvalAuthSelectedRunId = result.id;
+          await refreshApprovalAuthorizationRunsOnly();
+          await openApprovalAuthRun(result.id);
+          setMessage("approvalAuthMessage", result.message || "监听扫描已提交，可在运行记录中查看节点日志。", "ok");
+          window.setTimeout(() => {
+            if (approvalAuthSelectedRunId === result.id) openApprovalAuthRun(result.id).catch((e) => setMessage("approvalAuthMessage", e.message, "error"));
+          }, 2000);
+        } finally {
+          if (button) button.disabled = false;
+        }
       }
 
       async function refreshApprovalAuthorizationRunsOnly() {
@@ -11875,12 +11891,12 @@
         box.innerHTML = approvalAuthConfigs.map((config) => {
           const runs = approvalAuthRuns.filter((run) => String(run.config_id) === String(config.id));
           const latest = runs[0];
-          const success = runs.filter((run) => run.state === "success").length;
+          const success = runs.filter((run) => ["success", "partial_success"].includes(run.state)).length;
           const failed = runs.filter((run) => ["failed", "partial_failed", "update_failed"].includes(run.state)).length;
           return `<div class="approval-auth-run-task-card">
             <div><strong>${escapeHtml(config.name)}</strong><span>任务编号：${escapeHtml(config.id)}</span></div>
             <div><span>已加载运行</span><strong>${runs.length} 次</strong></div>
-            <div><span>成功 / 失败</span><strong>${success} / ${failed}</strong></div>
+            <div><span>完成 / 失败</span><strong>${success} / ${failed}</strong></div>
             <div><span>最近运行</span><strong>${latest ? formatTime(latest.started_at || latest.created_at) : "暂无"}</strong></div>
             <button type="button" data-approval-auth-run-config="${escapeHtml(config.id)}">查看运行</button>
           </div>`;
@@ -11914,10 +11930,10 @@
           return `
           <div class="list-item ${run.id === approvalAuthSelectedRunId ? "selected" : ""}">
             <strong>${escapeHtml(run.config_name || "-")}</strong>
-            <span class="badge ${run.state === "success" ? "business" : run.state === "failed" ? "system" : ""}">${escapeHtml(run.state || "-")}</span>
+            <span class="badge ${approvalAuthStatusBadgeClass(run.state)}">${escapeHtml(approvalAuthStatusLabel(run.state))}</span>
             <div class="muted">模式：${escapeHtml(run.context?.mode === "auto_watch" ? "自动监听" : run.context?.mode === "step_test" ? "单步测试" : "完整运行")}</div>
             <div class="approval-auth-watch-run-state muted">当前监听：<span class="badge ${watchState.badge}">${escapeHtml(watchState.label)}</span></div>
-            <div class="muted">成功 ${run.success_count || 0} / 失败 ${run.failed_count || 0} / 总数 ${run.total_count || 0}</div>
+            <div class="muted">成功 ${run.success_count || 0} / 部分成功 ${run.partial_count || 0} / 无有效项 ${run.no_effect_count || 0} / 失败 ${run.failed_count || 0} / 总数 ${run.total_count || 0}</div>
             <div class="muted">${escapeHtml(run.message || "")}</div>
             <div class="actions" style="margin-top: 8px"><button type="button" data-approval-auth-run="${escapeHtml(run.id)}">查看日志</button></div>
           </div>
@@ -11942,13 +11958,39 @@
       }
 
       function approvalAuthStatusBadgeClass(status) {
-        return status === "success" ? "business" : status === "failed" ? "system" : "";
+        return ["success", "partial", "partial_success", "skipped", "skipped_no_effect"].includes(status) ? "business" : ["failed", "partial_failed"].includes(status) ? "system" : "";
+      }
+
+      function approvalAuthStatusLabel(status) {
+        return ({ success: "成功", partial: "部分成功", partial_success: "部分成功", skipped: "已跳过", skipped_no_effect: "无有效授权", failed: "失败", partial_failed: "部分失败", running: "运行中", created: "已创建" })[status] || status || "-";
       }
 
       function approvalAuthPrettyValue(value) {
         if (value === undefined || value === null || value === "") return "暂无数据";
         if (typeof value === "string") return value;
         return JSON.stringify(value, null, 2);
+      }
+
+      function approvalAuthBusinessPairs(log) {
+        const data = log?.extracted_data || {};
+        if (log?.step_key === "todo_list") {
+          const distribution = Object.entries(data.audit_status_counts || {}).map(([key, value]) => `${key}=${value}`).join("，") || "暂无";
+          return [["返回总数", data.total_rows || 0], ["待处理", data.audit_status_ready_count || 0], ["状态分布", distribution]];
+        }
+        if (log?.step_key === "table_schema_lookup") return [["可授权表", data.record_count || 0], ["跳过表", data.skipped_count || 0], ["跳过明细", (data.skipped_tables || []).map((item) => `${item.datatitle}(${item.match_count}条)`).join("，") || "无"]];
+        if (log?.step_key === "auth_info_insert") return [["新增记录", data.insert_count || 0], ["复用记录", data.reused_count || 0]];
+        if (log?.step_key === "api_add") return [["数据连接", data.api_add_name || "-"], ["处理方式", String(data.connection_action || "").startsWith("reused") ? "复用已有连接" : "新建连接"], ["资源ID", data.resource_id || "-"]];
+        if (log?.step_key === "import_permissions") return [["成功人员", (data.authorized_users || []).length], ["跳过人员", (data.skipped_users || []).length], ["跳过明细", (data.skipped_users || []).join("，") || "无"]];
+        if (log?.step_key === "apply_flow_result") return [["最终结果", approvalAuthStatusLabel(data.state || log.status)], ["授权表", (data.granted_tables || []).length], ["跳过表 / 人员", `${(data.skipped_tables || []).length} / ${(data.skipped_users || []).length}`]];
+        return [["执行状态", approvalAuthStatusLabel(log?.status)], ["步骤说明", log?.error_message || log?.message || "无附加信息"]];
+      }
+
+      function approvalAuthBusinessSummary(log) {
+        return `<div class="approval-auth-run-summary">${approvalAuthBusinessPairs(log).map(([label, value]) => `<div class="approval-auth-run-summary-item"><span>${escapeHtml(String(label))}</span><strong>${escapeHtml(String(value))}</strong></div>`).join("")}</div>`;
+      }
+
+      function approvalAuthLogHeadline(log) {
+        return approvalAuthBusinessPairs(log).map(([label, value]) => `${label}：${value}`).join("；");
       }
 
       function approvalAuthFlowGroups(logs) {
@@ -11970,10 +12012,10 @@
           : logs.filter((log) => (log.apply_flow_id || "__global__") === approvalAuthSelectedApplyFlowId);
         $("approvalAuthRunModalSubtitle").textContent = `${run.config_name || "-"} · ${approvalAuthRunModeLabel(run)} · ${formatTime(run.started_at || run.created_at)}`;
         $("approvalAuthRunSummary").innerHTML = `
-          <div class="approval-auth-run-summary-item"><span>状态</span><strong>${escapeHtml(run.state || "-")}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>状态</span><strong>${escapeHtml(approvalAuthStatusLabel(run.state))}</strong></div>
           <div class="approval-auth-run-summary-item"><span>总数</span><strong>${run.total_count || 0}</strong></div>
-          <div class="approval-auth-run-summary-item"><span>成功 / 失败</span><strong>${run.success_count || 0} / ${run.failed_count || 0}</strong></div>
-          <div class="approval-auth-run-summary-item"><span>跳过</span><strong>${run.skipped_count || 0}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>成功 / 部分成功</span><strong>${run.success_count || 0} / ${run.partial_count || 0}</strong></div>
+          <div class="approval-auth-run-summary-item"><span>无有效项 / 重复跳过</span><strong>${run.no_effect_count || 0} / ${run.skipped_count || 0}</strong></div>
           <div class="approval-auth-run-summary-item"><span>步骤日志</span><strong>${logs.length}</strong></div>
         `;
         $("approvalAuthFlowNav").innerHTML = `
@@ -11990,8 +12032,8 @@
           <button type="button" class="approval-auth-step-row ${log.status === "failed" ? "failed" : ""}" data-approval-auth-log="${escapeHtml(log.id)}">
             <span class="approval-auth-step-index">${index + 1}</span>
             <span class="approval-auth-step-main">
-              <span><strong>${escapeHtml(log.step_name || "未命名步骤")}</strong> <span class="badge ${approvalAuthStatusBadgeClass(log.status)}">${escapeHtml(log.status || "-")}</span></span>
-              <span class="approval-auth-step-message">${escapeHtml(log.error_message || log.message || "无附加信息")}</span>
+              <span><strong>${escapeHtml(log.step_name || "未命名步骤")}</strong> <span class="badge ${approvalAuthStatusBadgeClass(log.status)}">${escapeHtml(approvalAuthStatusLabel(log.status))}</span></span>
+              <span class="approval-auth-step-message">${escapeHtml(approvalAuthLogHeadline(log))}</span>
               <span class="approval-auth-step-time">${escapeHtml(log.apply_flow_id || "运行级日志")} · ${formatTime(log.started_at || log.created_at)}</span>
             </span>
             <span>查看详情 ›</span>
@@ -12022,7 +12064,7 @@
         if (!log) return;
         $("approvalAuthLogModalTitle").textContent = log.step_name || "步骤日志详情";
         $("approvalAuthLogMeta").innerHTML = `
-          <span class="badge ${approvalAuthStatusBadgeClass(log.status)}">${escapeHtml(log.status || "-")}</span>
+          <span class="badge ${approvalAuthStatusBadgeClass(log.status)}">${escapeHtml(approvalAuthStatusLabel(log.status))}</span>
           <span>applyFlowId：${escapeHtml(log.apply_flow_id || "-")}</span>
           <span>时间：${formatTime(log.started_at || log.created_at)}</span>
         `;
@@ -12044,7 +12086,9 @@
           started_at: log.started_at || null,
           finished_at: log.finished_at || null
         };
-        $("approvalAuthLogContent").innerHTML = `<pre>${escapeHtml(approvalAuthPrettyValue(value))}</pre>`;
+        $("approvalAuthLogContent").innerHTML = approvalAuthLogTab === "overview"
+          ? approvalAuthBusinessSummary(log)
+          : `<pre>${escapeHtml(approvalAuthPrettyValue(value))}</pre>`;
       }
 
       async function refreshBatchAuthorizationAll() {

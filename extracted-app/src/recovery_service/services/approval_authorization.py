@@ -5,11 +5,13 @@ import logging
 import re
 import threading
 import uuid
-from datetime import datetime
+from collections import Counter
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -24,6 +26,7 @@ from recovery_service.api.schemas.approval_authorization import (
 from recovery_service.common.security import decrypt_secret, encrypt_secret
 from recovery_service.common.time import app_now
 from recovery_service.core.models.task import (
+    ApprovalAuthorizationCase,
     ApprovalAuthorizationConfig,
     ApprovalAuthorizationRun,
     ApprovalAuthorizationStepLog,
@@ -33,9 +36,8 @@ from recovery_service.db.session import get_sync_session_factory
 from recovery_service.services.auth import AuthContext
 from recovery_service.services.batch_authorization import (
     _doris_conn,
-    _doris_user,
-    _grant_department_database,
     _ensure_doris_user,
+    _grant_department_database,
     _grant_source_table,
     _q,
 )
@@ -56,6 +58,7 @@ STEP_NAMES = {
     "api_add": "创建有数数据连接",
     "import_permissions": "导入有数人员权限",
     "audit_status_update": "回写审批状态",
+    "apply_flow_result": "申请处理结果",
 }
 
 _SCHEDULER_THREAD: threading.Thread | None = None
@@ -212,6 +215,16 @@ async def create_full_run(
     config = await db.get(ApprovalAuthorizationConfig, config_id)
     if not config:
         raise ValueError("审批流自动授权配置不存在。")
+    existing = (
+        await db.execute(
+            select(ApprovalAuthorizationRun.id)
+            .where(ApprovalAuthorizationRun.config_id == config_id)
+            .where(ApprovalAuthorizationRun.state.in_(list(_RUNNING_STATES)))
+            .limit(1)
+        )
+    ).scalars().first()
+    if existing:
+        raise ValueError(f"当前配置已有运行中的审批流自动授权任务：{existing}")
     run = ApprovalAuthorizationRun(
         config_id=config.id,
         config_name=config.name,
@@ -429,34 +442,30 @@ def _run_full_sync(run_id: uuid.UUID, config_id: uuid.UUID, context: dict[str, A
             )
             run.updated_at = app_now()
             session.commit()
-        success_count = 0
-        failed_count = 0
-        skipped_count = 0
+        counts = Counter()
         for apply_flow_id in apply_flow_ids:
             try:
-                if auto_watch and _as_bool(runtime.config_dict.get("auto_watch_skip_status_updated")) and runtime.apply_flow_status_updated(apply_flow_id):
-                    skipped_count += 1
+                if not runtime.claim_apply_flow(apply_flow_id):
+                    counts["skipped"] += 1
                     runtime.log_event(
                         "auto_watch_skip",
-                        "自动监听跳过",
+                        "跳过重复申请",
                         "skipped",
-                        f"applyFlowId={apply_flow_id} 已完成审批状态回写，本轮跳过。",
+                        f"applyFlowId={apply_flow_id} 已由其他任务处理或已完成，本轮跳过。",
                         apply_flow_id=apply_flow_id,
-                        extracted={"apply_flow_id": apply_flow_id, "reason": "audit_status_update_already_success"},
+                        extracted={"apply_flow_id": apply_flow_id, "reason": "claimed_or_completed"},
                     )
-                elif auto_watch and runtime.apply_flow_import_succeeded(apply_flow_id):
-                    runtime.set_current_apply_flow(apply_flow_id)
-                    runtime.execute_step("audit_status_update", dict(context, apply_flow_id=apply_flow_id), apply_flow_id)
-                    success_count += 1
                 else:
-                    _run_one_apply_flow(
+                    result = _run_one_apply_flow(
                         runtime,
                         dict(context, todo_create_time=todo_create_times.get(apply_flow_id, "")),
                         apply_flow_id,
                     )
-                    success_count += 1
+                    counts[result["state"]] += 1
+                    runtime.complete_apply_flow(apply_flow_id, result)
             except Exception as exc:
-                failed_count += 1
+                counts["failed"] += 1
+                runtime.fail_apply_flow(apply_flow_id, str(exc))
                 runtime.log_event(
                     "apply_flow",
                     "申请处理失败",
@@ -468,16 +477,27 @@ def _run_full_sync(run_id: uuid.UUID, config_id: uuid.UUID, context: dict[str, A
                 )
             run = session.get(ApprovalAuthorizationRun, run_id)
             if run:
-                run.success_count = success_count
-                run.failed_count = failed_count
-                run.skipped_count = skipped_count
+                run.success_count = counts["success"]
+                run.partial_count = counts["partial_success"]
+                run.no_effect_count = counts["skipped_no_effect"]
+                run.failed_count = counts["failed"]
+                run.skipped_count = counts["skipped"]
                 run.current_apply_flow_id = None
                 run.updated_at = app_now()
                 session.commit()
         run = session.get(ApprovalAuthorizationRun, run_id)
         if run:
-            run.state = "success" if failed_count == 0 else ("failed" if success_count == 0 else "partial_failed")
-            run.message = f"审批流自动授权完成：成功 {success_count} 个，失败 {failed_count} 个，跳过 {skipped_count} 个。"
+            completed = counts["success"] + counts["partial_success"] + counts["skipped_no_effect"]
+            if counts["failed"]:
+                run.state = "failed" if completed == 0 else "partial_failed"
+            elif counts["partial_success"] or counts["skipped_no_effect"]:
+                run.state = "partial_success"
+            else:
+                run.state = "success"
+            run.message = (
+                f"审批流自动授权完成：成功 {counts['success']} 个，部分成功 {counts['partial_success']} 个，"
+                f"无有效授权 {counts['skipped_no_effect']} 个，失败 {counts['failed']} 个，重复跳过 {counts['skipped']} 个。"
+            )
             run.finished_at = app_now()
             run.updated_at = run.finished_at
             session.commit()
@@ -494,7 +514,7 @@ def _run_full_sync(run_id: uuid.UUID, config_id: uuid.UUID, context: dict[str, A
         session.close()
 
 
-def _run_one_apply_flow(runtime: "_Runtime", base_context: dict[str, Any], apply_flow_id: str) -> None:
+def _run_one_apply_flow(runtime: _Runtime, base_context: dict[str, Any], apply_flow_id: str) -> dict[str, Any]:
     context = dict(base_context)
     context["apply_flow_id"] = apply_flow_id
     runtime.set_current_apply_flow(apply_flow_id)
@@ -506,6 +526,14 @@ def _run_one_apply_flow(runtime: "_Runtime", base_context: dict[str, Any], apply
     context.update(data_list)
     schema = runtime.execute_step("table_schema_lookup", context, apply_flow_id)
     context.update(schema)
+    skipped_tables = schema.get("skipped_tables") or []
+    if not context.get("grant_records"):
+        result = _apply_flow_result("skipped_no_effect", apply_flow_id, skipped_tables, [], [], [])
+        if _as_bool(runtime.config_dict.get("update_audit_status_after_success")):
+            runtime.execute_step("audit_status_update", context, apply_flow_id)
+            result["audit_status_updated"] = True
+        runtime.log_apply_flow_result(result)
+        return result
     runtime.execute_step("auth_info_insert", context, apply_flow_id)
     grant = runtime.execute_step("internal_grant", context, apply_flow_id)
     context.update(grant)
@@ -513,9 +541,47 @@ def _run_one_apply_flow(runtime: "_Runtime", base_context: dict[str, Any], apply
     context.update(youdata)
     api_add = runtime.execute_step("api_add", context, apply_flow_id)
     context.update(api_add)
-    runtime.execute_step("import_permissions", context, apply_flow_id)
+    permissions = runtime.execute_step("import_permissions", context, apply_flow_id)
+    context.update(permissions)
+    authorized_users = permissions.get("authorized_users") or []
+    skipped_users = permissions.get("skipped_users") or []
+    state = "success"
+    if not authorized_users:
+        state = "skipped_no_effect"
+    elif skipped_tables or skipped_users:
+        state = "partial_success"
     if _as_bool(runtime.config_dict.get("update_audit_status_after_success")):
         runtime.execute_step("audit_status_update", context, apply_flow_id)
+    result = _apply_flow_result(
+        state,
+        apply_flow_id,
+        skipped_tables,
+        skipped_users,
+        [item.get("datatitle") for item in context.get("grant_records") or []],
+        authorized_users,
+    )
+    result.update({"connection_name": context.get("api_add_name"), "resource_id": context.get("resource_id"), "role_id": context.get("role_id")})
+    result["audit_status_updated"] = _as_bool(runtime.config_dict.get("update_audit_status_after_success"))
+    runtime.log_apply_flow_result(result)
+    return result
+
+
+def _apply_flow_result(
+    state: str,
+    apply_flow_id: str,
+    skipped_tables: list[dict[str, Any]],
+    skipped_users: list[str],
+    granted_tables: list[str | None],
+    authorized_users: list[str],
+) -> dict[str, Any]:
+    return {
+        "state": state,
+        "apply_flow_id": apply_flow_id,
+        "granted_tables": [item for item in granted_tables if item],
+        "skipped_tables": skipped_tables,
+        "authorized_users": authorized_users,
+        "skipped_users": skipped_users,
+    }
 
 
 class _Runtime:
@@ -543,6 +609,104 @@ class _Runtime:
             run.updated_at = app_now()
             self.session.commit()
 
+    def claim_apply_flow(self, apply_flow_id: str) -> bool:
+        flow_id = str(apply_flow_id)
+        row = self.session.execute(
+            select(ApprovalAuthorizationCase)
+            .where(ApprovalAuthorizationCase.config_id == self.config.id)
+            .where(ApprovalAuthorizationCase.apply_flow_id == flow_id)
+        ).scalars().first()
+        if row is None:
+            row = ApprovalAuthorizationCase(config_id=self.config.id, apply_flow_id=flow_id)
+            try:
+                with self.session.begin_nested():
+                    self.session.add(row)
+                    self.session.flush()
+            except IntegrityError:
+                row = self.session.execute(
+                    select(ApprovalAuthorizationCase)
+                    .where(ApprovalAuthorizationCase.config_id == self.config.id)
+                    .where(ApprovalAuthorizationCase.apply_flow_id == flow_id)
+                ).scalars().one()
+        now = app_now()
+        owner = str(self.run_id)
+        claimed = self.session.execute(
+            update(ApprovalAuthorizationCase)
+            .where(ApprovalAuthorizationCase.id == row.id)
+            .where(ApprovalAuthorizationCase.audit_status_updated.is_(False))
+            .where(ApprovalAuthorizationCase.state.notin_(["success", "partial_success", "skipped_no_effect"]))
+            .where(
+                or_(
+                    ApprovalAuthorizationCase.lock_owner.is_(None),
+                    ApprovalAuthorizationCase.lock_owner == owner,
+                    ApprovalAuthorizationCase.locked_until < now,
+                )
+            )
+            .values(
+                run_id=self.run_id,
+                state="running",
+                current_step=None,
+                lock_owner=owner,
+                locked_until=now + timedelta(hours=2),
+                attempt_count=ApprovalAuthorizationCase.attempt_count + 1,
+                last_error=None,
+                updated_at=now,
+            )
+        ).rowcount
+        self.session.commit()
+        return bool(claimed)
+
+    def complete_apply_flow(self, apply_flow_id: str, result: dict[str, Any]) -> None:
+        case = self._get_apply_flow_case(apply_flow_id)
+        if not case:
+            return
+        case.state = str(result.get("state") or "success")
+        case.result = result
+        case.connection_name = result.get("connection_name")
+        case.resource_id = str(result.get("resource_id")) if result.get("resource_id") is not None else None
+        case.role_id = result.get("role_id")
+        case.audit_status_updated = bool(result.get("audit_status_updated"))
+        case.lock_owner = None
+        case.locked_until = None
+        case.finished_at = app_now()
+        case.updated_at = case.finished_at
+        self.session.commit()
+
+    def fail_apply_flow(self, apply_flow_id: str, error: str) -> None:
+        case = self._get_apply_flow_case(apply_flow_id)
+        if not case or case.lock_owner != str(self.run_id):
+            return
+        case.state = "failed"
+        case.last_error = error
+        case.lock_owner = None
+        case.locked_until = None
+        case.finished_at = app_now()
+        case.updated_at = case.finished_at
+        self.session.commit()
+
+    def _get_apply_flow_case(self, apply_flow_id: str) -> ApprovalAuthorizationCase | None:
+        return self.session.execute(
+            select(ApprovalAuthorizationCase)
+            .where(ApprovalAuthorizationCase.config_id == self.config.id)
+            .where(ApprovalAuthorizationCase.apply_flow_id == str(apply_flow_id))
+        ).scalars().first()
+
+    def log_apply_flow_result(self, result: dict[str, Any]) -> None:
+        labels = {
+            "success": "全部授权成功",
+            "partial_success": "部分授权成功",
+            "skipped_no_effect": "无有效授权项",
+        }
+        state = str(result.get("state") or "success")
+        self.log_event(
+            "apply_flow_result",
+            STEP_NAMES["apply_flow_result"],
+            state,
+            labels.get(state, state),
+            apply_flow_id=str(result.get("apply_flow_id") or ""),
+            extracted=result,
+        )
+
     def execute_step(self, step_key: str, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
         handlers = {
             "login": self._step_login,
@@ -561,6 +725,12 @@ class _Runtime:
         if step_key not in handlers:
             raise ValueError(f"未知步骤：{step_key}")
         self._reset_step_trace()
+        case = self._get_apply_flow_case(str(apply_flow_id)) if apply_flow_id else None
+        if case and case.lock_owner == str(self.run_id):
+            case.current_step = step_key
+            case.locked_until = app_now() + timedelta(hours=2)
+            case.updated_at = app_now()
+            self.session.commit()
         try:
             return handlers[step_key](context, apply_flow_id)
         except Exception as exc:
@@ -685,11 +855,14 @@ class _Runtime:
         }
         zero_count = sum(1 for item in rows if isinstance(item, dict) and _todo_status_group(item.get("auditStatus")) == "zero")
         empty_count = sum(1 for item in rows if isinstance(item, dict) and _todo_status_group(item.get("auditStatus")) == "empty")
+        status_counts = Counter(_audit_status_label(item.get("auditStatus")) for item in rows if isinstance(item, dict))
         extracted = {
             "total_rows": len(rows),
             "audit_status_ready_count": len(apply_ids),
             "audit_status_zero_count": zero_count,
             "audit_status_empty_count": empty_count,
+            "audit_status_other_count": len(rows) - zero_count - empty_count,
+            "audit_status_counts": dict(status_counts),
             "apply_flow_ids": apply_ids,
             "apply_flow_create_times": apply_flow_create_times,
         }
@@ -782,28 +955,37 @@ class _Runtime:
         for row in rows:
             by_title.setdefault(str(row.get("table_name")), []).append(row)
         records = []
+        skipped = []
         for item in items:
             title = str(item["datatitle"])
             matches = by_title.get(title) or []
             if len(matches) != 1:
-                raise ValueError(f"表 {title} 的 schema 匹配结果不是 1 条，实际 {len(matches)} 条。")
+                skipped.append({**item, "match_count": len(matches), "reason": "missing" if not matches else "ambiguous"})
+                continue
             records.append({**item, "schema_name": str(matches[0].get("schema_name"))})
-        extracted = {"record_count": len(records), "records": records}
-        self.log_event("table_schema_lookup", STEP_NAMES["table_schema_lookup"], "success", "表 schema 查询完成。", apply_flow_id=apply_flow_id, extracted=extracted, sql_text=sql, sql_params={"schema_like": schema_like, "titles": titles}, sql_result={"rows": rows})
-        return {"grant_records": records}
+        status = "partial" if skipped and records else ("skipped" if skipped else "success")
+        extracted = {"record_count": len(records), "skipped_count": len(skipped), "records": records, "skipped_tables": skipped}
+        self.log_event("table_schema_lookup", STEP_NAMES["table_schema_lookup"], status, "表 schema 查询完成。", apply_flow_id=apply_flow_id, extracted=extracted, sql_text=sql, sql_params={"schema_like": schema_like, "titles": titles}, sql_result={"rows": rows})
+        return {"grant_records": records, "skipped_tables": skipped}
 
     def _step_auth_info_insert(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
         flow_id = str(context.get("apply_flow_id") or apply_flow_id or "").strip()
         records = context.get("grant_records") or []
         if not records:
             raise ValueError("没有可写入授权信息表的记录。")
+        existing_sql = (
+            f"SELECT {_q('datatitle')} AS datatitle FROM {_q(self.config_dict['auth_info_database'])}.{_q(self.config_dict['auth_info_table'])} "
+            f"WHERE {_q('applyFlowId')} = %s"
+        )
+        existing = {str(row.get("datatitle") or "") for row in self._query(existing_sql, (flow_id,))}
+        pending = [row for row in records if str(row.get("datatitle") or "") not in existing]
         sql = (
             f"INSERT INTO {_q(self.config_dict['auth_info_database'])}.{_q(self.config_dict['auth_info_table'])} "
             f"({_q('applyFlowId')}, {_q('datatitle')}, {_q('dataLevel')}, {_q('schema_name')}) VALUES (%s, %s, %s, %s)"
         )
-        params = [(flow_id, row["datatitle"], row.get("dataLevel") or "", row["schema_name"]) for row in records]
-        affected = self._execute_many(sql, params)
-        extracted = {"insert_count": affected, "records": records}
+        params = [(flow_id, row["datatitle"], row.get("dataLevel") or "", row["schema_name"]) for row in pending]
+        affected = self._execute_many(sql, params) if params else 0
+        extracted = {"insert_count": affected, "reused_count": len(records) - len(pending), "records": records}
         self.log_event("auth_info_insert", STEP_NAMES["auth_info_insert"], "success", "授权信息表写入完成。", apply_flow_id=flow_id, extracted=extracted, sql_text=sql, sql_params={"rows": params}, sql_result={"affected": affected})
         return extracted
 
@@ -856,23 +1038,63 @@ class _Runtime:
         server = str(self.profile.host or "").strip()
         if not server:
             raise ValueError("当前 Doris 数据连接缺少 host，无法提交 apiAdd server。")
+        connection_name = str(context.get("api_add_name") or f"{database_name}_{username}")
         body.update(
             {
                 "token": token,
-                "name": str(context.get("api_add_name") or f"{database_name}_{username}"),
+                "name": connection_name,
                 "userName": username,
                 "password": password,
                 "defaultSchemaName": database_name,
                 "server": server,
             }
         )
+        lookup_sql = (
+            f"SELECT {_q(self.config_dict['resource_lookup_id_column'])} AS resource_id "
+            f"FROM {_q(self.config_dict['resource_lookup_database'])}.{_q(self.config_dict['resource_lookup_table'])} "
+            f"WHERE {_q(self.config_dict['resource_lookup_name_column'])} = %s LIMIT 2"
+        )
+        existing = self._query(lookup_sql, (connection_name,))
+        if len(existing) > 1:
+            raise ValueError(f"数据连接 {connection_name} 匹配到 {len(existing)} 条，无法安全复用。")
+        if len(existing) == 1:
+            resource_id = _positive_identifier(existing[0].get("resource_id"), "已有数据连接资源 id")
+            extracted = {
+                "resource_id": resource_id,
+                "database_name": database_name,
+                "username": username,
+                "server": server,
+                "paths": body.get("paths"),
+                "api_add_name": connection_name,
+                "connection_action": "reused",
+            }
+            self.log_event("api_add", STEP_NAMES["api_add"], "success", "复用已有有数数据连接。", apply_flow_id=apply_flow_id, extracted=extracted, sql_text=lookup_sql, sql_params={"name": connection_name}, sql_result={"rows": existing})
+            return {"resource_id": resource_id, "api_add_name": connection_name}
         url = self._youdata_url("api_add_path")
-        response = self._post_json(url, body)
+        try:
+            response = self._post_json(url, body)
+        except ValueError as exc:
+            if not _is_already_exists_error(self._last_http_response):
+                raise
+            existing = self._query(lookup_sql, (connection_name,))
+            if len(existing) != 1:
+                raise ValueError(f"数据连接 {connection_name} 已存在，但无法唯一读取资源 id。") from exc
+            resource_id = _positive_identifier(existing[0].get("resource_id"), "已有数据连接资源 id")
+            extracted = {
+                "resource_id": resource_id,
+                "database_name": database_name,
+                "username": username,
+                "server": server,
+                "paths": body.get("paths"),
+                "api_add_name": connection_name,
+                "connection_action": "reused_after_conflict",
+            }
+            self.log_event("api_add", STEP_NAMES["api_add"], "success", "并发创建冲突后复用已有有数数据连接。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=self._last_http_response, extracted=extracted, sql_text=lookup_sql, sql_params={"name": connection_name}, sql_result={"rows": existing})
+            return {"resource_id": resource_id, "api_add_name": connection_name}
         resource_id = _json_path(response, self.config_dict["api_add_id_path"])
         if resource_id is None and self.config_dict["api_add_id_path"] != "result":
             resource_id = _json_path(response, "result")
-        if resource_id is None:
-            raise ValueError("apiAdd 响应中未读取到资源 id。")
+        resource_id = _positive_identifier(resource_id, "apiAdd 资源 id")
         extracted = {
             "resource_id": resource_id,
             "database_name": database_name,
@@ -880,6 +1102,7 @@ class _Runtime:
             "server": server,
             "paths": body.get("paths"),
             "api_add_name": str(body.get("name") or "").strip(),
+            "connection_action": "created",
         }
         self.log_event("api_add", STEP_NAMES["api_add"], "success", "有数数据连接创建成功。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=response, extracted=extracted)
         return {"resource_id": resource_id, "api_add_name": str(body.get("name") or "").strip()}
@@ -916,11 +1139,31 @@ class _Runtime:
             }
         )
         url = self._youdata_url("import_permissions_path")
-        response = self._post_json(url, body)
-        role_id = _json_path(response, self.config_dict["import_permissions_role_id_path"])
-        extracted = {"unique_ids": unique_ids, "expire_at": expire_at, "resource_id": resource_id, "role_id": role_id, "role_name": role_name}
-        self.log_event("import_permissions", STEP_NAMES["import_permissions"], "success", "有数人员权限导入完成。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=response, extracted=extracted)
-        return {"role_id": role_id}
+        pending = list(unique_ids)
+        skipped: list[str] = []
+        response: dict[str, Any] | None = None
+        while pending:
+            body["uniqueIds"] = pending
+            body["userExpireMap"] = {item: expire_at for item in pending}
+            try:
+                response = self._post_json(url, body)
+                break
+            except ValueError:
+                missing = _missing_unique_ids(self._last_http_response, pending)
+                if not missing:
+                    raise
+                skipped.extend(missing)
+                pending = [item for item in pending if item not in missing]
+        role_id = None
+        if pending:
+            role_id = _positive_identifier(
+                _json_path(response or {}, self.config_dict["import_permissions_role_id_path"]),
+                "importDataPermissions 角色 id",
+            )
+        status = "partial" if pending and skipped else ("skipped" if skipped else "success")
+        extracted = {"unique_ids": unique_ids, "authorized_users": pending, "skipped_users": skipped, "expire_at": expire_at, "resource_id": resource_id, "role_id": role_id, "role_name": role_name}
+        self.log_event("import_permissions", STEP_NAMES["import_permissions"], status, "有数人员权限导入完成。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=response or self._last_http_response, extracted=extracted)
+        return {"role_id": role_id, "authorized_users": pending, "skipped_users": skipped}
 
     def _step_audit_status_update(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
         flow_id = str(context.get("apply_flow_id") or apply_flow_id or "").strip()
@@ -931,6 +1174,8 @@ class _Runtime:
         body["id"] = flow_id
         url = self._workflow_url("audit_status_update_path")
         response = self._post_json(url, body, headers=self._workflow_headers(token))
+        if not _response_confirms_success(response):
+            raise ValueError(f"审批状态接口未明确返回成功：{response}")
         extracted = {"apply_flow_id": flow_id, "updated": True, "body": body}
         self.log_event(
             "audit_status_update",
@@ -943,36 +1188,6 @@ class _Runtime:
             extracted=extracted,
         )
         return {"audit_status_updated": True}
-
-    def apply_flow_status_updated(self, apply_flow_id: str) -> bool:
-        existing = (
-            self.session.execute(
-                select(ApprovalAuthorizationStepLog.id)
-                .where(ApprovalAuthorizationStepLog.config_id == self.config.id)
-                .where(ApprovalAuthorizationStepLog.apply_flow_id == str(apply_flow_id))
-                .where(ApprovalAuthorizationStepLog.step_key == "audit_status_update")
-                .where(ApprovalAuthorizationStepLog.status == "success")
-                .limit(1)
-            )
-            .scalars()
-            .first()
-        )
-        return existing is not None
-
-    def apply_flow_import_succeeded(self, apply_flow_id: str) -> bool:
-        existing = (
-            self.session.execute(
-                select(ApprovalAuthorizationStepLog.id)
-                .where(ApprovalAuthorizationStepLog.config_id == self.config.id)
-                .where(ApprovalAuthorizationStepLog.apply_flow_id == str(apply_flow_id))
-                .where(ApprovalAuthorizationStepLog.step_key == "import_permissions")
-                .where(ApprovalAuthorizationStepLog.status == "success")
-                .limit(1)
-            )
-            .scalars()
-            .first()
-        )
-        return existing is not None
 
     def _workflow_token(self, context: dict[str, Any]) -> str:
         token = str(context.get("workflow_token") or "").strip()
@@ -1016,7 +1231,7 @@ class _Runtime:
             raise ValueError(f"接口 {url} 返回 HTTP {response.status_code}：{payload}")
         code = payload.get("code") if isinstance(payload, dict) else None
         success = payload.get("success") if isinstance(payload, dict) else None
-        if code not in (None, 1, 200, "1", "200") and success is not True:
+        if success is False or (code is not None and code not in (1, 200, "1", "200")):
             raise ValueError(f"接口 {url} 业务返回失败：{payload}")
         return payload
 
@@ -1104,6 +1319,10 @@ def _normalized_config(value: dict[str, Any] | None) -> dict[str, Any]:
         "youdata_token_result_path": "result",
         "api_add_path": "/api/dash/dataConnection/apiAdd",
         "api_add_id_path": "result.id",
+        "resource_lookup_database": "TESTS",
+        "resource_lookup_table": "data_connection",
+        "resource_lookup_name_column": "name",
+        "resource_lookup_id_column": "id",
         "import_permissions_path": "/api/dash/role/importDataPermissions",
         "import_permissions_role_id_path": "result",
         "timeout_seconds": 60,
@@ -1179,6 +1398,42 @@ def _todo_status_group(value: Any) -> str:
     if text == "0":
         return "zero"
     return "other"
+
+
+def _audit_status_label(value: Any) -> str:
+    if value is None or not str(value).strip():
+        return "空值"
+    return str(value).strip()
+
+
+def _positive_identifier(value: Any, label: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} 不是有效正整数。")
+    try:
+        result = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} 不是有效正整数。") from exc
+    if result <= 0:
+        raise ValueError(f"{label} 不是有效正整数。")
+    return result
+
+
+def _response_confirms_success(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return payload.get("success") is True or payload.get("code") in (1, 200, "1", "200")
+
+
+def _missing_unique_ids(response: Any, candidates: list[str]) -> list[str]:
+    text = json.dumps(response, ensure_ascii=False).lower()
+    if not any(marker in text for marker in ("用户不存在", "人员不存在", "user not found", "not exist", "不存在")):
+        return []
+    return [item for item in candidates if item.lower() in text]
+
+
+def _is_already_exists_error(response: Any) -> bool:
+    text = json.dumps(response, ensure_ascii=False).lower()
+    return "已存在" in text or "already exist" in text
 
 
 def _validate_import_permission_path(value: Any) -> None:

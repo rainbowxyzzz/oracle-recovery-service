@@ -85,6 +85,8 @@ class ApprovalAuthorizationRunResponse(BaseModel):
     message: str | None = None
     total_count: int
     success_count: int
+    partial_count: int
+    no_effect_count: int
     failed_count: int
     skipped_count: int
     current_apply_flow_id: str | None = None
