@@ -21,6 +21,7 @@ from recovery_service.api.schemas.task_create import (
     TaskResponse,
     TaskStopRequest,
 )
+from recovery_service.common.oracle_connection import oracle_connection_dsn
 from recovery_service.common.security import decrypt_secret, encrypt_secret
 from recovery_service.common.time import app_now
 from recovery_service.core.domain import RemoteHost
@@ -336,7 +337,7 @@ async def create_embedded_oracle_task(
         else (settings.oracle_host_port if settings.oracle_target_host else 1521)
     )
     oracle_service = (conn.service_name or conn.database) if conn else settings.oracle_pdb
-    oracle_target_connection = f"{oracle_target_host}:{oracle_target_port}/{oracle_service}"
+    oracle_target_connection = oracle_connection_dsn(conn) if conn else f"{oracle_target_host}:{oracle_target_port}/{oracle_service}"
     oracle_admin_user = conn.username if conn else "SYSTEM"
     oracle_admin_password = conn_password or settings.oracle_pwd
     oracle_container = conn.container_name if conn and conn.container_name else settings.oracle_container_name
@@ -841,6 +842,10 @@ async def stop_oracle_import_task(
     username = str(target.get("admin_user") or task.target_admin_user or "SYSTEM")
     password = decrypt_secret(str(target.get("admin_password") or ""), encryption_key)
     connection = str(target.get("connection") or task.target_connection or "")
+    routing = professional.get("character_set_routing") or {}
+    utf8 = routing.get("utf8") or {}
+    if routing.get("enabled") and task.oracle_container == utf8.get("container") and utf8.get("connection"):
+        connection = str(utf8["connection"])
     pdb = connection.rsplit("/", 1)[-1] if "/" in connection else ""
     reason = body.reason.strip()
 
@@ -870,6 +875,7 @@ async def stop_oracle_import_task(
             username=username,
             password=password,
             pdb=pdb,
+            connection=connection,
             job_name=task.oracle_job_name,
             reason=reason,
             force=body.force,

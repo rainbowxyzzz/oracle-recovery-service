@@ -14,6 +14,7 @@ from recovery_service.infrastructure.ssh.command_runner import run_ssh_command, 
 from recovery_service.infrastructure.ssh.file_transfer import ensure_remote_directory
 from recovery_service.infrastructure.ssh.sync_client import read_remote_text
 from recovery_service.settings import get_settings
+from recovery_service.tools.oracle_dmp_auto_import import oracle_login
 
 
 SCRIPT_LOCAL_PATH = Path(__file__).resolve().parents[1] / "tools" / "oracle_dmp_auto_import.py"
@@ -182,8 +183,8 @@ class OracleAutoImportRunner:
             target.admin_user,
             "--password",
             target.admin_password,
-            "--pdb",
-            target.connection_string.rsplit("/", 1)[-1] if "/" in target.connection_string else "",
+            "--connect",
+            "@" + target.connection_string,
             "--runs-dir",
             REMOTE_RUNS_DIR,
             "--run-id",
@@ -304,6 +305,7 @@ class OracleAutoImportRunner:
         job_name: str,
         reason: str,
         force: bool = False,
+        connection: str = "",
     ) -> dict:
         if not run_dir or not job_name:
             raise ValueError("Oracle 导入运行信息尚未建立，暂时无法定位 Data Pump Job。")
@@ -316,7 +318,7 @@ class OracleAutoImportRunner:
         if flag_result.returncode != 0:
             raise RuntimeError(flag_result.stderr or flag_result.stdout or "停止标记写入失败。")
 
-        login = f"{username}/{password}{('@' + pdb) if pdb else ''}"
+        login = oracle_login(username, password, "@" + (connection or pdb) if connection or pdb else "")
         action = "KILL_JOB" if force else "STOP_JOB=IMMEDIATE"
         attempts: list[dict] = []
         stopped_jobs: list[str] = []
@@ -692,17 +694,18 @@ class OracleAutoImportRunner:
         return "容器内 DMP 目录可访问。", {"dmp_container_path": dmp_container_path, "sample_files": files[:20]}
 
     def _check_pdb(self, host: RemoteHost, container: str, target: TargetDatabase, oracle_home: str | None) -> tuple[str, dict]:
-        pdb = target.connection_string.rsplit("/", 1)[-1] if "/" in target.connection_string else ""
-        if not pdb:
-            raise RuntimeError("目标连接串缺少 PDB/service，例如 host:1521/ORCLPDB1。")
-        login = f"{target.admin_user}/{target.admin_password}@{pdb}"
+        connection = target.connection_string.strip()
+        if not connection:
+            raise RuntimeError("目标数据库连接为空。")
+        login = oracle_login(target.admin_user, target.admin_password, "@" + connection)
         sql = (
+            "whenever sqlerror exit sql.sqlcode\n"
             "set heading off feedback off pages 0 verify off echo off\n"
             "select sys_context('USERENV','CON_NAME') || ':' || open_mode "
             "from v$pdbs where name = sys_context('USERENV','CON_NAME');\n"
             "exit\n"
         )
-        inner = self._oracle_env_prefix(oracle_home) + f"printf %s {shlex.quote(sql)} | sqlplus -S {shlex.quote(login)}"
+        inner = self._oracle_env_prefix(oracle_home) + f"printf %s {shlex.quote(sql)} | sqlplus -L -S {shlex.quote(login)}"
         result = run_ssh_command(
             host,
             self._docker_exec(container, inner),
@@ -710,14 +713,17 @@ class OracleAutoImportRunner:
         )
         output = (result.stdout or result.stderr).strip()
         if result.returncode != 0 or "ORA-" in output or "SP2-" in output:
-            raise RuntimeError(mask_sensitive(output or "PDB 连接失败。"))
+            message = mask_sensitive(output or "PDB 连接失败。")
+            if target.admin_password:
+                message = message.replace(target.admin_password, "******")
+            raise RuntimeError(message)
         pdb_status = output.splitlines()[-1].strip() if output.splitlines() else ""
         con_name, _, open_mode = pdb_status.partition(":")
         if con_name.upper() == "CDB$ROOT":
             raise RuntimeError("当前连接落在 CDB$ROOT，自动导入必须在 PDB 中执行。")
         if open_mode.upper() != "READ WRITE":
-            raise RuntimeError(f"PDB {con_name or pdb} 当前不是 READ WRITE，open_mode={open_mode or 'unknown'}。")
-        return f"PDB 可连接且 READ WRITE：{con_name or pdb}。", {"pdb": pdb, "container_context": con_name, "open_mode": open_mode}
+            raise RuntimeError(f"PDB {con_name or 'unknown'} 当前不是 READ WRITE，open_mode={open_mode or 'unknown'}。")
+        return f"PDB 可连接且 READ WRITE：{con_name}。", {"pdb": con_name, "container_context": con_name, "open_mode": open_mode, "connection": connection}
 
     def _check_directory_policy(
         self,

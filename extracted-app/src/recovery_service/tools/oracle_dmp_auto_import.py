@@ -218,7 +218,8 @@ class RunLogger:
     def mask(self, text: str) -> str:
         masked = text
         if self.password:
-            masked = masked.replace(f"{self.username}/{self.password}", f"{self.username}/******")
+            masked = masked.replace(self.password.replace("'", "'\"'\"'"), "******")
+            masked = masked.replace(self.password, "******")
         masked = re.sub(
             r'(?i)(IDENTIFIED\s+BY\s+)("[^"]*"|\'[^\']*\'|\S+)',
             r'\1"******"',
@@ -588,16 +589,23 @@ def find_oracle_container(logger: Optional[RunLogger] = None) -> str:
     raise RuntimeError(f"Multiple Oracle-like containers found: {', '.join(candidates)}. Pass --container explicitly.")
 
 
+def oracle_login(username: str, password: str, connect: str) -> str:
+    # Shell quoting alone does not protect @ or / inside a SQL*Plus password.
+    if any(c in password for c in ('"', '\n', '\r')):
+        raise ValueError("Oracle password cannot contain double quotes or line breaks")
+    return f'{username}/"{password}"{connect}'
+
+
 def sqlplus(container: str, username: str, password: str, connect: str, sql: str, logger: RunLogger) -> str:
-    login = f"{username}/{password}{connect}"
+    login = oracle_login(username, password, connect)
     script = f"""
 set heading off feedback off pagesize 0 verify off echo off termout on linesize 32767
 whenever sqlerror exit sql.sqlcode
 {sql}
 exit
 """
-    result = docker_exec(container, f"sqlplus -s {shlex.quote(login)}", logger=logger, input_text=script)
-    if result.returncode != 0:
+    result = docker_exec(container, f"sqlplus -L -s {shlex.quote(login)}", logger=logger, input_text=script)
+    if result.returncode != 0 or re.search(r"(?m)^\s*(ORA-|SP2-)", result.stdout):
         raise RuntimeError(result.stdout)
     return result.stdout.strip()
 
@@ -625,9 +633,7 @@ def resolve_pdb_connect(args: argparse.Namespace, logger: RunLogger) -> None:
                 logger,
             ).upper()
         except Exception as exc:
-            logger.log(f"[warn] could not validate explicit connect suffix {args.connect}: {exc}")
-            logger.log("[warn] continuing because the database may be non-CDB or the context parameter may be unavailable")
-            return
+            raise RuntimeError(f"Could not validate configured Oracle connection: {exc}") from exc
         if con_name == "CDB$ROOT":
             raise RuntimeError("Refusing to operate in CDB$ROOT. This tool must run in a PDB. Pass --connect @ORCLPDB1 or --pdb ORCLPDB1.")
         logger.log(f"[info] using explicit connect suffix: {args.connect}; container context: {con_name or '(unknown)'}")
@@ -1052,7 +1058,7 @@ def probe_attempt(
 
 
 def probe_dump(args: argparse.Namespace, ctx: RuntimeContext, logger: RunLogger) -> ProbeResult:
-    login = f"{args.username}/{args.password}{args.connect}"
+    login = oracle_login(args.username, args.password, args.connect)
     attempts: List[Dict[str, object]] = []
 
     impdp_result, sqlfile_text, _, combined, attempt = probe_attempt(
@@ -1255,7 +1261,7 @@ def build_plan(args: argparse.Namespace, ctx: RuntimeContext, dump_spec: DumpSpe
         for tablespace in target_tablespaces
     }
 
-    login = f"{args.username}/{args.password}{args.connect}"
+    login = oracle_login(args.username, args.password, args.connect)
     job_name = getattr(args, "job_name", "ORS_IMPORT_JOB")
     commands: List[List[str]] = []
     fallback_commands: List[List[str]] = []

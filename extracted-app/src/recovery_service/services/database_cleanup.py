@@ -20,12 +20,15 @@ from recovery_service.api.schemas.database_cleanup import (
     CleanupStatus,
 )
 from recovery_service.api.schemas.doris_csv_import import DorisFtpConnection
-from recovery_service.core.domain import RemoteHost
+from recovery_service.common.oracle_connection import oracle_connection_dsn
+from recovery_service.common.security import mask_sensitive
+from recovery_service.core.domain import RemoteHost, TargetDatabase
 from recovery_service.infrastructure.sqlserver.docker_executor import (
     SqlServerDockerExecutor,
     SqlServerDockerRuntime,
 )
 from recovery_service.infrastructure.ssh.command_runner import run_ssh_command
+from recovery_service.orchestrator.oracle_auto_import_runner import OracleAutoImportRunner
 from recovery_service.services.doris_csv_import import list_ftp_directory
 from recovery_service.settings import get_settings
 
@@ -470,28 +473,40 @@ def _execute_mysql(
 
 
 def _test_oracle(conn: CleanupConnection) -> CleanupStatus:
-    with _oracle_conn(conn) as db:
-        cur = db.cursor()
-        cur.execute("SELECT banner FROM v$version WHERE rownum = 1")
-        row = cur.fetchone()
     details: dict[str, Any] = {
-        "version": row[0] if row else "",
-        "database": {"ok": True},
+        "database": {"ok": False},
+        "server": {"skipped": True, "reason": "未执行 SSH 检查"},
+        "container": {"skipped": True, "reason": "未执行容器检查"},
+        "pdb": {"skipped": True, "reason": "未执行容器内 PDB 检查"},
     }
-    if _oracle_server_check_requested(conn):
-        details.update(_test_oracle_server_access(conn))
-        message = "Oracle database and server checks succeeded."
-    else:
-        details["server"] = {"skipped": True, "reason": "Oracle server SSH fields are empty."}
-        message = "Oracle database connection succeeded. Oracle server SSH check was skipped."
-    return CleanupStatus(ok=True, message=message, details=details)
+    try:
+        with _oracle_conn(conn) as db:
+            cur = db.cursor()
+            cur.execute("SELECT banner FROM v$version WHERE rownum = 1")
+            row = cur.fetchone()
+        details.update(version=row[0] if row else "", database={"ok": True})
+        if _oracle_server_check_requested(conn):
+            _test_oracle_server_access(conn, details)
+            message = "Oracle 数据库及已配置的还原执行环境检查通过。"
+        else:
+            message = "数据库连接成功；未配置 SSH，尚未验证还原执行环境。"
+        return CleanupStatus(ok=True, message=message, details=details)
+    except Exception as exc:
+        message = mask_sensitive(str(exc))
+        for secret in (conn.password, conn.ssh_password):
+            if secret and secret.get_secret_value():
+                message = message.replace(secret.get_secret_value(), "******")
+        return CleanupStatus(ok=False, message=f"连接检查失败：{message}", details=details)
 
 
 def _oracle_server_check_requested(conn: CleanupConnection) -> bool:
     return bool(conn.ssh_host or conn.ssh_user or conn.ssh_password or conn.container_name)
 
 
-def _test_oracle_server_access(conn: CleanupConnection) -> dict[str, Any]:
+def _test_oracle_server_access(conn: CleanupConnection, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    if details is None:
+        details = {}
+    details["server"] = {"ok": False}
     settings = get_settings()
     ssh_host = conn.ssh_host or settings.oracle_docker_host
     ssh_port = conn.ssh_port or settings.oracle_docker_ssh_port
@@ -518,16 +533,15 @@ def _test_oracle_server_access(conn: CleanupConnection) -> dict[str, Any]:
     if ssh_result.returncode != 0:
         raise RuntimeError(ssh_result.stderr or ssh_result.stdout or "Oracle server SSH validation failed.")
 
-    details: dict[str, Any] = {
-        "server": {
-            "ok": True,
-            "host": ssh_host,
-            "port": ssh_port,
-            "user": ssh_user,
-        }
+    details["server"] = {
+        "ok": True,
+        "host": ssh_host,
+        "port": ssh_port,
+        "user": ssh_user,
     }
     container = conn.container_name or settings.oracle_container_name
     if container:
+        details["container"] = {"ok": False, "name": container}
         inspect_cmd = (
             "docker inspect --format "
             + shlex.quote("{{.State.Running}} {{if .State.Health}}{{.State.Health.Status}}{{end}} {{.Name}}")
@@ -552,6 +566,13 @@ def _test_oracle_server_access(conn: CleanupConnection) -> dict[str, Any]:
             "health": inspect_parts[1] if len(inspect_parts) > 2 else "",
             "inspect": inspect_text,
         }
+        details["pdb"] = {"ok": False}
+        message, pdb_detail = OracleAutoImportRunner()._check_pdb(
+            remote, container,
+            TargetDatabase(oracle_connection_dsn(conn), conn.username, _connection_password(conn)),
+            settings.oracle_home_in_container,
+        )
+        details["pdb"] = {"ok": True, "message": message, **pdb_detail}
     else:
         details["container"] = {"skipped": True, "reason": "Oracle container name is empty."}
     return details
@@ -1269,7 +1290,7 @@ def _doris_object_counts(conn: CleanupConnection, target: str) -> dict[str, int]
 
 
 def _oracle_conn(conn: CleanupConnection):
-    dsn = conn.dsn or f"{conn.host}:{conn.port or 1521}/{conn.service_name or conn.database or ''}"
+    dsn = oracle_connection_dsn(conn)
     return oracledb.connect(
         user=conn.username,
         password=_connection_password(conn),

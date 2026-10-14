@@ -3645,7 +3645,7 @@
             <div class="muted" style="padding: 10px">正在加载连接...</div>
           </div>
           <div id="connectionMessage" class="message"></div>
-          <div id="connectionTestDetail" class="selected-list muted" style="margin-top: 8px" hidden></div>
+          <div id="connectionTestDetail" class="selected-list muted" style="margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere" hidden></div>
           <div id="connectionCatalogPanel" class="detail" style="margin-top: 12px" hidden>
             <div class="toolbar">
               <h3>库表浏览结果</h3>
@@ -3717,10 +3717,11 @@
             </div>
           </div>
 
+          <h3>数据库连接</h3>
           <label id="connectionHostLabel" for="connectionHost">数据库连接地址</label>
           <div class="grid-2">
             <input id="connectionHost" required placeholder="例如 oracle-recovery-oracle19c 或 192.168.1.5">
-            <input id="connectionPort" type="number" placeholder="端口">
+            <input id="connectionPort" type="number" placeholder="数据库端口" aria-label="数据库端口">
           </div>
           <div id="connectionHostHint" class="hint">这里填写 API/Worker 能访问到的数据库地址：同 Docker 网络优先填写容器服务名；外部数据库填写可达的 IP 或域名。</div>
 
@@ -3730,20 +3731,30 @@
           <label for="connectionPassword">数据库密码</label>
           <input id="connectionPassword" type="password" placeholder="编辑时留空表示保持原密码">
 
-          <label id="connectionDatabaseLabel" for="connectionDatabase">默认库 / PDB</label>
-          <input id="connectionDatabase" placeholder="Oracle 可填 ORCLPDB1；MySQL/SQL Server 可留空">
-
-          <label id="connectionServiceLabel" for="connectionService">Oracle Service Name</label>
+          <label id="connectionServiceLabel" for="connectionService">服务名（Service Name）</label>
           <input id="connectionService" placeholder="非 Oracle 可留空">
-
+          <div id="connectionServiceHint" class="hint">例如 ORCLPDBUTF8；不是实例名 SID，也不是 Docker 容器名。</div>
+          <details id="connectionAdvanced">
+          <summary id="connectionAdvancedTitle">高级连接配置 / 历史兼容字段</summary>
+          <div id="connectionModeFields">
+            <label for="connectionMode">连接方式</label>
+            <select id="connectionMode">
+              <option value="standard">标准连接：地址 + 端口 + 服务名</option>
+              <option value="dsn">自定义 DSN（优先于地址、端口、服务名）</option>
+            </select>
+          </div>
           <label id="connectionDsnLabel" for="connectionDsn">DSN（可选）</label>
           <input id="connectionDsn" placeholder="有特殊连接串时填写">
+          <label id="connectionDatabaseLabel" for="connectionDatabase">默认库 / PDB</label>
+          <input id="connectionDatabase" placeholder="Oracle 历史 PDB 回退；其他引擎的默认库">
+          <div id="connectionPriorityHint" class="hint"></div>
+          </details>
 
-          <h3>数据库所在服务器与容器信息</h3>
-          <label for="connectionSshHost">服务器 IP</label>
+          <h3>还原执行环境（SSH / Docker）</h3>
+          <label for="connectionSshHost">SSH 服务器地址</label>
           <div class="grid-2">
             <input id="connectionSshHost" placeholder="例如 192.168.1.5">
-            <input id="connectionSshPort" type="number" placeholder="22">
+            <input id="connectionSshPort" type="number" placeholder="22" aria-label="SSH 端口">
           </div>
           <div class="hint">这里用于系统通过 SSH 进入数据库所在服务器，执行导入、清理文件、容器检查等操作。</div>
 
@@ -3756,6 +3767,11 @@
           <label for="connectionContainer">数据库容器名（可选）</label>
           <input id="connectionContainer" placeholder="例如 oracle-recovery-oracle19c">
           <div class="hint">仅当数据库运行在 Docker 容器内，且系统需要进入容器执行导入或存储清理时填写；外部数据库服务可留空。</div>
+
+          <h3>当前配置预览（不含密码）</h3>
+          <pre id="connectionEffectiveSummary" class="selected-list" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+          <div id="connectionDraftStatus" class="hint" role="status"></div>
+          <div class="hint">编辑密码留空保持原密码。保存连接只影响新建还原任务，已有任务保留创建时的配置快照。</div>
 
           <div class="actions" style="margin-top: 12px">
             <button class="primary" id="saveConnectionBtn" type="submit">保存连接</button>
@@ -3779,6 +3795,8 @@
 
       <label for="restoreConnection">目标数据库连接</label>
       <select id="restoreConnection"></select>
+      <pre id="restoreConnectionSummary" class="selected-list" style="white-space: pre-wrap; overflow-wrap: anywhere"></pre>
+      <div class="hint">任务复用所选连接的数据库及 SSH 配置；提交后冻结为快照。字符集自动路由如切换目标，将在任务日志中记录最终连接及原因。</div>
 
       <div id="oracleImportSourcePanel">
         <label for="oracleImportSourceMode">Oracle DMP 导入来源</label>
@@ -6443,6 +6461,7 @@
       let activeConnectionId = "";
       let previousConnectionId = "";
       let connectionDraftEngine = "oracle";
+      let connectionFormBaseline = "";
       let connectionCatalogData = null;
       let connectionCatalogExpanded = new Set();
       let currentTasks = [];
@@ -8536,7 +8555,9 @@
 
       function connectionTitle(profile) {
         const service = profile.service_name || profile.database || "";
-        const address = `${profile.host}:${profile.port || defaultPort(profile.engine)}${service ? "/" + service : ""}`;
+        const address = profile.engine === "oracle" && profile.dsn
+          ? profile.dsn
+          : `${profile.host}:${profile.port || defaultPort(profile.engine)}${service ? "/" + service : ""}`;
         const status = profile.last_test_ok === true ? "连接正常" : profile.last_test_ok === false ? "测试失败" : "未测试";
         return `${profile.name} · ${engineLabels[profile.engine] || profile.engine} · ${address} · ${status}`;
       }
@@ -8557,11 +8578,11 @@
             host: "例如 oracle-recovery-oracle19c 或 192.168.1.5",
             hostHint: "Oracle 通常填写 API/Worker 可访问的服务名、IP 或域名；Docker 同网络优先填写容器服务名。",
             user: "SYSTEM",
-            databaseLabel: "PDB / 默认服务",
+            databaseLabel: "历史 PDB（仅 Service Name 为空时回退）",
             database: "例如 ORCLPDB1",
             service: "例如 ORCLPDB1",
             dsn: "如需完整 Easy Connect 或 TNS 描述符时填写",
-            note: "Oracle 模板会优先使用 Service Name/PDB 组成连接串，适合 DMP 恢复、库表浏览和清理。"
+            note: "数据库地址用于数据库登录，SSH 地址用于进入服务器执行还原。高级 DSN 优先；标准连接优先使用 Service Name，空值才回退历史 PDB。"
           },
           mysql: {
             name: "例如：生产 MySQL",
@@ -8648,6 +8669,9 @@
         } else if (!$("connectionPort").value) {
           $("connectionPort").value = String(defaultPort(engine));
         }
+        $("connectionMode").value = engine === "oracle" && $("connectionDsn").value.trim() ? "dsn" : "standard";
+        $("connectionAdvanced").open = engine !== "oracle" || Boolean($("connectionDsn").value.trim() || $("connectionDatabase").value.trim());
+        updateConnectionPreview();
       }
 
       function showConnectionTypePanel() {
@@ -8670,12 +8694,16 @@
 
       function startNewConnection(engine) {
         $("connectionForm").reset();
+        $("connectionPassword").placeholder = "请输入数据库密码";
+        $("connectionSshPassword").placeholder = "需要还原操作时填写 SSH 密码";
         $("connectionId").value = "";
         $("connectionDefault").value = "false";
         $("connectionSshPort").value = "22";
         activeConnectionId = "";
         connectionDraftEngine = engine || "oracle";
         openConnectionForm(connectionDraftEngine, { keepValues: false });
+        connectionFormBaseline = "";
+        updateConnectionPreview();
         renderConnections();
       }
 
@@ -8713,6 +8741,7 @@
       function renderConnectionOptions() {
         const restoreEngine = $("engineType").value;
         fillSelect($("restoreConnection"), connections.filter((item) => item.engine === restoreEngine), true);
+        updateRestoreConnectionSummary();
         fillSelect($("cleanupConnection"), connections.filter((item) => item.engine !== "ftp"), true);
         fillSelect($("dorisCsvConnection"), connections.filter((item) => item.engine === "doris"), true);
         fillSelect($("dorisSqlEtlDorisConnection"), connections.filter((item) => item.engine === "doris"), true);
@@ -8846,6 +8875,10 @@
         $("connectionSshPassword").value = "";
         $("connectionContainer").value = profile.container_name || "";
         openConnectionForm(profile.engine || "oracle", { keepValues: true });
+        connectionFormBaseline = JSON.stringify(collectConnectionForm());
+        $("connectionPassword").placeholder = profile.has_password ? "已保存密码；留空保持不变" : "尚未配置数据库密码";
+        $("connectionSshPassword").placeholder = profile.has_ssh_password ? "已保存 SSH 密码；留空保持不变" : "尚未配置 SSH 密码";
+        updateConnectionPreview();
         renderConnections();
       }
 
@@ -8862,7 +8895,7 @@
           username: $("connectionUser").value.trim(),
           database: $("connectionDatabase").value.trim() || null,
           service_name: $("connectionService").value.trim() || null,
-          dsn: $("connectionDsn").value.trim() || null,
+          dsn: $("connectionEngine").value === "oracle" && $("connectionMode").value === "standard" ? null : ($("connectionDsn").value.trim() || null),
           ssh_host: $("connectionSshHost").value.trim() || null,
           ssh_port: $("connectionSshPort").value ? Number($("connectionSshPort").value) : 22,
           ssh_user: $("connectionSshUser").value.trim() || null,
@@ -8876,6 +8909,44 @@
         return body;
       }
 
+      function connectionSummary(profile) {
+        if (!profile) return "请选择连接。";
+        const endpoint = profile.engine === "oracle"
+          ? (profile.dsn || `${profile.host}:${profile.port || 1521}/${profile.service_name || profile.database || "（未填写服务名）"}`)
+          : `${profile.host}:${profile.port || defaultPort(profile.engine)}${profile.database ? `/${profile.database}` : ""}`;
+        return [
+          `数据库连接：${endpoint}`,
+          `数据库账号：${profile.username || "（未填写）"}`,
+          `SSH 执行服务器：${profile.ssh_host ? `${profile.ssh_host}:${profile.ssh_port || 22}` : "未指定，执行时按系统配置回退"}`,
+          `SSH 账号：${profile.ssh_user || "未指定，执行时按系统配置回退"}`,
+          `Oracle / 数据库容器：${profile.container_name || "未指定，执行时按系统配置回退"}`
+        ].join("\n");
+      }
+
+      function updateRestoreConnectionSummary() {
+        $("restoreConnectionSummary").textContent = connectionSummary(selectedProfile("restoreConnection"));
+      }
+
+      function updateConnectionPreview() {
+        const oracle = $("connectionEngine").value === "oracle";
+        const custom = oracle && $("connectionMode").value === "dsn";
+        $("connectionModeFields").hidden = !oracle;
+        $("connectionServiceHint").hidden = !oracle;
+        $("connectionAdvancedTitle").textContent = oracle ? "高级连接配置 / 历史兼容字段" : "默认库与连接选项";
+        $("connectionDsn").disabled = oracle && !custom;
+        const profile = collectConnectionForm();
+        let priority = custom ? "自定义 DSN 生效；上方地址、端口、服务名不参与 Oracle 登录。地址仍需保留作为连接档案信息，切回标准模式时使用。" : "标准连接：Service Name 优先；为空时回退历史 PDB。";
+        if (oracle && !custom && profile.service_name && profile.database && profile.service_name !== profile.database) {
+          priority += ` 两项不一致：实际使用 ${profile.service_name}，历史 PDB ${profile.database} 保留但不生效。`;
+        }
+        $("connectionPriorityHint").textContent = oracle ? priority : "";
+        $("connectionEffectiveSummary").textContent = connectionSummary(profile) + (oracle ? `\n${priority}` : "");
+        const dirty = !$("connectionId").value || connectionFormBaseline !== JSON.stringify(profile);
+        $("connectionDraftStatus").textContent = dirty
+          ? "尚未保存：上方是表单预览。测试只读取已保存配置，请先保存。"
+          : "已保存配置：测试将读取以上参数。";
+      }
+
       async function saveConnection(event) {
         event.preventDefault();
         const id = $("connectionId").value;
@@ -8883,6 +8954,9 @@
         if (!body.name || !body.host || !body.username) {
           setMessage("connectionMessage", "请填写连接名称、数据库地址和数据库账号。", "error");
           return;
+        }
+        if (body.engine === "oracle" && $("connectionMode").value === "dsn" && !body.dsn) {
+          throw new Error("自定义 DSN 模式需要填写 DSN；或切换为标准连接。");
         }
         const saved = id
           ? await api(`/api/v1/database-connections/${id}`, { method: "PUT", body: JSON.stringify(body) })
@@ -8904,6 +8978,9 @@
       async function testActiveConnection() {
         const id = activeConnectionId || $("connectionId").value;
         if (!id) throw new Error("请先选择一个数据库连接。");
+        if (!$("connectionForm").hidden && connectionFormBaseline !== JSON.stringify(collectConnectionForm())) {
+          throw new Error("存在未保存修改。测试读取的是已保存配置，请先保存后再测试。");
+        }
         const result = await api(`/api/v1/database-connections/${id}/test`, { method: "POST" });
         setMessage("connectionMessage", result.message, result.ok ? "ok" : "error");
         renderConnectionTestDetail(result);
@@ -8932,6 +9009,11 @@
             lines.push(`数据库容器：${details.container.ok === false ? "失败" : "成功"}${details.container.name ? `，${details.container.name}` : ""}`);
           }
         }
+        if (details.pdb) {
+          lines.push(details.pdb.skipped
+            ? `容器内 PDB：未检查（${details.pdb.reason || "前置检查未通过"}）`
+            : `容器内 PDB：${details.pdb.ok ? "成功" : "失败"}${details.pdb.message ? `，${details.pdb.message}` : ""}`);
+        }
         if (details.version) lines.push(`数据库版本：${details.version}`);
         box.hidden = !lines.length;
         box.textContent = lines.join("\n");
@@ -8955,6 +9037,7 @@
         $("copySourceFields").hidden = isOracle && mode === "direct";
         $("directDmpFields").hidden = !(isOracle && mode === "direct");
         $("mysqlOptions").hidden = engine !== "mysql";
+        updateRestoreConnectionSummary();
       }
 
       async function submitTask() {
@@ -9106,7 +9189,9 @@
           "状态": task.state,
           "源服务器": task.remote_host || "",
           "源目录": task.remote_directory || "",
-          "目标连接": task.target_connection || "",
+          "创建时目标连接（快照）": task.target_connection || "",
+          "实际运行目标连接": meta.target_connection || "以任务路由及预检查日志为准",
+          "实际 Oracle 容器": task.oracle_container || "",
           "目标对象": task.target_schema || meta.username || meta.database || "",
           "源 schema": (meta.source_schemas || []).join(", "),
           "REMAP_SCHEMA": (meta.remap_schemas || []).join(", "),
@@ -21397,6 +21482,9 @@
           else showConnectionTypePanel();
         });
         $("connectionEngine").addEventListener("change", () => updateConnectionTemplateView({ keepValues: false }));
+        $("connectionForm").addEventListener("input", updateConnectionPreview);
+        $("connectionForm").addEventListener("change", updateConnectionPreview);
+        $("restoreConnection").addEventListener("change", updateRestoreConnectionSummary);
         $("connectionForm").addEventListener("submit", (event) => {
           saveConnection(event).catch((e) => setMessage("connectionMessage", e.message, "error"));
         });
