@@ -1,5 +1,24 @@
 # 审批流自动授权模块 PRD
 
+## 2026-10-16 管理员按用户名读取默认密码
+
+- 提供独立 `scripts/find-approval-doris-password.sh`，在应用部署宿主机执行；必填 Doris 用户名，可选 API 容器名（默认 `oracle-recovery-api`）。复用容器中的系统库连接与凭据密钥，不要求重新填写 `.env`。
+- 只按成功 `internal_grant` 日志中 `extracted_data.username` 精确、区分大小写匹配关联配置，读取对应 `default_doris_password_enc`；不按用户名格式猜测、不返回无关任务密码。同名多任务分别标明配置 ID、Doris 连接 ID 与当前配置更新时间。
+- 输出明确标记为当前配置的候选密码，不宣称已验证用户当前密码。历史配置覆盖、用户原先已存在或外部改密时，不能由当前配置恢复历史密码；无记录、配置已删除、空密码或密钥无法解密时明确失败。
+- 只读系统库，不连接 Doris、不重置账号、不写密码文件、不新增页面/API/表或修改授权流程。明文仅输出在执行者终端；调用者需具备宿主机 Docker 管理权限。
+- 验收覆盖精确用户名与参数绑定、中文及特殊字符、无匹配、多配置、加密/明文兼容、错误密钥、Shell 参数透传及退出码。脚本可独立用于历史部署，不要求先升级应用。
+
+## 2026-10-16 创建连接后设置库限制
+
+- 在审批流的 `apiAdd` 成功后、`importDataPermissions` 之前，必须调用同一有数服务的 `POST /api/dash/dataConnection/apiUpdate`，复用本次有数 token。
+- `id/name/type/port/location/available/frequency/fusion/namespace/projectId/server/userName` 优先从 `apiAdd` 返回的连接对象提取；默认对象路径为 `result`，定制 `api_add_id_path` 时取 id 所在父对象。缺失或 null 时，固定参数使用截图默认值 `location=1/available=1/frequency=4/fusion=0/namespace=null`，其余连接属性复用本次创建请求，ID 使用本次创建返回 ID；不复制示例中的地址、账号、ID 或 token。有效的 `0/false` 不被默认值覆盖。
+- `database` 必须使用返回对象的非空 `defaultSchemaName`，不得回退到请求中的默认库。保留返回 `setting` 的其他设置，仅覆盖 `setting.etlInfo.enableLimitDatabases=1` 和 `setting.etlInfo.databases=[defaultSchemaName]`。密码复用创建时实际使用的 Doris 密码，不使用响应中可能已脱敏的密码。
+- 必需字段缺失、HTTP/业务失败时阻断人员授权和审批状态回写。创建成功的资源 ID 与响应字段保留在现有步骤日志；同一配置、申请在完整运行/监听重试时复用尚未完成权限导入的新版本创建记录，不再重复 `apiAdd`。历史已完成人员授权的仅回写重试保持原行为；不自动补改历史连接。
+- 复用现有“创建有数数据连接”单步测试入口完成创建和更新，另记录独立 `api_update` 日志。无需用户重复填写更新参数、无需新增表或迁移；日志沿用凭据脱敏规则。
+- 重试记录只保存由系统凭据密钥生成的 HMAC 参数指纹，不保存明文密码；有数服务地址或创建密码发生变化时阻断续跑，要求恢复原参数，避免更新其他服务的同号连接或使用错误密码。
+- 触达路径：审批授权服务、完整运行/自动监听、创建连接单步测试说明、步骤日志、相关单元测试。既有任务配置保存、其他授权模块、调度和部署方式不变。只本地开发，不默认发布或打包。
+- 验收：返回字段与请求不同仍以返回为准；库限制正确；token/密码不泄漏；更新失败不授权/回写；重试不重复创建；旧回写重试不变。真实有数联调与浏览器验收另行记录，不以 mock 通过代替。
+
 更新日期：2026-08-17
 
 2026-08-25 明确申请生成的 Doris 用户名及有数 `apiAdd.name` 日期后缀必须取同一条 `getMyTodoList` 记录的 `createTime`，按 `YYYY-MM-DD HH:MM:SS` 解析并格式化为 `MMDD`。例如 `2020-08-01 18:50:10` 使用 `0801`。不得使用配置保存日、任务执行日或手工固定的日期后缀；`createTime` 缺失或格式不合法时，阻断该申请并记录错误，避免创建错误命名的数据连接。

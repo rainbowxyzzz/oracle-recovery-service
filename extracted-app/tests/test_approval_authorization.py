@@ -2,6 +2,7 @@ import unittest
 import uuid
 from unittest.mock import patch
 
+import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -13,7 +14,7 @@ from recovery_service.core.models.task import (
     Base,
     DatabaseConnectionProfile,
 )
-from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _normalized_config, _run_full_sync, _validate_import_permission_path
+from recovery_service.services.approval_authorization import _Runtime, _extract_department_name, _normalized_config, _run_full_sync, _run_one_apply_flow, _validate_import_permission_path
 
 
 class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
@@ -78,6 +79,182 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
 
     def _runtime(self):
         return _Runtime(self.session, self.run_id, self.config_id)
+
+    def _created_connection(self):
+        return {
+            "id": 4018, "name": "returned-connection", "type": 124,
+            "port": 9030, "location": 1, "available": 1, "frequency": 4,
+            "fusion": 0, "namespace": None, "projectId": 6,
+            "server": "returned-doris.example", "userName": "returned-user",
+            "defaultSchemaName": "RETURNED_DB", "password": "******",
+            "setting": {"other": True, "etlInfo": {"keep": "value"}},
+        }
+
+    def _api_add_context(self):
+        return {"youdata_token": "secret-token", "doris_username": "request-user",
+                "doris_password": "secret-password", "database_name": "REQUEST_DB"}
+
+    def test_api_add_updates_connection_from_returned_values(self):
+        runtime = self._runtime()
+        created = self._created_connection()
+        with patch.object(runtime, "_post_json", side_effect=[{"result": created}, {"code": 200}]) as post:
+            result = runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        self.assertEqual(result["resource_id"], 4018)
+        url, body = post.call_args_list[1].args
+        self.assertEqual(url, "http://youdata.example/api/dash/dataConnection/apiUpdate")
+        for key in ("id", "name", "type", "port", "location", "available", "frequency",
+                    "fusion", "namespace", "projectId", "server", "userName"):
+            self.assertEqual(body[key], created[key])
+        self.assertEqual(body["database"], "RETURNED_DB")
+        self.assertEqual(body["setting"], {"other": True, "etlInfo": {
+            "keep": "value", "enableLimitDatabases": 1, "databases": ["RETURNED_DB"]}})
+        self.assertEqual(body["token"], "secret-token")
+        self.assertEqual(body["password"], "secret-password")
+        self.assertNotIn("enableLimitDatabases", created["setting"]["etlInfo"])
+        logs = self.session.query(ApprovalAuthorizationStepLog).all()
+        self.assertEqual([log.step_key for log in logs], ["api_add", "api_update"])
+        for log in logs:
+            self.assertNotIn("secret-password", str(log.request_data))
+            self.assertNotIn("secret-token", str(log.request_data))
+
+    def test_api_update_missing_response_schema_blocks_without_request_fallback(self):
+        runtime = self._runtime()
+        created = self._created_connection()
+        created.pop("defaultSchemaName")
+        with patch.object(runtime, "_post_json", return_value={"result": created}) as post:
+            with self.assertRaisesRegex(ValueError, "defaultSchemaName"):
+                runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        self.assertEqual(post.call_count, 1)
+        self.assertTrue(self.session.query(ApprovalAuthorizationStepLog).filter_by(
+            step_key="api_add", status="success").one())
+
+    def test_api_update_retry_reuses_created_connection(self):
+        runtime = self._runtime()
+        with patch.object(runtime, "_post_json", side_effect=[
+            {"result": self._created_connection()}, ValueError("update failed")
+        ]):
+            with self.assertRaisesRegex(ValueError, "update failed"):
+                runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        # A fresh runtime/run must resume from the persisted checkpoint.
+        retry_id = uuid.uuid4()
+        self.session.add(ApprovalAuthorizationRun(id=retry_id, config_id=self.config_id,
+                         config_name="retry", state="running", context={"mode": "auto_watch"}))
+        self.session.commit()
+        runtime = _Runtime(self.session, retry_id, self.config_id)
+        with patch.object(runtime, "_post_json", return_value={"code": 200}) as post:
+            result = runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        self.assertEqual(result["resource_id"], 4018)
+        self.assertEqual(post.call_count, 1)
+        self.assertTrue(post.call_args.args[0].endswith("/apiUpdate"))
+
+    def test_api_update_accepts_custom_response_id_path(self):
+        self.session.get(ApprovalAuthorizationConfig, self.config_id).config = {"api_add_id_path": "data.connection.id"}
+        self.session.commit()
+        runtime = self._runtime()
+        with patch.object(runtime, "_post_json", side_effect=[
+            {"data": {"connection": self._created_connection()}}, {"code": 200}
+        ]) as post:
+            runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        self.assertEqual(post.call_args.args[1]["database"], "RETURNED_DB")
+
+    def test_api_update_retry_rejects_changed_creation_password(self):
+        runtime = self._runtime()
+        with patch.object(runtime, "_post_json", side_effect=[
+            {"result": self._created_connection()}, ValueError("update failed")
+        ]):
+            with self.assertRaises(ValueError):
+                runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        context = dict(self._api_add_context(), doris_password="different-password")
+        with patch.object(runtime, "_post_json") as post:
+            with self.assertRaisesRegex(ValueError, "密码已变更"):
+                runtime.execute_step("api_add", context, "FLOW001")
+        post.assert_not_called()
+
+    def test_api_update_missing_fields_use_defaults_and_creation_request(self):
+        runtime = self._runtime()
+        with patch.object(runtime, "_post_json", side_effect=[
+            {"result": {"id": 4018, "defaultSchemaName": "RETURNED_DB", "available": 0}}, {"code": 200}
+        ]) as post:
+            runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        create_body = post.call_args_list[0].args[1]
+        update_body = post.call_args_list[1].args[1]
+        for key in ("name", "type", "port", "projectId", "server", "userName", "password", "token"):
+            self.assertEqual(update_body[key], create_body[key])
+        self.assertEqual({key: update_body[key] for key in ("location", "available", "frequency", "fusion", "namespace")},
+                         {"location": 1, "available": 0, "frequency": 4, "fusion": 0, "namespace": None})
+        self.assertEqual(update_body["database"], "RETURNED_DB")
+        self.assertEqual(update_body["setting"]["etlInfo"]["databases"], ["RETURNED_DB"])
+
+    def test_update_failure_blocks_permissions_and_audit_in_full_flow(self):
+        runtime = self._runtime()
+        calls = []
+        execute = runtime.execute_step
+
+        def step(key, context, flow_id):
+            calls.append(key)
+            if key in ("api_add", "api_update"):
+                return execute(key, context, flow_id)
+            if key in ("import_permissions", "audit_status_update"):
+                self.fail("failed update must block downstream authorization")
+            return {}
+
+        with patch.object(runtime, "execute_step", side_effect=step), patch.object(runtime, "_post_json", side_effect=[
+            {"result": self._created_connection()}, ValueError("apiUpdate rejected")
+        ]):
+            with self.assertRaisesRegex(ValueError, "apiUpdate rejected"):
+                _run_one_apply_flow(runtime, self._api_add_context(), "FLOW001")
+        self.assertEqual(calls[-2:], ["api_add", "api_update"])
+        logs = self.session.query(ApprovalAuthorizationStepLog).all()
+        self.assertEqual([(x.step_key, x.status) for x in logs], [("api_add", "success"), ("api_update", "failed")])
+
+    def test_step_test_does_not_resume_a_previous_creation(self):
+        run = self.session.get(ApprovalAuthorizationRun, self.run_id)
+        run.context = {"mode": "step_test"}
+        self.session.commit()
+        runtime = self._runtime()
+        with patch.object(runtime, "_post_json", side_effect=[
+            {"result": self._created_connection()}, {"code": 200},
+            {"result": self._created_connection()}, {"code": 200}
+        ]) as post:
+            runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+            runtime.execute_step("api_add", self._api_add_context(), "FLOW001")
+        self.assertEqual(sum(call.args[0].endswith("/apiAdd") for call in post.call_args_list), 2)
+
+    def test_api_update_http_and_business_failures_are_logged(self):
+        for status, payload in ((500, {"message": "unavailable"}), (200, {"code": 117, "message": "rejected"})):
+            with self.subTest(status=status):
+                runtime = self._runtime()
+                with patch("recovery_service.services.approval_authorization.httpx.Client") as client:
+                    client.return_value.__enter__.return_value.post.side_effect = [
+                        httpx.Response(200, json={"result": self._created_connection()}),
+                        httpx.Response(status, json=payload),
+                    ]
+                    with self.assertRaises(ValueError):
+                        runtime.execute_step("api_add", self._api_add_context(), f"HTTP{status}")
+                log = self.session.get(ApprovalAuthorizationStepLog, runtime.last_log_id)
+                self.assertEqual((log.step_key, log.status), ("api_update", "failed"))
+                self.assertEqual(log.response_data["status_code"], status)
+                self.assertNotIn("secret-password", str(log.request_data))
+                self.assertNotIn("secret-token", str(log.request_data))
+
+    def test_full_flow_updates_before_permissions_and_status(self):
+        runtime = self._runtime()
+        calls = []
+        execute = runtime.execute_step
+
+        def step(key, context, flow_id):
+            calls.append(key)
+            if key in ("api_add", "api_update"):
+                return execute(key, context, flow_id)
+            if key == "import_permissions":
+                self.assertEqual(context["resource_id"], 4018)
+            return {}
+
+        with patch.object(runtime, "execute_step", side_effect=step), patch.object(runtime, "_post_json", side_effect=[
+            {"result": self._created_connection()}, {"code": 200}
+        ]):
+            _run_one_apply_flow(runtime, self._api_add_context(), "FLOW001")
+        self.assertEqual(calls[-4:], ["api_add", "api_update", "import_permissions", "audit_status_update"])
 
     def test_todo_list_filters_audit_status_zero_and_logs_response(self):
         runtime = self._runtime()

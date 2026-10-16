@@ -46,3 +46,4 @@ def test_approval_authorization_workspace_keeps_existing_contract_and_structures
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/test-step' in html
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/runs' in html
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/watch-scan' in html
+    assert "创建后自动调用 apiUpdate，以返回的 defaultSchemaName 设置默认库和库限制。" in html

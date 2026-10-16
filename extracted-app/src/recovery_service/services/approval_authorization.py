@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import re
 import threading
 import uuid
+from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
@@ -54,6 +56,7 @@ STEP_NAMES = {
     "internal_grant": "内部 Doris 用户与表授权",
     "youdata_token": "获取有数 token",
     "api_add": "创建有数数据连接",
+    "api_update": "设置有数数据连接库限制",
     "import_permissions": "导入有数人员权限",
     "audit_status_update": "回写审批状态",
 }
@@ -555,6 +558,7 @@ class _Runtime:
             "internal_grant": self._step_internal_grant,
             "youdata_token": self._step_youdata_token,
             "api_add": self._step_api_add,
+            "api_update": self._step_api_update,
             "import_permissions": self._step_import_permissions,
             "audit_status_update": self._step_audit_status_update,
         }
@@ -562,7 +566,7 @@ class _Runtime:
             raise ValueError(f"未知步骤：{step_key}")
         self._reset_step_trace()
         try:
-            return handlers[step_key](context, apply_flow_id)
+            result = handlers[step_key](context, apply_flow_id)
         except Exception as exc:
             self.log_event(
                 step_key,
@@ -579,6 +583,10 @@ class _Runtime:
                 error=str(exc),
             )
             raise
+        if step_key == "api_add":
+            # Keep the successful creation checkpoint even when updating fails.
+            self.execute_step("api_update", dict(context, **result), apply_flow_id)
+        return result
 
     def _reset_step_trace(self) -> None:
         self._last_http_request = None
@@ -843,9 +851,18 @@ class _Runtime:
         return {"youdata_token": str(token)}
 
     def _step_api_add(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
+        password = str(context.get("doris_password") or _decrypt(self.config.default_doris_password_enc))
+        context["doris_password"] = password
+        signature = hmac.new(
+            get_settings().credential_encryption_key.encode(),
+            json.dumps([self.config.youdata_base_url, password]).encode(), "sha256",
+        ).hexdigest()
+        resumed = self._pending_api_add(apply_flow_id, signature)
+        if resumed is not None:
+            self.log_event("api_add", STEP_NAMES["api_add"], "success", "复用已创建的有数数据连接，继续设置库限制。", apply_flow_id=apply_flow_id, extracted=resumed)
+            return resumed
         token = self._youdata_token(context)
         username = str(context.get("doris_username") or context.get("generated_username") or "").strip()
-        password = str(context.get("doris_password") or _decrypt(self.config.default_doris_password_enc))
         database_name = str(context.get("database_name") or "").strip()
         if not username or not database_name:
             raise ValueError("apiAdd 缺少用户名或默认库。")
@@ -873,6 +890,20 @@ class _Runtime:
             resource_id = _json_path(response, "result")
         if resource_id is None:
             raise ValueError("apiAdd 响应中未读取到资源 id。")
+        if isinstance(resource_id, bool) or not str(resource_id).isdigit() or int(resource_id) <= 0:
+            raise ValueError("apiAdd 响应资源 id 必须为正整数。")
+        result_path = str(self.config_dict["api_add_id_path"]).rpartition(".")[0]
+        connection = _json_path(response, result_path) if result_path else response
+        # Persist only update inputs, never the token or an echoed password.
+        connection = {key: connection[key] for key in (
+            "id", "name", "type", "port", "location", "available", "frequency",
+            "fusion", "namespace", "projectId", "server", "userName", "defaultSchemaName", "setting",
+        ) if key in connection} if isinstance(connection, dict) else {}
+        fallbacks = {key: body[key] for key in ("name", "type", "port", "projectId", "server", "userName") if key in body}
+        fallbacks.update(id=resource_id, location=1, available=1, frequency=4, fusion=0, namespace=None)
+        for key, value in fallbacks.items():
+            if connection.get(key) is None:
+                connection[key] = value
         extracted = {
             "resource_id": resource_id,
             "database_name": database_name,
@@ -880,9 +911,72 @@ class _Runtime:
             "server": server,
             "paths": body.get("paths"),
             "api_add_name": str(body.get("name") or "").strip(),
+            "api_add_result": connection,
+            "api_add_signature": signature,
         }
         self.log_event("api_add", STEP_NAMES["api_add"], "success", "有数数据连接创建成功。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=response, extracted=extracted)
-        return {"resource_id": resource_id, "api_add_name": str(body.get("name") or "").strip()}
+        return {"resource_id": resource_id, "api_add_name": extracted["api_add_name"], "api_add_result": connection}
+
+    def _pending_api_add(self, apply_flow_id: str | None, signature: str) -> dict[str, Any] | None:
+        run = self.session.get(ApprovalAuthorizationRun, self.run_id)
+        if not apply_flow_id or not run or (run.context or {}).get("mode") == "step_test":
+            return None
+        logs = self.session.scalars(
+            select(ApprovalAuthorizationStepLog)
+            .where(ApprovalAuthorizationStepLog.config_id == self.config.id,
+                   ApprovalAuthorizationStepLog.apply_flow_id == str(apply_flow_id),
+                   ApprovalAuthorizationStepLog.step_key == "api_add",
+                   ApprovalAuthorizationStepLog.status == "success")
+            .order_by(ApprovalAuthorizationStepLog.started_at.desc())
+        )
+        for log in logs:
+            source_run = self.session.get(ApprovalAuthorizationRun, log.run_id)
+            if not source_run or (source_run.context or {}).get("mode") == "step_test":
+                continue
+            data = log.extracted_data or {}
+            if "api_add_result" not in data:
+                return None
+            completed = self.session.scalar(select(ApprovalAuthorizationStepLog.id).where(
+                ApprovalAuthorizationStepLog.config_id == self.config.id,
+                ApprovalAuthorizationStepLog.apply_flow_id == str(apply_flow_id),
+                ApprovalAuthorizationStepLog.step_key == "import_permissions",
+                ApprovalAuthorizationStepLog.status == "success",
+                ApprovalAuthorizationStepLog.started_at >= log.started_at,
+            ).limit(1))
+            if completed is not None:
+                return None
+            if not hmac.compare_digest(str(data.get("api_add_signature") or ""), signature):
+                raise ValueError("有数地址或创建连接时的密码已变更，请恢复原参数后重试，禁止重复创建连接。")
+            return {key: data[key] for key in ("resource_id", "api_add_name", "api_add_result", "api_add_signature")}
+        return None
+
+    def _step_api_update(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
+        connection = context.get("api_add_result")
+        if not isinstance(connection, dict):
+            raise ValueError("apiUpdate 缺少 apiAdd 返回的连接对象。")
+        schema = connection.get("defaultSchemaName")
+        if not isinstance(schema, str) or not schema.strip():
+            raise ValueError("apiAdd 响应缺少非空 defaultSchemaName，不能设置连接库限制。")
+        fields = ("id", "name", "type", "port", "location", "available", "frequency",
+                  "fusion", "namespace", "projectId", "server", "userName")
+        missing = [key for key in fields if key not in connection or (
+            key != "namespace" and connection[key] in (None, ""))]
+        if missing:
+            raise ValueError("apiAdd 响应缺少 apiUpdate 参数：" + ", ".join(missing))
+        if connection["id"] != context.get("resource_id"):
+            raise ValueError("apiUpdate 连接 id 与 apiAdd 资源 id 不一致。")
+        setting = deepcopy(connection.get("setting") or {})
+        if not isinstance(setting, dict) or not isinstance(setting.get("etlInfo", {}), dict):
+            raise ValueError("apiAdd 响应 setting/etlInfo 必须为对象。")
+        setting.setdefault("etlInfo", {}).update(enableLimitDatabases=1, databases=[schema])
+        body = {key: connection[key] for key in fields}
+        body.update(token=self._youdata_token(context), database=schema, setting=setting,
+                    password=str(context.get("doris_password") or _decrypt(self.config.default_doris_password_enc)))
+        url = self.config.youdata_base_url.rstrip("/") + "/api/dash/dataConnection/apiUpdate"
+        response = self._post_json(url, body)
+        extracted = {"resource_id": connection["id"], "database": schema, "databases": [schema]}
+        self.log_event("api_update", STEP_NAMES["api_update"], "success", "有数连接默认库与库限制设置完成。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=response, extracted=extracted)
+        return extracted
 
     def _step_import_permissions(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
         token = self._youdata_token(context)
