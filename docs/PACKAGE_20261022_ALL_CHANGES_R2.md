@@ -14,6 +14,8 @@
 
 - 2026-10-22 当前源码主测试：442 passed、4 skipped、45 subtests passed；按项目约定单独隔离 `test_microservice_modes.py`，不把它算作通过。
 - 主工作台和独立助手 HTML 内联脚本语法检查通过；Git 空白错误检查通过。
+- 候选源码测试发现 Git 在 Windows 导出 `package-images.env` 时转换为 CRLF；补充 `.gitattributes` 的 `*.env text eol=lf`，由已有包格式测试验证，不修改业务代码。
+- 独立 UTF8 工具的 3 项 Linux 文件系统测试通过（模拟 Docker，真实临时目录备份和隔离检查）。首次普通 Linux 用户因测试根目录权限不足失败，使用本地 Linux root 运行隔离测试后通过；未操作真实容器。
 - 最终交付前必须再次测试 Git 导出的候选源码，验证所有镜像层/config 摘要和旧 Docker 父链、11 个应用标签、完整应用文件覆盖、Oracle initializer 一致性、原配置模板不变。
 - Linux 必须验证最终压缩包解压、SHA256、包内校验、Shell 语法、UTF-8 无 BOM/LF、配置加载和历史版本参数覆盖。实际机器结果保存在包内 `PACKAGE-CHECKS.json`，包内精确源码摘要见 `SOURCE-MANIFEST.json`。
 - 本次只做本地回归及 Linux 包级验证，不替换/重启 128，不执行生产密码读取、Doris 改密或真实有数写接口。不把 mock、归档检查或历史验证记录当成本版真实部署验收。
