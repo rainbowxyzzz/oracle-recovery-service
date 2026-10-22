@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import datetime
 
 from sqlalchemy import desc, select
 
@@ -125,6 +124,19 @@ def get_active_sm4_key_seed_for_jar(jar_filename: str) -> tuple[str, uuid.UUID, 
             .order_by(desc(DorisSm4KeyVersion.updated_at), desc(DorisSm4KeyVersion.created_at))
             .limit(1)
         ).scalar_one_or_none()
+        if not row:
+            deployment = session.execute(
+                select(DorisSm4FunctionDeployment)
+                .where(DorisSm4FunctionDeployment.jar_filename == clean_filename)
+                .where(DorisSm4FunctionDeployment.state == "success")
+                .where(DorisSm4FunctionDeployment.key_version_id.is_not(None))
+                .order_by(desc(DorisSm4FunctionDeployment.attempted_at))
+                .limit(1)
+            ).scalar_one_or_none()
+            if deployment and deployment.key_version_id:
+                candidate = session.get(DorisSm4KeyVersion, deployment.key_version_id)
+                if candidate and candidate.status == "active":
+                    row = candidate
         if not row:
             raise KeyError(f"No active SM4 key version is bound to jar {clean_filename}.")
         seed = decrypt_secret(row.key_seed_enc, get_settings().credential_encryption_key)

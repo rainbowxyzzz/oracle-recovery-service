@@ -55,8 +55,9 @@ from recovery_service.services.doris_mask_metadata import (
     record_field_mappings,
     register_mask_task,
 )
-from recovery_service.services.sm4_key_versions import get_sm4_key_seed_for_batch, resolve_sm4_key_version_for_batch
 from recovery_service.services.doris_table_ddl import rewrite_table_replication_allocation
+from recovery_service.services.sm4_key_versions import get_sm4_key_seed_for_batch, resolve_sm4_key_version_for_batch
+from recovery_service.services.sm4_partial_rules import SM4_PARTIAL_RULES
 from recovery_service.settings import get_settings
 
 _IDENT_RE = re.compile(r"^[A-Za-z0-9_\u4e00-\u9fff]+$")
@@ -338,6 +339,7 @@ def prepare_sm4_batch_task(
                 "target_database": item.get("target_database") or clean_database,
                 "target_table": _planned_target_table(item["table_name"], item.get("target_table"), clean_suffix, clean_strategy),
                 "columns": item["columns"],
+                "column_rules": item.get("column_rules") or {},
                 "state": "queued",
             }
             for item in clean_tables
@@ -1590,6 +1592,7 @@ def _run_sm4_batch_task_locked(batch_id: uuid.UUID, profile: DatabaseConnectionP
                 "target_database": item.get("target_database") or job.database,
                 "target_table": results[index].get("target_table") if index < len(results) else None,
                 "columns": item["columns"],
+                "column_rules": item.get("column_rules") or {},
                 "state": "running",
                 "started_at": started_at.isoformat(),
             }
@@ -1602,6 +1605,7 @@ def _run_sm4_batch_task_locked(batch_id: uuid.UUID, profile: DatabaseConnectionP
                     database=job.database,
                     table_name=item["table_name"],
                     columns=item["columns"],
+                    column_rules=item.get("column_rules") or {},
                     table_strategy=job.table_strategy,
                     target_suffix=job.target_suffix,
                     target_database=item.get("target_database"),
@@ -1680,7 +1684,10 @@ def _run_sm4_batch_task_locked(batch_id: uuid.UUID, profile: DatabaseConnectionP
 def _verify_sm4_batch_key_binding(profile: DatabaseConnectionProfile, job: DorisSm4BatchJob) -> None:
     try:
         key_seed, key_id, fingerprint = get_sm4_key_seed_for_batch(job.id)
-        from recovery_service.services.doris_sm4_function import sm4_encrypt_to_base64
+        from recovery_service.services.doris_sm4_function import (
+            sm4_encrypt_to_base64,
+            sm4_partial_encrypt,
+        )
 
         plaintext = f"oracle-recovery-sm4-batch-check-{fingerprint}"
         expected = sm4_encrypt_to_base64(plaintext, key_seed)
@@ -1688,6 +1695,28 @@ def _verify_sm4_batch_key_binding(profile: DatabaseConnectionProfile, job: Doris
             with db.cursor() as cur:
                 cur.execute("SELECT CQ_SM4_ENCRYPT(%s)", (plaintext,))
                 actual = _first_value(cur.fetchone()).strip()
+                partial_rules = {
+                    rule
+                    for table in (getattr(job, "tables", None) or [])
+                    for rule in (table.get("column_rules") or {}).values()
+                }
+                if partial_rules:
+                    partial_plaintext = "110101199001011234"
+                    partial_expected = sm4_partial_encrypt(
+                        partial_plaintext,
+                        key_seed,
+                        "ID_KEEP_6_4",
+                    )
+                    cur.execute(
+                        "SELECT CQ_SM4_PARTIAL_ENCRYPT(%s, %s)",
+                        (partial_plaintext, "ID_KEEP_6_4"),
+                    )
+                    partial_actual = _first_value(cur.fetchone()).strip()
+                    if partial_actual != partial_expected:
+                        raise ValueError(
+                            "Doris CQ_SM4_PARTIAL_ENCRYPT 与批次绑定密钥不一致或函数未部署，"
+                            f"批次密钥={fingerprint}。"
+                        )
         if actual != expected:
             raise ValueError(
                 "Doris CQ_SM4_ENCRYPT 与批次绑定密钥不一致，"
@@ -1714,6 +1743,7 @@ def _execute_sm4_batch_table(
     database: str,
     table_name: str,
     columns: list[str],
+    column_rules: dict[str, str] | None,
     table_strategy: str,
     target_suffix: str | None,
     target_database: str | None,
@@ -1723,6 +1753,7 @@ def _execute_sm4_batch_table(
     clean_table = table_name.strip()
     clean_target_database = (target_database or database).strip()
     clean_columns = [item.strip() for item in columns if item and item.strip()]
+    clean_column_rules = _normalize_column_rules(clean_columns, column_rules)
     if not clean_columns:
         raise ValueError(f"表 {clean_table} 未选择加密字段。")
     metadata_task_id = uuid.uuid5(batch_id, f"{database}.{clean_table}->{clean_target_database}")
@@ -1747,6 +1778,12 @@ def _execute_sm4_batch_table(
             if clean_target_database == database and output_table == clean_table:
                 raise ValueError("批次策略不允许源表和目标加密表同名，避免自读自写。")
             source_rows = _count_rows(cur, database, clean_table)
+            _validate_partial_output_lengths(
+                cur,
+                database=database,
+                table_name=clean_table,
+                column_rules=clean_column_rules,
+            )
             created_table = False
             if table_strategy == "drop_recreate" and _table_exists(cur, clean_target_database, output_table):
                 drop_sql = f"DROP TABLE {_q(clean_target_database)}.{_q(output_table)}"
@@ -1780,7 +1817,15 @@ def _execute_sm4_batch_table(
                     db_session_id=db_session_id,
                 )
                 created_table = True
-            insert_sql = _build_insert_sql(database, clean_target_database, output_table, clean_table, table_columns, clean_columns)
+            insert_sql = _build_insert_sql(
+                database,
+                clean_target_database,
+                output_table,
+                clean_table,
+                table_columns,
+                clean_columns,
+                clean_column_rules,
+            )
             logger.info("doris sm4 batch insert encrypted data", batch_id=str(batch_id), sql=insert_sql)
             _execute_sm4_logged_sql(
                 cur,
@@ -1821,6 +1866,7 @@ def _execute_sm4_batch_table(
         "target_database": clean_target_database,
         "target_table": output_table,
         "columns": clean_columns,
+        "column_rules": clean_column_rules,
         "state": "succeeded",
         "message": f"{expected_message}，源表 {source_rows} 行，目标表当前 {target_rows} 行。",
         "source_rows": source_rows,
@@ -2406,17 +2452,51 @@ def _build_insert_sql(
     source_table: str,
     table_columns: list[str],
     encrypted_columns: list[str],
+    column_rules: dict[str, str] | None = None,
 ) -> str:
     encrypted = set(encrypted_columns)
+    clean_rules = _normalize_column_rules(encrypted_columns, column_rules)
     insert_columns = ", ".join(_q(column) for column in table_columns)
     select_columns = ", ".join(
-        f"CQ_SM4_ENCRYPT({_q(column)}) AS {_q(column)}" if column in encrypted else _q(column)
+        (
+            f"CQ_SM4_PARTIAL_ENCRYPT({_q(column)}, '{clean_rules[column]}') AS {_q(column)}"
+            if column in clean_rules
+            else f"CQ_SM4_ENCRYPT({_q(column)}) AS {_q(column)}"
+        )
+        if column in encrypted
+        else _q(column)
         for column in table_columns
     )
     return (
         f"INSERT INTO {_q(target_database)}.{_q(table_name)} ({insert_columns}) "
         f"SELECT {select_columns} FROM {_q(source_database)}.{_q(source_table)}"
     )
+
+
+def _validate_partial_output_lengths(
+    cur,
+    *,
+    database: str,
+    table_name: str,
+    column_rules: dict[str, str],
+) -> None:
+    if not column_rules:
+        return
+    expressions = ", ".join(
+        f"MAX(CHAR_LENGTH(CQ_SM4_PARTIAL_ENCRYPT({_q(column)}, '{rule_code}'))) AS {_q(f'max_{index}')}"
+        for index, (column, rule_code) in enumerate(column_rules.items())
+    )
+    cur.execute(f"SELECT {expressions} FROM {_q(database)}.{_q(table_name)}")
+    row = cur.fetchone() or {}
+    oversized = [
+        column
+        for index, column in enumerate(column_rules)
+        if _safe_int(row.get(f"max_{index}")) > 2000
+    ]
+    if oversized:
+        raise ValueError(
+            f"局部加密结果超过 varchar(2000)：{', '.join(oversized)}。请缩短源值或调整目标字段方案。"
+        )
 
 
 def _suffixed_table_name(table_name: str, suffix: str | None, default_prefix: str) -> str:
@@ -2734,9 +2814,32 @@ def _normalize_batch_tables(tables: list[dict[str, Any]]) -> list[dict[str, Any]
             raise ValueError(f"表 {table_name} 未选择加密字段。")
         target_database = _clean_optional_identifier(item.get("target_database"), "结果数据库")
         target_table = _clean_optional_identifier(item.get("target_table"), "目标表名")
-        result.append({"table_name": table_name, "columns": columns, "target_database": target_database, "target_table": target_table})
+        column_rules = _normalize_column_rules(columns, item.get("column_rules"))
+        normalized_table: dict[str, Any] = {
+            "table_name": table_name,
+            "columns": columns,
+            "target_database": target_database,
+            "target_table": target_table,
+        }
+        if column_rules:
+            normalized_table["column_rules"] = column_rules
+        result.append(normalized_table)
         seen.add(table_name)
     return result
+
+
+def _normalize_column_rules(columns: list[str], rules: dict[str, Any] | None) -> dict[str, str]:
+    selected = set(columns)
+    normalized: dict[str, str] = {}
+    for column, rule_code in (rules or {}).items():
+        clean_column = str(column or "").strip()
+        clean_rule = str(rule_code or "").strip().upper()
+        if not clean_column or clean_column not in selected or not clean_rule or clean_rule == "FULL":
+            continue
+        if clean_rule not in SM4_PARTIAL_RULES:
+            raise ValueError(f"字段 {clean_column} 使用了不支持的 SM4 局部加密规则：{clean_rule}")
+        normalized[clean_column] = clean_rule
+    return normalized
 
 
 def _planned_target_table(table_name: str, target_table: str | None, target_suffix: str | None, table_strategy: str) -> str:
@@ -2805,6 +2908,7 @@ def _stop_remaining_sm4_batch_tables(
                     "target_database": item.get("target_database") or job.database,
                     "target_table": result.get("target_table"),
                     "columns": item["columns"],
+                    "column_rules": item.get("column_rules") or {},
                     "state": stop_state,
                     "message": "Task was not started because the batch was stopped.",
                     "finished_at": now.isoformat(),

@@ -71,6 +71,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
+    import recovery_service.core.models.knowledge  # noqa: F401
     from recovery_service.core.models.task import Base
     from recovery_service.services.auth import ensure_default_admin
 
@@ -608,6 +609,7 @@ async def _ensure_doris_sm4_function_deployment_columns(conn) -> None:
     migrations = {
         "encrypt_enabled": "ALTER TABLE doris_sm4_function_deployments ADD COLUMN encrypt_enabled BOOL NOT NULL DEFAULT 1 AFTER jar_filename",
         "decrypt_enabled": "ALTER TABLE doris_sm4_function_deployments ADD COLUMN decrypt_enabled BOOL NOT NULL DEFAULT 1 AFTER encrypt_enabled",
+        "like_enabled": "ALTER TABLE doris_sm4_function_deployments ADD COLUMN like_enabled BOOL NOT NULL DEFAULT 0 AFTER decrypt_enabled",
     }
     for column, sql in migrations.items():
         if columns and column not in columns:

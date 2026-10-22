@@ -5,19 +5,20 @@ from recovery_service.api.v1 import (
     api_orchestration,
     approval_authorization,
     auth,
-    batches,
     batch_authorization,
-    data_platform,
+    batches,
     data_automation,
+    data_platform,
     database_cleanup,
     database_connections,
     doris_csv_import,
     doris_encryption,
-    doris_sql_etl,
     doris_sm3_decrypt,
     doris_sm3_mapping,
-    health,
+    doris_sql_etl,
     harness_assistant,
+    health,
+    knowledge,
     resource_provisioning,
     setup,
     tasks,
@@ -57,6 +58,7 @@ _COMMON_ROUTERS = (health.router, auth.router)
 _MANAGEMENT_ROUTERS = (users.router, api_keys.router, setup.router, database_connections.router)
 _ALL_BUSINESS_ROUTERS = (
     harness_assistant.router,
+    knowledge.router,
     tasks.router,
     batches.router,
     batch_authorization.router,
@@ -85,6 +87,7 @@ _SERVICE_ROUTERS = {
     "cleanup": _MANAGEMENT_ROUTERS + (database_cleanup.router,),
     "resource-provisioning": _MANAGEMENT_ROUTERS + (resource_provisioning.router,),
     "api-orchestration": _MANAGEMENT_ROUTERS + (api_orchestration.router,),
+    "knowledge": _MANAGEMENT_ROUTERS + (knowledge.router,),
 }
 
 

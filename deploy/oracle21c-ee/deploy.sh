@@ -30,6 +30,7 @@ INIT_SGA_SIZE=${ORACLE21C_INIT_SGA_SIZE:-}
 INIT_PGA_SIZE=${ORACLE21C_INIT_PGA_SIZE:-}
 INIT_CPU_COUNT=${ORACLE21C_INIT_CPU_COUNT:-}
 INIT_PROCESSES=${ORACLE21C_INIT_PROCESSES:-}
+ORACLE_HOME_PATH=${ORACLE21C_ORACLE_HOME:-/opt/oracle/product/21c/dbhome_1}
 
 log() {
   echo "[oracle21c-deploy] $*"
@@ -66,6 +67,13 @@ validate_identifier() {
   esac
 }
 
+validate_sid() {
+  case "$ORACLE_SID" in
+    ''|*[!A-Za-z0-9]*) fail "ORACLE21C_SID must be alphanumeric" ;;
+  esac
+  [ "${#ORACLE_SID}" -le 12 ] || fail "ORACLE21C_SID must be at most 12 characters"
+}
+
 validate_path() {
   value=$1
   label=$2
@@ -98,6 +106,26 @@ ensure_image_available() {
   image_exists || fail "image not found: $IMAGE; preload it or set ORACLE21C_IMAGE_TAR"
 }
 
+validate_image_compatibility() {
+  checked_image=${1:-$IMAGE}
+  host_arch=$(uname -m)
+  image_arch=$(docker inspect --type=image --format '{{.Architecture}}' "$checked_image" 2>/dev/null || true)
+  case "$host_arch" in
+    x86_64|amd64) host_arch=amd64 ;;
+    aarch64|arm64) host_arch=arm64 ;;
+  esac
+  case "$image_arch" in
+    x86_64|amd64) image_arch=amd64 ;;
+    aarch64|arm64) image_arch=arm64 ;;
+  esac
+  [ -n "$image_arch" ] || fail "could not determine image architecture for $checked_image"
+  [ "$host_arch" = "$image_arch" ] || fail "host architecture $host_arch is incompatible with Oracle image architecture $image_arch"
+
+  docker run --rm --entrypoint /bin/sh "$checked_image" -c \
+    "test -x '$ORACLE_HOME_PATH/bin/sqlplus'" >/dev/null 2>&1 || \
+    fail "Oracle image is missing $ORACLE_HOME_PATH/bin/sqlplus"
+}
+
 prepare_directories() {
   mkdir -p "$ORADATA_HOST_PATH" "$DMP_HOST_PATH" "$TABLESPACE_HOST_PATH"
   chmod 0777 "$ORADATA_HOST_PATH" "$DMP_HOST_PATH" "$TABLESPACE_HOST_PATH"
@@ -127,6 +155,7 @@ validate_existing_mounts() {
 
 create_container() {
   ensure_image_available
+  validate_image_compatibility
   prepare_directories
 
   set -- docker run -d \
@@ -147,6 +176,8 @@ create_container() {
     -e "ORACLE_PWD=$ORACLE_PASSWORD" \
     -e "ORACLE_CHARACTERSET=$ORACLE_CHARACTERSET" \
     -e "ENABLE_ARCHIVELOG=$ENABLE_ARCHIVELOG" \
+    -e "ORACLE_BASE=/opt/oracle" \
+    -e "ORACLE_HOME=$ORACLE_HOME_PATH" \
     -v "$ORADATA_HOST_PATH:/opt/oracle/oradata" \
     -v "$DMP_HOST_PATH:/opt/oracle/recovery_dmp" \
     -v "$TABLESPACE_HOST_PATH:/opt/oracle/recovery_tablespaces"
@@ -164,7 +195,7 @@ create_container() {
 
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker info >/dev/null 2>&1 || fail "docker daemon is unavailable"
-validate_identifier "$ORACLE_SID" ORACLE21C_SID
+validate_sid
 validate_identifier "$ORACLE_PDB" ORACLE21C_PDB
 [ -n "$ORACLE_PASSWORD" ] || fail "ORACLE21C_PASSWORD is required"
 validate_path "$ORADATA_HOST_PATH" ORACLE21C_ORADATA_HOST_PATH
@@ -174,6 +205,8 @@ validate_path "$TABLESPACE_HOST_PATH" ORACLE21C_TABLESPACE_HOST_PATH
 docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
 
 if container_exists; then
+  existing_image=$(docker inspect --format '{{.Image}}' "$CONTAINER")
+  validate_image_compatibility "$existing_image"
   validate_existing_mounts
   if container_running; then
     log "container is already running: $CONTAINER"

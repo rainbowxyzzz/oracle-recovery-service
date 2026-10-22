@@ -5,6 +5,16 @@ from typing import Any
 
 PERMISSION_CATALOG = [
     {
+        "id": "knowledgeBase",
+        "label": "企业知识库",
+        "actions": [
+            {"id": "knowledgeBase:read", "label": "浏览和检索知识"},
+            {"id": "knowledgeBase:chat", "label": "使用知识问答"},
+            {"id": "knowledgeBase:manage", "label": "维护知识源"},
+            {"id": "knowledgeBase:index", "label": "执行索引并查看运行记录"},
+        ],
+    },
+    {
         "id": "apiOrchestration",
         "label": "接口编排中心",
         "actions": [

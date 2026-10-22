@@ -1119,6 +1119,7 @@ class DorisSm4FunctionDeployment(Base):
     jar_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     encrypt_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     decrypt_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    like_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     state: Mapped[str] = mapped_column(String(32), index=True)
     message: Mapped[str] = mapped_column(LONG_TEXT, default="")
     verification_state: Mapped[str | None] = mapped_column(String(32), nullable=True)

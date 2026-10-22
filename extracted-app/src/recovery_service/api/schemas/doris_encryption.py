@@ -94,6 +94,7 @@ class DorisEncryptionExecuteResponse(BaseModel):
 class DorisSm4BatchTableSpec(BaseModel):
     table_name: str = Field(min_length=1)
     columns: list[str] = Field(default_factory=list)
+    column_rules: dict[str, str] = Field(default_factory=dict)
     target_database: str | None = None
     target_table: str | None = None
 
@@ -406,6 +407,7 @@ class DorisSm4FunctionDatabaseCapability(BaseModel):
     database: str = Field(min_length=1, max_length=128)
     encrypt_enabled: bool = False
     decrypt_enabled: bool = False
+    like_enabled: bool = False
 
 
 class DorisSm4FunctionRefreshRequest(BaseModel):
@@ -423,6 +425,7 @@ class DorisSm4FunctionDatabaseResult(BaseModel):
     database: str
     encrypt_enabled: bool = True
     decrypt_enabled: bool = True
+    like_enabled: bool = False
     state: Literal["success", "failed", "skipped"]
     message: str
     drop_sql: str | None = None
@@ -444,6 +447,7 @@ class DorisSm4FunctionDeploymentResponse(BaseModel):
     jar_filename: str | None = None
     encrypt_enabled: bool = True
     decrypt_enabled: bool = True
+    like_enabled: bool = False
     state: Literal["success", "failed"]
     message: str = ""
     verification_state: Literal["success", "failed", "skipped"] | None = None

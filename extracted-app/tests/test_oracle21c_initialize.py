@@ -16,16 +16,26 @@ pytestmark = pytest.mark.skipif(not BASH or not Path(BASH).exists(), reason="Bas
 
 MOCK_DOCKER = r'''#!/bin/sh
 case "$1" in
-  ps) echo oracle-recovery-oracle21c-ee ;;
+  inspect) echo '2026-10-13T00:00:00Z' ;;
+  ps) [ "${MOCK_CONTAINER_RUNNING:-1}" = 1 ] && echo oracle-recovery-oracle21c-ee ;;
+  logs)
+    case "$*" in
+      *--since*) [ -z "${MOCK_CURRENT_LOGS:-}" ] || printf '%s\n' "$MOCK_CURRENT_LOGS" ;;
+      *) [ -z "${MOCK_CONTAINER_LOGS:-}" ] || printf '%s\n' "$MOCK_CONTAINER_LOGS" ;;
+    esac
+    ;;
   exec)
     case "$*" in
+      *cfgtoollogs*) echo 'mock DBCA diagnostics' >&2 ;;
       *ORACLE_PWD=*) echo ORCLPDB1 ;;
       *'sqlplus" -V'*) echo 'SQL*Plus: Release 21' ;;
       *)
         sql=$(cat)
         printf '%s\n' "$sql" >> "$MOCK_LOG"
         case "$sql" in
-          *'select open_mode'*) echo 'READ WRITE' ;;
+          *'select open_mode'*)
+            [ "${MOCK_CONTAINER_RUNNING:-1}" = 1 ] && [ "${MOCK_PDB_READY:-1}" = 1 ] && echo 'READ WRITE'
+            ;;
           *NLS_CHARACTERSET*)
             printf 'CHARSET=%s\nNCHAR=%s\n' "${MOCK_CHARACTERSET:-ZHS16GBK}" "${MOCK_NCHAR_CHARACTERSET:-AL16UTF16}"
             ;;
@@ -121,6 +131,40 @@ def test_character_set_mismatch_stops_startup(tmp_path):
     assert "expected AL32UTF8" in result.stderr
 
 
+def test_container_exit_fails_immediately_with_startup_diagnostics(tmp_path):
+    result, _ = run_initializer(
+        tmp_path,
+        ORACLE21C_STARTUP_TIMEOUT_SECONDS="1800",
+        MOCK_CONTAINER_RUNNING="0",
+        MOCK_CONTAINER_LOGS="DATABASE SETUP WAS NOT SUCCESSFUL!",
+        MOCK_CURRENT_LOGS="DATABASE SETUP WAS NOT SUCCESSFUL!",
+    )
+    assert result.returncode != 0
+    assert "failed before PDB ORCLPDB1 became ready" in result.stderr
+    assert "DATABASE SETUP WAS NOT SUCCESSFUL" in result.stderr
+
+
+def test_old_failure_log_does_not_reject_ready_database(tmp_path):
+    result, sql = run_initializer(tmp_path, MOCK_CONTAINER_LOGS="DATABASE SETUP WAS NOT SUCCESSFUL!")
+    assert result.returncode == 0, result.stderr
+    assert "select open_mode" in sql
+
+
+def test_old_failure_log_does_not_abort_current_startup(tmp_path):
+    result, _ = run_initializer(tmp_path, MOCK_PDB_READY="0",
+                                MOCK_CONTAINER_LOGS="DATABASE SETUP WAS NOT SUCCESSFUL!")
+    assert result.returncode != 0
+    assert "did not become READ WRITE" in result.stderr
+    assert "failed before PDB" not in result.stderr
+
+
+def test_current_creation_failure_aborts_without_waiting(tmp_path):
+    result, _ = run_initializer(tmp_path, MOCK_PDB_READY="0",
+                                MOCK_CURRENT_LOGS="DATABASE SETUP WAS NOT SUCCESSFUL!")
+    assert result.returncode != 0
+    assert "failed before PDB" in result.stderr
+
+
 @pytest.mark.parametrize("overrides", [
     {"MOCK_METADATA_ERROR": "1"}, {"MOCK_METADATA": "garbage"},
     {"MOCK_CREATE_ERROR": "1"}, {"ORACLE21C_TEMPFILE_MAX_SIZE": "0G"},
@@ -137,7 +181,7 @@ def test_script_text_and_shell_syntax():
     raw.decode("utf-8")
     assert not raw.startswith(b"\xef\xbb\xbf")
     assert b"\r" not in raw
-    assert raw.count(b"docker exec -u 54321:54321") == 3
+    assert raw.count(b"docker exec -u 54321:54321") == 4
     assert b"NLS_CHARACTERSET" in raw and b"NLS_NCHAR_CHARACTERSET" in raw
     result = subprocess.run([BASH, "-c", 'sh -n "$1"', "syntax", SCRIPT.as_posix()],
                             capture_output=True, text=True, timeout=10)

@@ -291,6 +291,7 @@ class Sm4FunctionDeploymentKeyResolutionTests(unittest.TestCase):
                     "database": "DWD_SOCIAL_SECURITY",
                     "encrypt_enabled": True,
                     "decrypt_enabled": False,
+                    "like_enabled": True,
                 }],
             )
 
@@ -299,6 +300,7 @@ class Sm4FunctionDeploymentKeyResolutionTests(unittest.TestCase):
         self.assertEqual(result.key_id, key_id)
         self.assertTrue(result.results[0].encrypt_enabled)
         self.assertFalse(result.results[0].decrypt_enabled)
+        self.assertTrue(result.results[0].like_enabled)
 
 
 if __name__ == "__main__":

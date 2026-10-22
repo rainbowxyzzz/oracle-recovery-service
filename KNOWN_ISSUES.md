@@ -1,5 +1,11 @@
 # Known Environment Issues
 
+## Oracle 初始化被旧失败日志误判（2026-10-13）
+
+旧 `initialize.sh` 在查询 PDB 前检查最近 120 行容器日志，没有按本次启动时间过滤；历史 `DATABASE SETUP WAS NOT SUCCESSFUL!` 可能让已经恢复的库立即失败。修正为先查 PDB，并仅使用容器 `.State.StartedAt` 之后的日志判定失败。DBCA 文件可能跨启动保留，只作带时间戳的诊断。
+
+现场另一问题为 ORA-00821：SGA 1536M 小于日志要求的 5744M。独立 UTF 脚本示例采用 SGA 8192MB/PGA 2048MB、容器上限 20g。改配置不能修改已有容器或 SPFILE；仅在允许重建空库时使用 `--reset`，它保留旧数据库目录备份并移除旧 UTF 容器，不迁移旧数据。新服务器真实建库仍须现场确认。
+
 本文档只记录已经确认、容易重复遇到的本地环境问题。后续遇到相同症状时，先按这里处理，不要重新探索运行时或重搭环境。
 
 ## Codex Windows sandbox helper failure
@@ -415,3 +421,39 @@ Windows 本地没有 `sshpass`，无法用 Linux 风格脚本自动传密码 SSH
 ### Do not
 
 不要因为当前无运行任务就直接删除 `mysql-recovery-target`；未确认其挂载数据和业务归属前只做只读检查。
+
+## Reused .env keeps a new package on old application images
+
+### Symptom
+
+已经解压并运行新包，但页面和 Worker 仍表现为旧版本；用户每次升级都被要求手工修改 `API_IMAGE`、各 Worker 镜像标签和 `APP_IMAGE_TAR`。
+
+### Cause
+
+历史包把交付版本放在用户 `.env`，启动脚本又优先使用 `.env` 中的旧值，因此新包无法决定自己应该运行的镜像。
+
+### Correct solution
+
+新包使用包内 `package-images.env` 作为唯一镜像版本清单。保留原 `.env` 的业务和密码配置，直接执行新包的 `start-service.sh`；脚本会覆盖历史 `.env` 中遗留的镜像版本值。
+
+### Do not
+
+不要再逐版编辑用户 `.env` 中的镜像标签；不要用修改当前包 `.env` 的方式回滚，应运行旧包目录。
+
+## Oracle 21c setup failure is reported as ORA-01034 and missing sqlplus
+
+### Symptom
+
+Oracle 21c 启动末尾显示 `ORA-01034: ORACLE not available`、`ORACLE_HOME = [/home/oracle] ?`、`sqlplus: command not found`、缺少 `spfile`，或 PDB 等待 1800 秒后失败。
+
+### Cause
+
+这些通常是 DBCA 首次建库已经失败后的连锁错误，不是应单独修复的 SQLPlus 配置。常见前置原因包括宿主机与 Oracle 镜像 CPU 架构不一致、镜像内容不完整、内存不足或 DBCA 自身报错。
+
+### Correct solution
+
+使用新版 Oracle 生命周期脚本：创建前核验宿主机/镜像架构和 Oracle Home；等待期间发现容器退出或明确建库失败时立即输出容器及 DBCA 日志。根据日志中最早的 DBCA 错误处理，现有 `oradata` 保持不动。
+
+### Do not
+
+不要通过设置 `UTF_ORACLE21C_MODE=external` 隐藏 UTF 库失败；不要因这些后续错误删除已有 Oracle 数据目录。

@@ -43,6 +43,8 @@ UTF 实例默认使用独立目录和端口：
 
 `package-start-oracle21c.sh` 会依次启动主实例和 UTF 实例。UTF 容器不存在时，脚本使用相同镜像自动创建；已停止时自动启动；初始化阶段会查询并核验真实数据库字符集，字符集不匹配时停止，不会删除或重建已有数据目录。
 
+创建新容器前会核验宿主机与镜像 CPU 架构，并确认镜像内 `/opt/oracle/product/21c/dbhome_1/bin/sqlplus` 可执行。等待 PDB 时如果容器退出或镜像已明确报告建库失败，脚本会立即输出容器及 DBCA 日志并停止，不再等待完整超时时间。`ORA-01034`、`sqlplus: command not found` 和缺少 `spfile` 通常是建库失败后的连锁现象，应以输出中更早的 DBCA 错误为准。
+
 ## 文件
 
 - `start-oracle21c.sh`：按模式执行完整生命周期。

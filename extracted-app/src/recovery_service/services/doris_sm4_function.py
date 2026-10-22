@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import secrets
 import shutil
 import subprocess
 import textwrap
-import base64
 import threading
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -23,15 +23,25 @@ from recovery_service.api.schemas.doris_encryption import (
 from recovery_service.common.time import app_now
 from recovery_service.core.models.task import DatabaseConnectionProfile, DorisSm4FunctionDeployment
 from recovery_service.db.session import get_sync_session_factory
-from recovery_service.services.doris_encryption import _doris_conn
 from recovery_service.services.auth import AuthContext
+from recovery_service.services.doris_encryption import _doris_conn
 from recovery_service.services.sm4_key_versions import (
     get_active_sm4_key_seed_for_jar,
     get_sm4_key_seed,
     get_sm4_key_seed_for_connection,
     register_sm4_key_version,
 )
-from recovery_service.services.sm4_runtime_guard import assert_sm4_key_rotation_allowed, sm4_database_guard
+from recovery_service.services.sm4_partial_rules import (
+    SM4_LIKE_FUNCTION,
+    SM4_PARTIAL_DECRYPT_FUNCTION,
+    SM4_PARTIAL_ENCRYPT_FUNCTION,
+    SM4_PARTIAL_FALLBACK_PREFIX,
+    SM4_PARTIAL_RULES,
+)
+from recovery_service.services.sm4_runtime_guard import (
+    assert_sm4_key_rotation_allowed,
+    sm4_database_guard,
+)
 from recovery_service.settings import get_settings
 
 _SYSTEM_DATABASES = {
@@ -62,11 +72,14 @@ def build_sm4_udf_jar(*, sm4_key: str | None, public_base_url: str) -> BuiltSm4J
     fingerprint = hashlib.sha256(key_seed.encode("utf-8")).hexdigest()[:16]
     symbol = f"CqSm4Encrypt_{fingerprint}"
     decrypt_symbol = f"CqSm4Decrypt_{fingerprint}"
+    partial_encrypt_symbol = f"CqSm4PartialEncrypt_{fingerprint}"
+    partial_decrypt_symbol = f"CqSm4PartialDecrypt_{fingerprint}"
+    like_symbol = f"CqSm4Like_{fingerprint}"
     verification_plaintext = f"oracle-recovery-sm4-verify-{fingerprint}"
     verification_ciphertext = sm4_encrypt_to_base64(verification_plaintext, key_seed)
     jar_dir = Path(get_settings().doris_sm4_udf_jar_dir)
     jar_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"cq-sm4-encrypt-{fingerprint}-v6.jar"
+    filename = f"cq-sm4-encrypt-{fingerprint}-v8.jar"
     jar_path = jar_dir / filename
     if jar_path.exists():
         return BuiltSm4Jar(
@@ -94,14 +107,32 @@ def build_sm4_udf_jar(*, sm4_key: str | None, public_base_url: str) -> BuiltSm4J
     classes_dir.mkdir(parents=True, exist_ok=True)
     java_file = src_dir / f"{symbol}.java"
     decrypt_java_file = src_dir / f"{decrypt_symbol}.java"
+    partial_encrypt_java_file = src_dir / f"{partial_encrypt_symbol}.java"
+    partial_decrypt_java_file = src_dir / f"{partial_decrypt_symbol}.java"
+    like_java_file = src_dir / f"{like_symbol}.java"
     java_file.write_text(_java_source(symbol, key_seed, mode="encrypt"), encoding="utf-8")
     decrypt_java_file.write_text(_java_source(decrypt_symbol, key_seed, mode="decrypt"), encoding="utf-8")
+    partial_encrypt_java_file.write_text(
+        _java_source(partial_encrypt_symbol, key_seed, mode="partial_encrypt"),
+        encoding="utf-8",
+    )
+    partial_decrypt_java_file.write_text(
+        _java_source(partial_decrypt_symbol, key_seed, mode="partial_decrypt"),
+        encoding="utf-8",
+    )
+    like_java_file.write_text(_java_source(like_symbol, key_seed, mode="like"), encoding="utf-8")
 
     try:
         _compile_java8_udf(
             javac,
             classes_dir=classes_dir,
-            java_files=[java_file, decrypt_java_file],
+            java_files=[
+                java_file,
+                decrypt_java_file,
+                partial_encrypt_java_file,
+                partial_decrypt_java_file,
+                like_java_file,
+            ],
         )
         subprocess.run(
             [jar_bin, "cf", str(jar_path), "-C", str(classes_dir), "."],
@@ -186,12 +217,14 @@ def _refresh_sm4_functions_locked(
     selected_databases = [_clean_identifier(item, "数据库名") for item in databases or [] if item.strip()]
     capability_map = {
         _clean_identifier(str(item.get("database") or ""), "数据库名"): (
-            bool(item.get("encrypt_enabled")), bool(item.get("decrypt_enabled"))
+            bool(item.get("encrypt_enabled")),
+            bool(item.get("decrypt_enabled")),
+            bool(item.get("like_enabled")),
         )
         for item in database_capabilities or []
         if str(item.get("database") or "").strip()
     }
-    if key_mode != "existing" and capability_map and not any(encrypt for encrypt, _decrypt in capability_map.values()):
+    if key_mode != "existing" and capability_map and not any(encrypt for encrypt, _decrypt, _like in capability_map.values()):
         raise ValueError("生成新密钥时至少需要在一个数据库启用加密函数。")
     previous = {item.database: item for item in list_sm4_function_deployments(connection_id=profile.id)}
     with _doris_conn(profile, None) as db:
@@ -199,16 +232,18 @@ def _refresh_sm4_functions_locked(
             target_databases = selected_databases or _list_databases(cur, include_system_databases)
             results: list[DorisSm4FunctionDatabaseResult] = []
             for database in target_databases:
-                encrypt_enabled, decrypt_enabled = capability_map.get(database, (True, True))
+                encrypt_enabled, decrypt_enabled, like_enabled = capability_map.get(database, (True, True, False))
                 prior = previous.get(database)
                 result = _refresh_function_in_database(
                     cur, database, clean_function, clean_decrypt_function, jar,
                     encrypt_enabled=encrypt_enabled,
                     decrypt_enabled=decrypt_enabled,
+                    like_enabled=like_enabled,
                     previous_fingerprint=prior.key_fingerprint if prior else None,
                 )
                 result.encrypt_enabled = encrypt_enabled
                 result.decrypt_enabled = decrypt_enabled
+                result.like_enabled = like_enabled
                 result.attempted_at = app_now()
                 results.append(result)
 
@@ -310,6 +345,7 @@ def _record_sm4_function_deployments(
             row.jar_filename = jar.filename
             row.encrypt_enabled = result.encrypt_enabled
             row.decrypt_enabled = result.decrypt_enabled
+            row.like_enabled = result.like_enabled
             row.state = result.state
             row.message = result.message
             row.verification_state = result.verification_state
@@ -335,6 +371,7 @@ def _deployment_response(row: DorisSm4FunctionDeployment) -> DorisSm4FunctionDep
         jar_filename=row.jar_filename,
         encrypt_enabled=row.encrypt_enabled,
         decrypt_enabled=row.decrypt_enabled,
+        like_enabled=row.like_enabled,
         state=row.state,  # type: ignore[arg-type]
         message=row.message or "",
         verification_state=row.verification_state,  # type: ignore[arg-type]
@@ -427,6 +464,7 @@ def _refresh_function_in_database(
     *,
     encrypt_enabled: bool = True,
     decrypt_enabled: bool = True,
+    like_enabled: bool = False,
     previous_fingerprint: str | None = None,
 ) -> DorisSm4FunctionDatabaseResult:
     impl_function = _implementation_function_name(function_name, jar.key_fingerprint)
@@ -436,9 +474,26 @@ def _refresh_function_in_database(
     encrypt_drop_names = [function_name, impl_function] + ([old_encrypt_impl] if old_encrypt_impl and old_encrypt_impl != impl_function else [])
     decrypt_drop_names = [decrypt_function_name, decrypt_impl_function] + ([old_decrypt_impl] if old_decrypt_impl and old_decrypt_impl != decrypt_impl_function else [])
     drop_names = list(dict.fromkeys(encrypt_drop_names + decrypt_drop_names))
-    drop_sql = "; ".join(f"DROP FUNCTION IF EXISTS {name}(STRING)" for name in drop_names)
+    partial_drop_sql = (
+        f"DROP FUNCTION IF EXISTS {SM4_PARTIAL_ENCRYPT_FUNCTION}(STRING, STRING); "
+        f"DROP FUNCTION IF EXISTS {SM4_PARTIAL_DECRYPT_FUNCTION}(STRING, STRING)"
+    )
+    like_drop_sql = f"DROP FUNCTION IF EXISTS {SM4_LIKE_FUNCTION}(STRING, STRING, STRING)"
+    drop_sql = "; ".join(f"DROP FUNCTION IF EXISTS {name}(STRING)" for name in drop_names) + f"; {partial_drop_sql}; {like_drop_sql}"
     verify_sql = f"SELECT {function_name}('{_sql_string(jar.verification_plaintext)}')"
     decrypt_verify_sql = f"SELECT {decrypt_function_name}('{_sql_string(jar.verification_ciphertext)}')"
+    partial_plaintext = "110101199001011234"
+    partial_ciphertext = sm4_partial_encrypt(partial_plaintext, jar.key_seed, "ID_KEEP_6_4")
+    partial_verify_sql = (
+        f"SELECT {SM4_PARTIAL_ENCRYPT_FUNCTION}('{partial_plaintext}', 'ID_KEEP_6_4')"
+    )
+    partial_decrypt_verify_sql = (
+        f"SELECT {SM4_PARTIAL_DECRYPT_FUNCTION}('{_sql_string(partial_ciphertext)}', 'ID_KEEP_6_4')"
+    )
+    like_verify_sql = (
+        f"SELECT IF({SM4_LIKE_FUNCTION}('{_sql_string(partial_ciphertext)}', '110101199001%', 'ID_KEEP_6_4') "
+        f"AND NOT {SM4_LIKE_FUNCTION}('{_sql_string(partial_ciphertext)}', '110101200001%', 'ID_KEEP_6_4'), 'ok', 'failed')"
+    )
     create_impl_sql = textwrap.dedent(
         f"""
         CREATE FUNCTION {impl_function}(STRING) RETURNS STRING PROPERTIES (
@@ -461,14 +516,44 @@ def _refresh_function_in_database(
     ).strip()
     create_alias_sql = f"CREATE ALIAS FUNCTION {function_name}(STRING) WITH PARAMETER(x) AS {impl_function}(x)"
     create_decrypt_alias_sql = f"CREATE ALIAS FUNCTION {decrypt_function_name}(STRING) WITH PARAMETER(x) AS {decrypt_impl_function}(x)"
+    create_partial_encrypt_sql = _java_udf_create_sql(
+        SM4_PARTIAL_ENCRYPT_FUNCTION,
+        "STRING, STRING",
+        "STRING",
+        jar.url,
+        f"CqSm4PartialEncrypt_{jar.key_fingerprint}",
+    )
+    create_partial_decrypt_sql = _java_udf_create_sql(
+        SM4_PARTIAL_DECRYPT_FUNCTION,
+        "STRING, STRING",
+        "STRING",
+        jar.url,
+        f"CqSm4PartialDecrypt_{jar.key_fingerprint}",
+    )
+    create_like_sql = _java_udf_create_sql(
+        SM4_LIKE_FUNCTION,
+        "STRING, STRING, STRING",
+        "BOOLEAN",
+        jar.url,
+        f"CqSm4Like_{jar.key_fingerprint}",
+    )
     create_parts = []
     if encrypt_enabled:
-        create_parts.extend([create_impl_sql, create_alias_sql])
+        create_parts.extend([create_impl_sql, create_alias_sql, create_partial_encrypt_sql])
     if decrypt_enabled:
-        create_parts.extend([create_decrypt_impl_sql, create_decrypt_alias_sql])
+        create_parts.append(create_decrypt_impl_sql)
+    if decrypt_enabled:
+        create_parts.extend([create_decrypt_alias_sql, create_partial_decrypt_sql])
+    if like_enabled:
+        create_parts.append(create_like_sql)
     create_sql = ";\n".join(create_parts)
     try:
         cur.execute(f"USE `{database.replace('`', '``')}`")
+        for name in (SM4_PARTIAL_ENCRYPT_FUNCTION, SM4_PARTIAL_DECRYPT_FUNCTION):
+            for arg_type in ("text", "VARCHAR", "STRING"):
+                cur.execute(f"DROP FUNCTION IF EXISTS {name}({arg_type}, {arg_type})")
+        for arg_type in ("text", "VARCHAR", "STRING"):
+            cur.execute(f"DROP FUNCTION IF EXISTS {SM4_LIKE_FUNCTION}({arg_type}, {arg_type}, {arg_type})")
         for name in drop_names:
             for arg_type in ("text", "VARCHAR", "STRING"):
                 cur.execute(f"DROP FUNCTION IF EXISTS {name}({arg_type})")
@@ -477,6 +562,7 @@ def _refresh_function_in_database(
         if encrypt_enabled:
             cur.execute(create_impl_sql)
             cur.execute(create_alias_sql)
+            cur.execute(create_partial_encrypt_sql)
             cur.execute(verify_sql)
             actual = _first_value(cur.fetchone()).strip()
         if encrypt_enabled and actual != jar.verification_ciphertext:
@@ -492,7 +578,9 @@ def _refresh_function_in_database(
             )
         if decrypt_enabled:
             cur.execute(create_decrypt_impl_sql)
+        if decrypt_enabled:
             cur.execute(create_decrypt_alias_sql)
+            cur.execute(create_partial_decrypt_sql)
             cur.execute(decrypt_verify_sql)
             decrypted = _first_value(cur.fetchone())
         if decrypt_enabled and decrypted != jar.verification_plaintext:
@@ -506,7 +594,57 @@ def _refresh_function_in_database(
                 verification_message=f"encrypt={actual or '-'}, decrypt_expected={jar.verification_plaintext}, decrypt_actual={decrypted or '-'}",
                 verification_sql=f"{verify_sql}; {decrypt_verify_sql}",
             )
-        enabled_text = "、".join(name for name, enabled in (("加密", encrypt_enabled), ("解密", decrypt_enabled)) if enabled) or "无"
+        if encrypt_enabled:
+            cur.execute(partial_verify_sql)
+            partial_actual = _first_value(cur.fetchone())
+            if partial_actual != partial_ciphertext:
+                return DorisSm4FunctionDatabaseResult(
+                    database=database,
+                    state="failed",
+                    message="整字段加密函数已创建，但局部加密函数验证失败，不能视为生效。",
+                    drop_sql=drop_sql,
+                    create_sql=create_sql,
+                    verification_state="failed",
+                    verification_message=f"partial_expected={partial_ciphertext}, partial_actual={partial_actual or '-'}",
+                    verification_sql=partial_verify_sql,
+                )
+        if decrypt_enabled:
+            cur.execute(partial_decrypt_verify_sql)
+            partial_decrypted = _first_value(cur.fetchone())
+            if partial_decrypted != partial_plaintext:
+                return DorisSm4FunctionDatabaseResult(
+                    database=database,
+                    state="failed",
+                    message="整字段解密函数已创建，但局部解密函数验证失败，不能视为生效。",
+                    drop_sql=drop_sql,
+                    create_sql=create_sql,
+                    verification_state="failed",
+                    verification_message=f"partial_decrypt_expected={partial_plaintext}, partial_decrypt_actual={partial_decrypted or '-'}",
+                    verification_sql=partial_decrypt_verify_sql,
+                )
+        if like_enabled:
+            cur.execute(create_like_sql)
+            cur.execute(like_verify_sql)
+            if _first_value(cur.fetchone()) != "ok":
+                return DorisSm4FunctionDatabaseResult(
+                    database=database,
+                    state="failed",
+                    message="LIKE 查询函数已创建，但命中/不命中验证失败，不能视为生效。",
+                    drop_sql=drop_sql,
+                    create_sql=create_sql,
+                    verification_state="failed",
+                    verification_message="CQ_SM4_LIKE verification failed.",
+                    verification_sql=like_verify_sql,
+                )
+        enabled_text = "、".join(
+            name
+            for name, enabled in (
+                ("整字段/局部加密", encrypt_enabled),
+                ("整字段/局部解密", decrypt_enabled),
+                ("密文 LIKE 查询", like_enabled),
+            )
+            if enabled
+        ) or "无"
         return DorisSm4FunctionDatabaseResult(
             database=database,
             state="success",
@@ -515,7 +653,15 @@ def _refresh_function_in_database(
             create_sql=create_sql,
             verification_state="success",
             verification_message="已启用函数均通过验证；未启用函数已删除。",
-            verification_sql="; ".join(sql for sql, enabled in ((verify_sql, encrypt_enabled), (decrypt_verify_sql, decrypt_enabled)) if enabled),
+            verification_sql="; ".join(
+                sql
+                for sql, enabled in (
+                    (verify_sql, encrypt_enabled),
+                    (decrypt_verify_sql, decrypt_enabled),
+                    (like_verify_sql, like_enabled),
+                )
+                if enabled
+            ),
         )
     except Exception as exc:
         return DorisSm4FunctionDatabaseResult(
@@ -622,6 +768,38 @@ def sm4_encrypt_to_base64(value: str, key_seed: str) -> str:
     return base64.b64encode(bytes(out)).decode("ascii")
 
 
+def sm4_partial_encrypt(value: str, key_seed: str, rule_code: str) -> str:
+    clean_rule = _clean_partial_rule(rule_code)
+    if value == "":
+        return ""
+    prefix_length, suffix_length = _partial_lengths(value, clean_rule)
+    if prefix_length + suffix_length >= len(value):
+        return SM4_PARTIAL_FALLBACK_PREFIX + sm4_encrypt_to_base64(value, key_seed)
+    middle_end = len(value) - suffix_length if suffix_length else len(value)
+    return (
+        value[:prefix_length]
+        + sm4_encrypt_to_base64(value[prefix_length:middle_end], key_seed)
+        + (value[middle_end:] if suffix_length else "")
+    )
+
+
+def sm4_partial_decrypt(value: str, key_seed: str, rule_code: str) -> str:
+    clean_rule = _clean_partial_rule(rule_code)
+    if value == "":
+        return ""
+    if value.startswith(SM4_PARTIAL_FALLBACK_PREFIX):
+        return sm4_decrypt_from_base64(value[len(SM4_PARTIAL_FALLBACK_PREFIX) :], key_seed)
+    prefix_length, suffix_length = _partial_encrypted_lengths(value, clean_rule)
+    middle_end = len(value) - suffix_length if suffix_length else len(value)
+    if middle_end <= prefix_length:
+        raise ValueError("SM4 局部密文长度不符合规则。")
+    return (
+        value[:prefix_length]
+        + sm4_decrypt_from_base64(value[prefix_length:middle_end], key_seed)
+        + (value[middle_end:] if suffix_length else "")
+    )
+
+
 def sm4_decrypt_from_base64(value: str, key_seed: str) -> str:
     key = _derive_sm4_key(key_seed)
     data = base64.b64decode(value.encode("ascii"), validate=True)
@@ -632,6 +810,50 @@ def sm4_decrypt_from_base64(value: str, key_seed: str) -> str:
     for index in range(0, len(data), 16):
         out.extend(_encrypt_block(data[index : index + 16], rk))
     return _pkcs7_unpad(bytes(out)).decode("utf-8")
+
+
+def _clean_partial_rule(rule_code: str) -> str:
+    clean = str(rule_code or "").strip().upper()
+    if clean not in SM4_PARTIAL_RULES:
+        raise ValueError(f"不支持的 SM4 局部加密规则：{rule_code or '-'}")
+    return clean
+
+
+def _partial_lengths(value: str, rule_code: str) -> tuple[int, int]:
+    if rule_code == "ID_KEEP_6_4":
+        return 6, 4
+    if rule_code == "PHONE_KEEP_3_4":
+        return 3, 4
+    if rule_code == "ADDRESS_KEEP_6_0":
+        return 6, 0
+    if rule_code == "NAME_HEAD_TAIL":
+        return (1, 0) if len(value) == 2 else (1, 1)
+    raise ValueError(f"不支持的 SM4 局部加密规则：{rule_code}")
+
+
+def _partial_encrypted_lengths(value: str, rule_code: str) -> tuple[int, int]:
+    if rule_code == "NAME_HEAD_TAIL":
+        return (1, 0) if len(value) == 25 else (1, 1)
+    return _partial_lengths(value, rule_code)
+
+
+def _java_udf_create_sql(
+    function_name: str,
+    argument_types: str,
+    return_type: str,
+    jar_url: str,
+    symbol: str,
+) -> str:
+    return textwrap.dedent(
+        f"""
+        CREATE FUNCTION {function_name}({argument_types}) RETURNS {return_type} PROPERTIES (
+          "file" = "{jar_url}",
+          "symbol" = "{symbol}",
+          "always_nullable" = "true",
+          "type" = "JAVA_UDF"
+        )
+        """
+    ).strip()
 
 
 def _derive_sm4_key(key_seed: str) -> bytes:
@@ -717,50 +939,62 @@ def _clean_identifier(value: str, label: str) -> str:
 
 
 def _java_source(class_name: str, key_seed: str, *, mode: str) -> str:
-    if mode not in {"encrypt", "decrypt"}:
-        raise ValueError("SM4 Java UDF mode must be encrypt or decrypt.")
+    if mode not in {"encrypt", "decrypt", "partial_encrypt", "partial_decrypt", "like"}:
+        raise ValueError("Unsupported SM4 Java UDF mode.")
     key_seed_literal = json.dumps(key_seed, ensure_ascii=False)
-    codec_field = "    private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();" if mode == "encrypt" else "    private static final Base64.Decoder BASE64_DECODER = Base64.getDecoder();"
-    evaluate_method = (
-        """
+    evaluate_methods = {
+        "encrypt": """
     public String evaluate(String input) {
-        if (input == null) return null;
-        byte[] plain = pad(input.getBytes(StandardCharsets.UTF_8));
-        int[] rk = roundKeys(KEY);
-        byte[] out = new byte[plain.length];
-        for (int i = 0; i < plain.length; i += 16) {
-            cryptBlock(plain, i, out, i, rk);
-        }
-        return BASE64_ENCODER.encodeToString(out);
+        return input == null ? null : encryptValue(input);
     }
-"""
-        if mode == "encrypt"
-        else """
+""",
+        "decrypt": """
     public String evaluate(String input) {
-        if (input == null) return null;
-        byte[] cipher = BASE64_DECODER.decode(input);
-        if (cipher.length == 0 || cipher.length % 16 != 0) {
-            throw new IllegalArgumentException("SM4 ciphertext must be non-empty and aligned to 16-byte blocks.");
-        }
-        int[] rk = reverse(roundKeys(KEY));
-        byte[] out = new byte[cipher.length];
-        for (int i = 0; i < cipher.length; i += 16) {
-            cryptBlock(cipher, i, out, i, rk);
-        }
-        return new String(unpad(out), StandardCharsets.UTF_8);
+        return input == null ? null : decryptValue(input);
     }
-"""
-    )
+""",
+        "partial_encrypt": """
+    public String evaluate(String input, String ruleCode) {
+        return input == null ? null : partialEncryptValue(input, ruleCode);
+    }
+""",
+        "partial_decrypt": """
+    public String evaluate(String input, String ruleCode) {
+        return input == null ? null : partialDecryptValue(input, ruleCode);
+    }
+""",
+        "like": """
+    public Boolean evaluate(String input, String pattern, String ruleCode) {
+        if (input == null || pattern == null || ruleCode == null) return false;
+        String rule = ruleCode.trim().toUpperCase(Locale.ROOT);
+        String plain;
+        if ("FULL".equals(rule)) {
+            plain = decryptValue(input);
+        } else if ("ID_KEEP_6_4".equals(rule) || "NAME_HEAD_TAIL".equals(rule)
+                || "PHONE_KEEP_3_4".equals(rule) || "ADDRESS_KEEP_6_0".equals(rule)) {
+            plain = partialDecryptValue(input, rule);
+        } else {
+            return false;
+        }
+        return matchesLike(plain, pattern);
+    }
+""",
+    }
+    evaluate_method = evaluate_methods[mode]
     return f"""
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 public class {class_name} {{
     private static final String KEY_SEED = {key_seed_literal};
     private static final byte[] KEY = leftMd5Hex(KEY_SEED, 16).getBytes(StandardCharsets.UTF_8);
-{codec_field}
+    private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
+    private static final Base64.Decoder BASE64_DECODER = Base64.getDecoder();
+    private static final String PARTIAL_FALLBACK_PREFIX = "{SM4_PARTIAL_FALLBACK_PREFIX}";
     private static final int[] SBOX = new int[] {{
         0xd6,0x90,0xe9,0xfe,0xcc,0xe1,0x3d,0xb7,0x16,0xb6,0x14,0xc2,0x28,0xfb,0x2c,0x05,
         0x2b,0x67,0x9a,0x76,0x2a,0xbe,0x04,0xc3,0xaa,0x44,0x13,0x26,0x49,0x86,0x06,0x99,
@@ -788,6 +1022,92 @@ public class {class_name} {{
     }};
 
 {evaluate_method}
+
+    private static String encryptValue(String input) {{
+        byte[] plain = pad(input.getBytes(StandardCharsets.UTF_8));
+        int[] rk = roundKeys(KEY);
+        byte[] out = new byte[plain.length];
+        for (int i = 0; i < plain.length; i += 16) {{
+            cryptBlock(plain, i, out, i, rk);
+        }}
+        return BASE64_ENCODER.encodeToString(out);
+    }}
+
+    private static String decryptValue(String input) {{
+        byte[] cipher = BASE64_DECODER.decode(input);
+        if (cipher.length == 0 || cipher.length % 16 != 0) {{
+            throw new IllegalArgumentException("SM4 ciphertext must be non-empty and aligned to 16-byte blocks.");
+        }}
+        int[] rk = reverse(roundKeys(KEY));
+        byte[] out = new byte[cipher.length];
+        for (int i = 0; i < cipher.length; i += 16) {{
+            cryptBlock(cipher, i, out, i, rk);
+        }}
+        return new String(unpad(out), StandardCharsets.UTF_8);
+    }}
+
+    private static String partialEncryptValue(String input, String ruleCode) {{
+        if (input.length() == 0) return "";
+        int[] lengths = partialLengths(input, ruleCode, false);
+        int prefix = lengths[0];
+        int suffix = lengths[1];
+        if (prefix + suffix >= input.length()) {{
+            return PARTIAL_FALLBACK_PREFIX + encryptValue(input);
+        }}
+        int middleEnd = suffix == 0 ? input.length() : input.length() - suffix;
+        return input.substring(0, prefix)
+            + encryptValue(input.substring(prefix, middleEnd))
+            + (suffix == 0 ? "" : input.substring(middleEnd));
+    }}
+
+    private static String partialDecryptValue(String input, String ruleCode) {{
+        if (input.length() == 0) return "";
+        if (input.startsWith(PARTIAL_FALLBACK_PREFIX)) {{
+            return decryptValue(input.substring(PARTIAL_FALLBACK_PREFIX.length()));
+        }}
+        int[] lengths = partialLengths(input, ruleCode, true);
+        int prefix = lengths[0];
+        int suffix = lengths[1];
+        int middleEnd = suffix == 0 ? input.length() : input.length() - suffix;
+        if (middleEnd <= prefix) throw new IllegalArgumentException("Invalid partial SM4 ciphertext length.");
+        return input.substring(0, prefix)
+            + decryptValue(input.substring(prefix, middleEnd))
+            + (suffix == 0 ? "" : input.substring(middleEnd));
+    }}
+
+    private static int[] partialLengths(String value, String ruleCode, boolean encrypted) {{
+        String rule = ruleCode == null ? "" : ruleCode.trim().toUpperCase(Locale.ROOT);
+        if ("ID_KEEP_6_4".equals(rule)) return new int[] {{ 6, 4 }};
+        if ("PHONE_KEEP_3_4".equals(rule)) return new int[] {{ 3, 4 }};
+        if ("ADDRESS_KEEP_6_0".equals(rule)) return new int[] {{ 6, 0 }};
+        if ("NAME_HEAD_TAIL".equals(rule)) {{
+            return new int[] {{ 1, (encrypted ? value.length() == 25 : value.length() == 2) ? 0 : 1 }};
+        }}
+        throw new IllegalArgumentException("Unsupported partial SM4 rule: " + ruleCode);
+    }}
+
+    private static boolean matchesLike(String value, String pattern) {{
+        StringBuilder regex = new StringBuilder("^");
+        boolean escaped = false;
+        for (int i = 0; i < pattern.length(); i++) {{
+            char ch = pattern.charAt(i);
+            if (escaped) {{
+                regex.append(Pattern.quote(String.valueOf(ch)));
+                escaped = false;
+            }} else if (ch == '\\\\') {{
+                escaped = true;
+            }} else if (ch == '%') {{
+                regex.append(".*");
+            }} else if (ch == '_') {{
+                regex.append('.');
+            }} else {{
+                regex.append(Pattern.quote(String.valueOf(ch)));
+            }}
+        }}
+        if (escaped) regex.append(Pattern.quote("\\\\"));
+        regex.append('$');
+        return Pattern.compile(regex.toString(), Pattern.DOTALL).matcher(value).matches();
+    }}
 
     private static byte[] pad(byte[] input) {{
         int pad = 16 - (input.length % 16);

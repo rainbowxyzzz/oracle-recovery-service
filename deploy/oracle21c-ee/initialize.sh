@@ -40,8 +40,6 @@ case "$TEMPFILE_INITIAL_SIZE:$TEMPFILE_NEXT_SIZE:$TEMPFILE_MAX_SIZE" in
   *[!0-9GgMmKk:]*|'') fail "Oracle tempfile size values must use simple units, for example 20G or 20480M" ;;
 esac
 
-docker ps --format '{{.Names}}' | grep -Fx "$CONTAINER" >/dev/null 2>&1 || fail "container is not running: $CONTAINER"
-
 oracle_sql() {
   docker exec -u 54321:54321 -i "$CONTAINER" sh -c '
     resolved_home=
@@ -71,11 +69,40 @@ SQL
   echo "$output" | grep -F 'READ WRITE' >/dev/null 2>&1
 }
 
+show_startup_diagnostics() {
+  docker logs --since "$STARTED_AT" --tail 200 "$CONTAINER" >&2 || true
+  log "DBCA diagnostic files below may contain historical attempts; check their timestamps"
+  docker exec -u 54321:54321 "$CONTAINER" sh -c '
+    for log_file in /opt/oracle/cfgtoollogs/dbca/*/*.log /opt/oracle/cfgtoollogs/dbca/*.log
+    do
+      [ -f "$log_file" ] || continue
+      echo "===== $log_file =====" >&2
+      tail -n 120 "$log_file" >&2
+    done
+  ' >&2 2>&1 || true
+}
+
+startup_failed() {
+  docker ps --format '{{.Names}}' | grep -Fx "$CONTAINER" >/dev/null 2>&1 || return 0
+  docker logs --since "$STARTED_AT" --tail 120 "$CONTAINER" 2>&1 | grep -E \
+    'DATABASE SETUP WAS NOT SUCCESSFUL|Error: The container does not have enough memory|Error: The container doesn.t have enough memory' \
+    >/dev/null 2>&1
+}
+
+STARTED_AT=$(docker inspect --format '{{.State.StartedAt}}' "$CONTAINER") || fail "cannot read container start time"
+[ -n "$STARTED_AT" ] || fail "container start time is empty"
 elapsed=0
-while ! pdb_is_ready
+while true
 do
+  if pdb_is_ready; then
+    break
+  fi
+  if startup_failed; then
+    show_startup_diagnostics
+    fail "Oracle database creation or startup failed before PDB $ORACLE_PDB became ready"
+  fi
   if [ "$elapsed" -ge "$TIMEOUT" ]; then
-    docker logs --tail 200 "$CONTAINER" >&2 || true
+    show_startup_diagnostics
     fail "PDB $ORACLE_PDB did not become READ WRITE within $TIMEOUT seconds"
   fi
   log "waiting for PDB $ORACLE_PDB ($elapsed/$TIMEOUT seconds)"

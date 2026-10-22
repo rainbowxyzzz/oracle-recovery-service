@@ -18,6 +18,23 @@ class Settings(BaseSettings):
     # Optional isolated Harness planner. No model or database credentials are exchanged.
     harness_bridge_url: str = ""
     harness_bridge_token: str = ""
+    knowledge_enabled: bool = False
+    knowledge_vault_root: Path = PROJECT_ROOT / "data" / "knowledge-vault"
+    knowledge_max_files: int = 5000
+    knowledge_max_file_bytes: int = 1048576
+    knowledge_chunk_chars: int = 3000
+    knowledge_chunk_overlap_chars: int = 300
+    knowledge_qdrant_url: str = ""
+    knowledge_qdrant_api_key: str = ""
+    knowledge_qdrant_collection: str = "oracle_recovery_knowledge"
+    knowledge_embedding_base_url: str = ""
+    knowledge_embedding_api_key: str = ""
+    knowledge_embedding_model: str = "bge-m3"
+    knowledge_score_threshold: float = 0.25
+    knowledge_chat_base_url: str = ""
+    knowledge_chat_api_key: str = ""
+    knowledge_chat_model: str = ""
+    knowledge_request_timeout_seconds: int = 60
     openmetadata_url: str = ""
     openmetadata_api_url: str = ""
     openmetadata_api_token: str = ""

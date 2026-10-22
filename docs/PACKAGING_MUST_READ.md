@@ -229,6 +229,14 @@ oracle-recovery-service-docker-run-20260715-oracle-logs-sm4-coverage-no-business
 6. 每次打包必须对基线和新 `.env.example` 做逐行 diff。发现无关删除或重排时停止打包。
 7. 必须在 `VERSION.txt` 或 README 中列出新增、弃用、默认值变化的环境变量；没有变化也应写明“环境变量结构沿用基线”。
 
+应用镜像版本属于交付包自身属性，不再属于用户环境配置：
+
+- 每个完整包必须包含 `package-images.env`，集中声明 `PACKAGE_VERSION`、`APP_IMAGE_TAR`、`API_IMAGE` 和全部 Worker 镜像标签。
+- `start-service.sh` 与 `load-images.sh` 必须在用户 `.env` 之后读取该清单，并以清单值覆盖历史 `.env` 中遗留的同名变量。
+- `.env.example` 中旧镜像变量保留为注释兼容说明，不写入活动版本值；升级时用户只保留原 `.env`，无需逐版修改镜像标签。
+- 回滚使用旧包目录及其 `package-images.env`，禁止通过修改当前包 `.env` 指向旧镜像。
+- 打包校验必须使用一个带旧镜像标签的测试 `.env`，证明最终实际选择的是当前包清单中的标签。
+
 用户确认一个新完整包后，该包成为下一版唯一基线，旧包不再作为派生模板。
 
 每次打包前必须检查：

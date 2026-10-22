@@ -96,6 +96,7 @@ async def decrypt_sm4_file(
     request: Request,
     file: UploadFile = File(...),
     columns: str = Form(...),
+    column_rules: str | None = Form(default=None),
     sm4_key: str | None = Form(default=None),
     key_id: uuid.UUID | None = Form(default=None),
     batch_id: uuid.UUID | None = Form(default=None),
@@ -110,12 +111,15 @@ async def decrypt_sm4_file(
         if len(content) > 20 * 1024 * 1024:
             raise ValueError("文件不能超过 20MB。")
         decrypt_columns = _parse_column_list(columns)
+        decrypt_column_rules = _parse_column_rules(column_rules)
         resolved_key_id = key_id
         resolved_fingerprint: str | None = None
         if key_id:
             resolved_key = get_sm4_key_seed(key_id)
         elif batch_id:
             resolved_key, resolved_key_id, resolved_fingerprint = get_sm4_key_seed_for_batch(batch_id)
+            if not decrypt_column_rules:
+                decrypt_column_rules = await _batch_column_rules(db, batch_id, decrypt_columns)
         else:
             resolved_key = (sm4_key or "").strip()
         if not resolved_key:
@@ -125,6 +129,7 @@ async def decrypt_sm4_file(
             filename=file.filename or "decrypt_input",
             content=content,
             decrypt_columns=decrypt_columns,
+            column_rules=decrypt_column_rules,
             sm4_key=resolved_key,
             output_format=output_format,
         )
@@ -138,6 +143,7 @@ async def decrypt_sm4_file(
             target_name=file.filename,
             payload={
                 "columns": decrypt_columns,
+                "column_rules": decrypt_column_rules,
                 "output_format": output_format,
                 "row_count": result.row_count,
                 "decrypted_count": result.decrypted_count,
@@ -209,6 +215,45 @@ def _parse_column_list(value: str) -> list[str]:
             raise ValueError("解密列参数必须是列名数组或逗号分隔文本。")
         return [str(item).strip() for item in parsed if str(item).strip()]
     return [item.strip() for item in raw.replace("\n", ",").split(",") if item.strip()]
+
+
+def _parse_column_rules(value: str | None) -> dict[str, str]:
+    raw = (value or "").strip()
+    if not raw:
+        return {}
+    parsed = json.loads(raw)
+    if not isinstance(parsed, dict):
+        raise ValueError("字段局部解密规则必须是字段名到规则编码的 JSON 对象。")
+    return {str(column).strip(): str(rule).strip() for column, rule in parsed.items() if str(column).strip() and str(rule).strip()}
+
+
+async def _batch_column_rules(
+    db: AsyncSession,
+    batch_id: uuid.UUID,
+    columns: list[str],
+) -> dict[str, str]:
+    from recovery_service.core.models.task import DorisSm4BatchJob
+
+    batch = await db.get(DorisSm4BatchJob, batch_id)
+    if not batch:
+        raise ValueError("历史加密批次不存在。")
+    selected = set(columns)
+    modes: dict[str, set[str]] = {column: set() for column in selected}
+    for table in batch.tables or []:
+        table_rules = table.get("column_rules") or {}
+        for column in table.get("columns") or []:
+            if column in selected:
+                modes[column].add(str(table_rules.get(column) or "FULL"))
+    conflicting = [column for column, values in modes.items() if len(values) > 1]
+    if conflicting:
+        raise ValueError(
+            f"历史批次中字段 {', '.join(conflicting)} 存在多个加密规则，请手动指定。"
+        )
+    return {
+        column: next(iter(values))
+        for column, values in modes.items()
+        if values and next(iter(values)) != "FULL"
+    }
 
 
 @router.get("/function-jars/{filename}", include_in_schema=False)

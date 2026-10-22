@@ -1,5 +1,11 @@
 # Oracle Recovery Service 项目 PRD 汇总
 
+2026-10-09 SM4 分类局部加密：保留现有 `CQ_SM4_ENCRYPT` / `CQ_SM4_DECRYPT` 整字段能力，新增固定的局部加解密函数；任务可为字段保存证件号码、姓名、电话、地址规则，规则随任务修订、调度批次和离线生产快照冻结。历史任务未配置规则时继续整字段加密。详见 `docs/SM4_ENCRYPTION_CENTER_PRD.md` 第 7.11 节。
+
+2026-10-10 Doris 密文 LIKE：新增固定 `CQ_SM4_LIKE(密文, 查询模式, 规则编码)`，与整字段及局部加解密类共同编入同一密钥版本 JAR，仅返回 LIKE 判断结果；密钥函数页面按库独立勾选，历史部署默认不启用，不修改业务表和历史密文。详见 `docs/SM4_ENCRYPTION_CENTER_PRD.md` 第 7.12 节。
+
+2026-09-18 企业知识库第一期：新增相对独立的 Markdown/Obsidian 知识库，复用现有登录、权限与审计，支持受控 Vault、仅发布文档、SHA-256 增量索引、OpenAI 兼容 Embedding/Chat、Qdrant 检索和带来源回答。知识库不直接执行 Oracle、Doris、SM4 或 Harness 操作；首版不提供实时文件监听、文档级密级隔离和 Tool Agent。详见 `docs/KNOWLEDGE_BASE_PRD.md`。
+
 2026-09-11 Oracle 双字符集还原目标：保留现有 `ZHS16GBK` Oracle 21c，还原启动入口必须使用同一镜像自动创建或启动独立的 `AL32UTF8` Oracle 21c；两个目标使用独立数据和表空间目录、共享 DMP 输入目录。嵌入式 Oracle 导入优先从精确匹配的导出日志识别源字符集；无日志时由 `SQLFILE` 探测识别 `ORA-39346` 或 `AL32UTF8` 到非 Unicode 目标的高风险转换，在正式导入和目标清理前切换到 UTF 目标。返回码 `5` 不单独触发切换，UTF 目标不可用时禁止降级到 `ZHS16GBK`。详见 `docs/ORACLE_RESTORE_CAPABILITY_IMPROVEMENT_PRD_20260714.md` 第 19 节。
 
 2026-09-11 一级优先级交互强化：数据库清理计划与连接、目标及删除选项绑定，任一输入变化立即作废旧计划；数据流业务引用改为按名称和版本选择并保留历史引用；SM4 安全访问覆盖合同、离线开发节点参数和同步字段映射改为结构化维护，同时继续写回原有 UUID、`coverage_contracts`、节点 `config` 和 `column_mapping` 结构，不改变后台执行规则。详见 `docs/PRIORITY_ONE_UI_HARDENING_PRD_20260911.md`。
@@ -1025,3 +1031,5 @@ Doris connection_id
 2026-09-09 数据自动化阶段可靠派发：恢复、同步、DWD 标准化和 ODS SM4 阶段必须把业务批次状态、下游执行实体和阶段派发记录放在同一系统库事务中。统一阶段派发表按业务批次、阶段和目标运行生成唯一幂等键；派发采用“至少一次投递、同一执行实体只允许一次有效抢占”，服务重启或消息结果不确定时自动补发，执行器必须忽略重复消息。运行台账展示待派发、已派发、运行中、成功和失败状态。详见 `docs/DATA_AUTOMATION_PIPELINE_PRD.md` 第 6.3 节。
 
 2026-09-10 Oracle 自动还原 Docker 17 兼容：Oracle 容器命令固定使用数值身份 `54321:54321`，自动还原不再调用会触发旧版 Docker 用户解析异常的 `docker cp`；日志采用容器内流式归档，非直读 DMP 采用标准输入流传输，并将用户解析异常单独分类为 `docker_user_resolution_failed`。详见 `docs/ORACLE_RESTORE_CAPABILITY_IMPROVEMENT_PRD_20260714.md` 第 18 节。
+
+2026-10-09 Docker Run 包版本自管理与双 Oracle 启动诊断：应用镜像标签和镜像归档文件名改由包内 `package-images.env` 固定声明，历史 `.env` 中遗留的版本值不再阻止升级；Oracle 21c 启动增加 CPU 架构、Oracle Home 预检及建库失败快速诊断，保留双字符集目标且不自动删除或重建现有数据目录。详见 `docs/ORACLE_RESTORE_CAPABILITY_IMPROVEMENT_PRD_20260714.md` 第 20 节。

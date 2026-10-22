@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from recovery_service.services.doris_sm4_function import sm4_decrypt_from_base64
+from recovery_service.services.doris_sm4_function import (
+    sm4_decrypt_from_base64,
+    sm4_partial_decrypt,
+)
+from recovery_service.services.sm4_partial_rules import SM4_PARTIAL_RULES
 
 FileFormat = Literal["csv", "json"]
 
@@ -30,6 +34,7 @@ def decrypt_file_content(
     filename: str,
     content: bytes,
     decrypt_columns: list[str],
+    column_rules: dict[str, str] | None = None,
     sm4_key: str,
     output_format: str = "preserve",
 ) -> FileDecryptResult:
@@ -56,13 +61,19 @@ def decrypt_file_content(
         errors.append({"row": None, "column": column, "message": "文件中不存在该列。"})
 
     active_columns = [column for column in clean_columns if column in column_set]
+    clean_rules = _clean_column_rules(active_columns, column_rules)
     for row_index, record in enumerate(records, start=1):
         for column in active_columns:
             value = record.get(column)
             if value is None or value == "":
                 continue
             try:
-                record[column] = sm4_decrypt_from_base64(str(value), key_seed)
+                rule_code = clean_rules.get(column)
+                record[column] = (
+                    sm4_partial_decrypt(str(value), key_seed, rule_code)
+                    if rule_code
+                    else sm4_decrypt_from_base64(str(value), key_seed)
+                )
                 decrypted_count += 1
             except Exception as exc:
                 failed_count += 1
@@ -96,6 +107,20 @@ def _clean_columns(columns: list[str]) -> list[str]:
         if clean and clean not in seen:
             result.append(clean)
             seen.add(clean)
+    return result
+
+
+def _clean_column_rules(columns: list[str], rules: dict[str, str] | None) -> dict[str, str]:
+    selected = set(columns)
+    result: dict[str, str] = {}
+    for column, rule_code in (rules or {}).items():
+        clean_column = str(column or "").strip()
+        clean_rule = str(rule_code or "").strip().upper()
+        if not clean_column or clean_column not in selected or not clean_rule or clean_rule == "FULL":
+            continue
+        if clean_rule not in SM4_PARTIAL_RULES:
+            raise ValueError(f"字段 {clean_column} 使用了不支持的 SM4 局部解密规则：{clean_rule}")
+        result[clean_column] = clean_rule
     return result
 
 

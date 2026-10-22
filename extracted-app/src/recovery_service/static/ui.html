@@ -1513,7 +1513,7 @@
     }
     .sm4-function-tree-row {
       display: grid;
-      grid-template-columns: minmax(150px, 1fr) 72px 72px 88px minmax(150px, 220px);
+      grid-template-columns: minmax(150px, 1fr) 72px 72px 88px 88px minmax(150px, 220px);
       align-items: center;
       min-height: 38px;
       padding: 0 10px;
@@ -2305,7 +2305,7 @@
       .sql-workbench { min-height: auto; }
       .sql-workbench-sidebar { max-height: 320px; }
       .data-platform-log-sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: 260px; }
-      .sm4-function-tree-row { grid-template-columns: minmax(120px, 1fr) 66px 66px 76px minmax(120px, 1fr); }
+      .sm4-function-tree-row { grid-template-columns: minmax(120px, 1fr) 66px 66px 76px 76px minmax(120px, 1fr); }
       .sm4-function-tree-row.child { padding-left: 12px; }
       .sm4-function-db-detail { display: none; }
       .modal.doris-csv-progress-modal {
@@ -3442,10 +3442,28 @@
     .data-flow-tab-content[hidden] { display: none; }
     .data-flow-card-ledger .data-flow-tabs { padding-left: 4px; }
     .data-flow-flow-id { color: var(--muted); font: 12px ui-monospace, Consolas, monospace; }
+    .knowledge-layout { display: grid; grid-template-columns: minmax(280px, 0.8fr) minmax(0, 2fr); gap: 16px; }
+    .knowledge-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    .knowledge-card h3 { margin: 0; font-size: 14px; }
+    .knowledge-source-list, .knowledge-run-list { display: grid; gap: 8px; margin-top: 12px; }
+    .knowledge-source-item, .knowledge-run-item { padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--background-subtle); }
+    .knowledge-source-item-head, .knowledge-run-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .knowledge-chat { min-height: 320px; max-height: 520px; overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--background-subtle); }
+    .knowledge-message { max-width: 88%; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .knowledge-message.user { margin-left: auto; background: var(--primary-soft); }
+    .knowledge-message.assistant { background: var(--panel); border: 1px solid var(--line); }
+    .knowledge-citations { display: grid; gap: 5px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .knowledge-query { display: grid; gap: 8px; margin-top: 12px; }
+    .knowledge-query textarea { min-height: 86px; resize: vertical; }
+    .knowledge-results { display: grid; gap: 8px; margin-top: 12px; }
+    .knowledge-result { padding: 10px; border-left: 3px solid var(--primary); background: var(--background-subtle); }
+    .knowledge-result p { margin: 6px 0 0; white-space: pre-wrap; }
+    .knowledge-lower-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr); gap: 16px; margin-top: 16px; }
     @media (max-width: 900px) {
       .data-automation-page-head, .data-automation-card-head { flex-wrap: wrap; }
       .data-automation-metrics, .metadata-status-grid, .data-flow-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .data-flow-ledger { grid-template-columns: 1fr; }
+      .knowledge-layout, .knowledge-lower-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 620px) {
       .data-automation-metrics, .metadata-status-grid, .data-flow-summary, .data-flow-modes, .data-flow-qualification { grid-template-columns: 1fr; }
@@ -3540,6 +3558,7 @@
           <div class="nav-domain-menu" role="menu">
             <button type="button" data-nav-module="apiOrchestration">接口编排中心</button>
             <button type="button" data-nav-module="dataLineage">OpenMetadata 数据目录</button>
+            <button type="button" data-nav-module="knowledgeBase">企业知识库</button>
             <button type="button" data-nav-module="cleanup">数据库清理</button>
             <button type="button" data-nav-module="helpArchitecture">帮助与架构中心</button>
           </div>
@@ -5338,7 +5357,7 @@
             <input id="dorisEncryptManualKey" type="password" placeholder="例如：cqaudit@@@2026">
             <label for="dorisEncryptExistingKeyId">已有密钥版本</label>
             <select id="dorisEncryptExistingKeyId" disabled><option value="">请选择已有密钥版本</option></select>
-            <div class="hint">新密钥会生成新版本；已有密钥只调整数据库函数覆盖范围。取消能力会删除该库对应函数，不删除密钥、任务、批次、调度或业务数据。</div>
+            <div class="hint">新密钥会生成新版本；已有密钥只调整数据库函数覆盖范围。LIKE 能力创建 CQ_SM4_LIKE(密文, 查询模式, 规则编码)，复用同一密钥且只返回匹配结果。取消能力会删除该库对应函数，不删除密钥、任务、批次、调度或业务数据。</div>
             <div class="sm4-function-tree-toolbar">
               <strong>目标业务库</strong>
               <div class="actions">
@@ -5351,6 +5370,8 @@
               <button type="button" data-sm4-capability-batch="encrypt-off">取消加密</button>
               <button type="button" data-sm4-capability-batch="decrypt-on">解密全选</button>
               <button type="button" data-sm4-capability-batch="decrypt-off">取消解密</button>
+              <button type="button" data-sm4-capability-batch="like-on">LIKE 全选</button>
+              <button type="button" data-sm4-capability-batch="like-off">取消 LIKE</button>
               <button type="button" data-sm4-capability-batch="both-on">全部能力</button>
               <button type="button" data-sm4-capability-batch="both-off">全部清空</button>
             </div>
@@ -6253,6 +6274,42 @@
       </div>
     </section>
 
+    <section class="module-panel" data-module="knowledgeBase">
+      <div class="toolbar">
+        <div><span class="eyebrow">ENTERPRISE KNOWLEDGE</span><h2 style="margin:0">企业知识库</h2><div class="hint">从受控 Markdown / Obsidian Vault 增量索引，回答必须附带知识来源</div></div>
+        <div class="actions"><button id="knowledgeRefreshBtn" type="button">刷新</button></div>
+      </div>
+      <div id="knowledgeMessage" class="message"></div>
+      <div class="metadata-status-grid" style="margin-bottom:16px"><div class="metadata-status-item"><span>模块状态</span><strong id="knowledgeEnabledStatus">等待检查</strong><small>KNOWLEDGE_ENABLED</small></div><div class="metadata-status-item"><span>知识目录</span><strong id="knowledgeVaultStatus">等待检查</strong><small>受控 Markdown Vault</small></div><div class="metadata-status-item"><span>向量检索</span><strong id="knowledgeVectorStatus">等待检查</strong><small id="knowledgeEmbeddingModel">Embedding / Qdrant</small></div><div class="metadata-status-item"><span>回答模型</span><strong id="knowledgeChatStatus">等待检查</strong><small id="knowledgeChatModel">兼容 Chat API</small></div></div>
+      <div class="knowledge-layout">
+        <aside class="knowledge-card">
+          <div class="toolbar"><h3>知识源</h3><span id="knowledgeSourceCount" class="hint">0 个</span></div>
+          <form id="knowledgeSourceForm">
+            <label for="knowledgeSourceName">名称</label>
+            <input id="knowledgeSourceName" placeholder="例如：数据治理知识库" maxlength="128">
+            <label for="knowledgeSourcePath">Vault 相对目录</label>
+            <input id="knowledgeSourcePath" value="." maxlength="512">
+            <label><input id="knowledgeSourceEnabled" type="checkbox" checked> 启用知识源</label>
+            <button id="knowledgeSourceSaveBtn" class="primary" type="submit">新增知识源</button>
+          </form>
+          <div id="knowledgeSourceList" class="knowledge-source-list"><div class="muted">暂无知识源。</div></div>
+        </aside>
+        <section class="knowledge-card">
+          <div class="toolbar"><h3>知识问答</h3><span class="hint">不会执行数据库或业务任务</span></div>
+          <div id="knowledgeChat" class="knowledge-chat"><div class="muted">输入问题后，系统将检索已发布文档并返回带引用回答。</div></div>
+          <div class="knowledge-query">
+            <textarea id="knowledgeQuestion" placeholder="例如：审批流自动授权如何开启持续监听？" maxlength="2000"></textarea>
+            <div class="actions"><button id="knowledgeSearchBtn" type="button">只检索</button><button id="knowledgeAskBtn" class="primary" type="button">提问</button></div>
+          </div>
+          <div id="knowledgeSearchResults" class="knowledge-results"></div>
+        </section>
+      </div>
+      <div class="knowledge-lower-grid">
+        <section class="knowledge-card"><div class="toolbar"><h3>已索引文档</h3><span id="knowledgeDocumentCount" class="hint">0 篇</span></div><div class="table-wrap"><table><thead><tr><th>标题</th><th>路径</th><th>模块 / 标签</th><th>分段</th><th>索引时间</th></tr></thead><tbody id="knowledgeDocumentRows"><tr><td colspan="5" class="muted">暂无已索引文档。</td></tr></tbody></table></div></section>
+        <section class="knowledge-card"><div class="toolbar"><h3>索引记录</h3><span class="hint">最近 50 次</span></div><div id="knowledgeRunList" class="knowledge-run-list"><div class="muted">暂无索引记录。</div></div></section>
+      </div>
+    </section>
+
     <section class="module-panel" data-module="helpArchitecture">
       <div class="toolbar">
         <div><h2 style="margin:0">帮助与架构中心</h2><div class="hint">功能说明、接口契约、影响范围和模块耦合的统一只读入口</div></div>
@@ -6548,6 +6605,7 @@
       let dorisEncryptCatalog = null;
       let dorisEncryptSourceDatabases = [];
       let dorisEncryptSelections = new Map();
+      let dorisEncryptColumnRules = new Map();
       let dorisEncryptSelectedTables = new Set();
       let dorisEncryptExpandedTables = new Set();
       let dorisEncryptTableMode = "drop_recreate";
@@ -6582,7 +6640,15 @@
       let dorisEncryptFunctionDeployments = new Map();
       let dorisEncryptFunctionConnectionId = "";
       let dorisEncryptFileDecryptColumns = [];
+      let dorisEncryptFileDecryptRules = {};
       let dorisEncryptFileDecryptResult = null;
+      const dorisEncryptPartialRules = [
+        ["FULL", "整字段加密"],
+        ["ID_KEEP_6_4", "证件号：保留前6后4"],
+        ["NAME_HEAD_TAIL", "姓名：2字留首、3字以上留首尾"],
+        ["PHONE_KEEP_3_4", "电话：保留前3后4"],
+        ["ADDRESS_KEEP_6_0", "地址：保留前6"]
+      ];
       let dorisSqlEtlTasks = [];
       let dorisSqlEtlRuns = [];
       let queryExportJobs = [];
@@ -7164,6 +7230,7 @@
         dorisSm3Logs: "查询脱敏运行日志",
         apiOrchestration: "设计与运行接口流程",
         dataLineage: "管理资产、血缘与质量",
+        knowledgeBase: "检索内部规则、流程与案例",
         cleanup: "执行可控的数据清理",
         helpArchitecture: "查看能力地图与指引",
         assistant: "打开独立的智能助手工作台",
@@ -7991,6 +8058,7 @@
         { id:"dataPlatform", name:"离线开发", prefix:["/data-platform"], risk:"高", purpose:"将组件编排为版本化流程并配置生产调度。", steps:"创建流程 → 绑定组件 → 保存开发版 → 提交/发布 → 调度或运行", permission:"dataPlatform:read/design/publish/execute/monitor", impact:"发布快照隔离后续编辑；运行影响由各节点决定。", upstream:"同步、触发器、SM4/SM3、SQL 组件", downstream:"调度、Worker、运行日志" },
         { id:"dataAutomation", name:"数据流编排与运行台账", prefix:["/data-automation/pipelines","/data-automation/batches","/data-automation/blueprints","/data-automation/assets","/data-automation/orchestration"], risk:"高", purpose:"按业务流记录 Oracle 还原、ODS 全表落地、ODS 安全加密、DWD 开发和元数据输出。", steps:"绑定恢复/同步/DWD/SM4 任务 → 完成首次建模 → 核验并冻结安全合同 → 启用安全编排 → 审计后续批次", permission:"dataPlatform:read/design/execute + dorisEncrypt", impact:"受保护批次先加密 ODS 再运行 DWD；合同、Schema 或血缘不一致时阻断且不回退明文。", upstream:"DMP 目录、恢复模板、Oracle→ODS 全表同步组件、DWD 生产版本", downstream:"Doris ODS 安全表、DWD 标准资产、安全别名、OpenMetadata" },
         { id:"dataLineage", name:"OpenMetadata 数据目录", prefix:["/data-automation/openmetadata", "/data-automation/lineage"], risk:"低", purpose:"打开 OpenMetadata 原生目录，统一使用采集、搜索、表/字段血缘、质量、标签、术语和 AI 上下文能力。", steps:"检查连接状态 → 打开 OpenMetadata → 按需同步当前资产与血缘快照", permission:"dataPlatform:read / execute", impact:"目录同步失败不阻塞当前任务；任务、批次、运行日志仍由本系统负责。", upstream:"自动化批次、OpenLineage 事件、连接器采集", downstream:"影响分析、质量治理、AI 上下文" },
+        { id:"knowledgeBase", name:"企业知识库", prefix:["/knowledge"], risk:"低", purpose:"索引受控 Markdown / Obsidian 知识并提供带来源的检索问答。", steps:"登记知识源 → 发布 Markdown → 增量索引 → 检索或提问 → 核对引用", permission:"knowledgeBase:read/chat/manage/index", impact:"只读取 Vault 并更新知识向量，不执行数据库或业务任务。", upstream:"Markdown Vault、Embedding、Qdrant、回答模型", downstream:"知识检索、内部问答" },
         { id:"cleanup", name:"数据库清理", prefix:["/database-cleanup"], risk:"高", purpose:"生成和执行数据库对象清理计划。", steps:"选择连接 → 读取目录 → 生成计划 → 二次确认 → 执行", permission:"cleanup:read/execute", impact:"可能删除数据库对象或数据，属于破坏性操作。", upstream:"数据库连接、对象目录", downstream:"目标业务库" }
       ];
       let helpCenterOpenApi = null;
@@ -8070,6 +8138,126 @@
         $("helpCenterContent").innerHTML = `<div class="help-card"><h3>关键运行链路</h3><div class="help-architecture-flow"><div class="help-architecture-node">数据连接</div><div class="help-architecture-node">组件 / 任务定义</div><div class="help-architecture-node">发布快照 / 密钥绑定</div><div class="help-architecture-node">调度与队列</div><div class="help-architecture-node">Worker 与业务库</div></div></div><div class="help-coupling-grid">${HELP_MODULES.map((item) => `<article class="help-card"><h3>${escapeHtml(item.name)}</h3><dl><dt>依赖</dt><dd>${escapeHtml(item.upstream)}</dd><dt>影响</dt><dd>${escapeHtml(item.downstream)}</dd><dt>数据边界</dt><dd>${escapeHtml(item.impact)}</dd></dl></article>`).join("")}</div>`;
       }
 
+      let knowledgeSources = [];
+      let knowledgeDocuments = [];
+      let knowledgeRuns = [];
+
+      function renderKnowledgeSources() {
+        $("knowledgeSourceCount").textContent = `${knowledgeSources.length} 个`;
+        $("knowledgeSourceForm").hidden = !hasAction("knowledgeBase:manage");
+        $("knowledgeSourceList").innerHTML = knowledgeSources.map((source) => `<div class="knowledge-source-item">
+          <div class="knowledge-source-item-head"><div><strong>${escapeHtml(source.name)}</strong><div class="muted">${escapeHtml(source.root_path)}</div></div><span class="help-pill">${source.enabled ? "已启用" : "已停用"}</span></div>
+          <div class="actions" style="margin-top:8px">
+            ${hasAction("knowledgeBase:index") && source.enabled ? `<button type="button" data-knowledge-index="${escapeHtml(source.id)}">增量索引</button>` : ""}
+            ${hasAction("knowledgeBase:manage") ? `<button type="button" data-knowledge-toggle="${escapeHtml(source.id)}">${source.enabled ? "停用" : "启用"}</button>` : ""}
+          </div>
+        </div>`).join("") || '<div class="muted">暂无知识源。管理员需要先配置 Vault 相对目录。</div>';
+      }
+
+      function renderKnowledgeDocuments() {
+        $("knowledgeDocumentCount").textContent = `${knowledgeDocuments.length} 篇`;
+        $("knowledgeDocumentRows").innerHTML = knowledgeDocuments.map((item) => `<tr>
+          <td><strong>${escapeHtml(item.title || "未命名")}</strong>${item.owner ? `<br><span class="muted">负责人：${escapeHtml(item.owner)}</span>` : ""}</td>
+          <td>${escapeHtml(item.relative_path)}</td>
+          <td>${escapeHtml(item.module || "-")}<br><span class="muted">${escapeHtml((item.tags || []).join("、") || "无标签")}</span></td>
+          <td>${item.chunk_count || 0}</td><td>${escapeHtml(formatTime(item.indexed_at) || "-")}</td>
+        </tr>`).join("") || '<tr><td colspan="5" class="muted">暂无已索引文档。</td></tr>';
+      }
+
+      function renderKnowledgeRuns() {
+        $("knowledgeRunList").innerHTML = knowledgeRuns.map((run) => `<div class="knowledge-run-item">
+          <div class="knowledge-run-item-head"><strong>${escapeHtml(run.state)}</strong><span class="muted">${escapeHtml(formatTime(run.started_at) || "-")}</span></div>
+          <div class="muted">扫描 ${run.scanned_count} / 更新 ${run.indexed_count} / 未变 ${run.unchanged_count} / 删除 ${run.deleted_count} / 失败 ${run.error_count}</div>
+          ${run.message ? `<div>${escapeHtml(run.message)}</div>` : ""}
+        </div>`).join("") || '<div class="muted">暂无索引记录。</div>';
+      }
+
+      async function refreshKnowledgeBase() {
+        const requests = [api("/api/v1/knowledge/status"), api("/api/v1/knowledge/sources"), api("/api/v1/knowledge/documents")];
+        if (hasAction("knowledgeBase:index")) requests.push(api("/api/v1/knowledge/index-runs"));
+        const values = await Promise.all(requests);
+        const status = values[0] || {};
+        $("knowledgeEnabledStatus").textContent = status.enabled ? "已启用" : "未启用";
+        $("knowledgeVaultStatus").textContent = status.vault_available ? "目录可用" : "目录不可用";
+        $("knowledgeVectorStatus").textContent = status.qdrant_configured && status.embedding_configured ? "已配置" : "配置不完整";
+        $("knowledgeEmbeddingModel").textContent = status.embedding_model || "Embedding / Qdrant";
+        $("knowledgeChatStatus").textContent = status.chat_configured ? "已配置" : "未配置";
+        $("knowledgeChatModel").textContent = status.chat_model || "兼容 Chat API";
+        knowledgeSources = values[1] || [];
+        knowledgeDocuments = values[2] || [];
+        knowledgeRuns = values[3] || [];
+        renderKnowledgeSources();
+        renderKnowledgeDocuments();
+        renderKnowledgeRuns();
+      }
+
+      async function createKnowledgeSource(event) {
+        event.preventDefault();
+        const name = $("knowledgeSourceName").value.trim();
+        if (!name) return setMessage("knowledgeMessage", "请输入知识源名称。", "error");
+        await api("/api/v1/knowledge/sources", { method: "POST", body: JSON.stringify({
+          name,
+          root_path: $("knowledgeSourcePath").value.trim() || ".",
+          enabled: $("knowledgeSourceEnabled").checked
+        }) });
+        $("knowledgeSourceName").value = "";
+        setMessage("knowledgeMessage", "知识源已新增。", "ok");
+        await refreshKnowledgeBase();
+      }
+
+      async function runKnowledgeIndex(sourceId) {
+        setMessage("knowledgeMessage", "正在执行增量索引，请勿重复提交。", "");
+        const result = await api(`/api/v1/knowledge/sources/${encodeURIComponent(sourceId)}/index`, { method: "POST" });
+        setMessage("knowledgeMessage", `索引完成：更新 ${result.indexed_count}，未变化 ${result.unchanged_count}，失败 ${result.error_count}。`, result.error_count ? "error" : "ok");
+        await refreshKnowledgeBase();
+      }
+
+      async function toggleKnowledgeSource(sourceId) {
+        const source = knowledgeSources.find((item) => item.id === sourceId);
+        if (!source) return;
+        await api(`/api/v1/knowledge/sources/${encodeURIComponent(sourceId)}`, { method: "PUT", body: JSON.stringify({ enabled: !source.enabled }) });
+        setMessage("knowledgeMessage", source.enabled ? "知识源已停用。" : "知识源已启用。", "ok");
+        await refreshKnowledgeBase();
+      }
+
+      function knowledgeQueryValue() {
+        const query = $("knowledgeQuestion").value.trim();
+        if (!query) setMessage("knowledgeMessage", "请输入要检索或提问的内容。", "error");
+        return query;
+      }
+
+      async function searchKnowledge() {
+        const query = knowledgeQueryValue();
+        if (!query) return;
+        $("knowledgeSearchResults").innerHTML = '<div class="muted">正在检索已发布知识。</div>';
+        const result = await api("/api/v1/knowledge/search", { method: "POST", body: JSON.stringify({ query, top_k: 8 }) });
+        $("knowledgeSearchResults").innerHTML = (result.results || []).map((item) => `<article class="knowledge-result"><strong>${escapeHtml(item.title || "未命名")} · ${escapeHtml(item.heading || "正文")}</strong><div class="muted">${escapeHtml(item.relative_path || "-")} · 相似度 ${Number(item.score || 0).toFixed(3)}</div><p>${escapeHtml(item.excerpt || "")}</p></article>`).join("") || '<div class="muted">没有找到相关的已发布知识。</div>';
+      }
+
+      async function askKnowledge() {
+        const query = knowledgeQueryValue();
+        if (!query) return;
+        const askButton = $("knowledgeAskBtn");
+        if (askButton.disabled) return;
+        askButton.disabled = true;
+        const chat = $("knowledgeChat");
+        if (chat.querySelector(".muted")) chat.innerHTML = "";
+        chat.insertAdjacentHTML("beforeend", `<div class="knowledge-message user">${escapeHtml(query)}</div><div id="knowledgeAnswerPending" class="knowledge-message assistant">正在检索并生成回答…</div>`);
+        chat.scrollTop = chat.scrollHeight;
+        try {
+          const result = await api("/api/v1/knowledge/chat", { method: "POST", body: JSON.stringify({ query, top_k: 8 }) });
+          const citations = (result.citations || []).map((item) => `<div>[${item.ref}] ${escapeHtml(item.title || "未命名")} · ${escapeHtml(item.relative_path || "-")} · ${escapeHtml(item.heading || "正文")}</div>`).join("");
+          $("knowledgeAnswerPending").outerHTML = `<div class="knowledge-message assistant">${escapeHtml(result.answer || "未返回回答")}<div class="knowledge-citations">${citations}</div></div>`;
+          $("knowledgeQuestion").value = "";
+        } catch (error) {
+          $("knowledgeAnswerPending").textContent = `问答失败：${error.message}`;
+          throw error;
+        } finally {
+          askButton.disabled = false;
+          chat.scrollTop = chat.scrollHeight;
+        }
+      }
+
       function showModule(moduleName) {
         const next = moduleName || "system";
         document.querySelectorAll("[data-nav-module]").forEach((button) => {
@@ -8116,6 +8304,9 @@
         }
         if (next === "helpArchitecture") {
           loadHelpCenter().catch((e) => { $("helpCenterStatus").textContent = "加载失败"; setMessage("systemMessage", e.message, "error"); });
+        }
+        if (next === "knowledgeBase" && hasAction("knowledgeBase:read")) {
+          refreshKnowledgeBase().catch((e) => setMessage("knowledgeMessage", e.message, "error"));
         }
         if (next === "dataAutomation" && hasAction("dataPlatform:read")) {
           refreshDataAutomation().catch((e) => setMessage("dataAutomationMessage", e.message, "error"));
@@ -8181,6 +8372,16 @@
           helpCenterSelectedApi = button.dataset.helpApi || "";
           renderHelpApis();
         });
+        $("knowledgeRefreshBtn")?.addEventListener("click", () => refreshKnowledgeBase().catch((e) => setMessage("knowledgeMessage", e.message, "error")));
+        $("knowledgeSourceForm")?.addEventListener("submit", (event) => createKnowledgeSource(event).catch((e) => setMessage("knowledgeMessage", e.message, "error")));
+        $("knowledgeSourceList")?.addEventListener("click", (event) => {
+          const indexButton = event.target.closest("[data-knowledge-index]");
+          const toggleButton = event.target.closest("[data-knowledge-toggle]");
+          if (indexButton) runKnowledgeIndex(indexButton.dataset.knowledgeIndex).catch((e) => setMessage("knowledgeMessage", e.message, "error"));
+          if (toggleButton) toggleKnowledgeSource(toggleButton.dataset.knowledgeToggle).catch((e) => setMessage("knowledgeMessage", e.message, "error"));
+        });
+        $("knowledgeSearchBtn")?.addEventListener("click", () => searchKnowledge().catch((e) => setMessage("knowledgeMessage", e.message, "error")));
+        $("knowledgeAskBtn")?.addEventListener("click", () => askKnowledge().catch((e) => setMessage("knowledgeMessage", e.message, "error")));
         document.addEventListener("click", (event) => {
           if (!$("systemAdminNavMenu")?.contains(event.target)) closeSystemUserMenu();
         });
@@ -8196,6 +8397,13 @@
         $("dorisEncryptFileDecryptColumnChips")?.addEventListener("click", (event) => {
           const button = event.target.closest("[data-file-decrypt-column]");
           if (button) toggleDorisEncryptFileDecryptColumn(button.getAttribute("data-file-decrypt-column") || "");
+        });
+        $("dorisEncryptFileDecryptColumnChips")?.addEventListener("change", (event) => {
+          const select = event.target.closest("[data-file-decrypt-rule]");
+          if (!select) return;
+          const column = select.getAttribute("data-file-decrypt-rule") || "";
+          if (select.value && select.value !== "FULL") dorisEncryptFileDecryptRules[column] = select.value;
+          else delete dorisEncryptFileDecryptRules[column];
         });
         $("dorisEncryptFileDecryptRunBtn")?.addEventListener("click", () => {
           runDorisEncryptFileDecrypt().catch((e) => setMessage("dorisEncryptFileDecryptMessage", e.message, "error"));
@@ -8339,6 +8547,7 @@
         $("dorisEncryptFileDecryptPreview").textContent = "";
         if (!file) {
           dorisEncryptFileDecryptColumns = [];
+          dorisEncryptFileDecryptRules = {};
           renderDorisEncryptFileDecryptColumns();
           return;
         }
@@ -8397,7 +8606,7 @@
           return;
         }
         host.innerHTML = dorisEncryptFileDecryptColumns.map((column) => `
-          <button class="field-chip ${selected.includes(column) ? "selected" : ""}" type="button" data-file-decrypt-column="${escapeHtml(column)}">${escapeHtml(column)}</button>
+          <span class="actions" style="display:inline-flex;margin:3px 6px 3px 0"><button class="field-chip ${selected.includes(column) ? "selected" : ""}" type="button" data-file-decrypt-column="${escapeHtml(column)}">${escapeHtml(column)}</button>${selected.includes(column) ? `<select data-file-decrypt-rule="${escapeHtml(column)}" aria-label="${escapeHtml(column)} 解密规则" style="min-width:220px">${dorisEncryptPartialRules.map(([value, label]) => `<option value="${value}" ${value === (dorisEncryptFileDecryptRules[column] || "FULL") ? "selected" : ""}>${label}</option>`).join("")}</select>` : ""}</span>
         `).join("");
       }
 
@@ -8414,6 +8623,7 @@
         const selected = selectedDorisEncryptFileDecryptColumns();
         const exists = selected.includes(column);
         input.value = (exists ? selected.filter((item) => item !== column) : [...selected, column]).join(",");
+        if (exists) delete dorisEncryptFileDecryptRules[column];
         renderDorisEncryptFileDecryptColumns();
       }
 
@@ -8433,6 +8643,9 @@
         const form = new FormData();
         form.append("file", file);
         form.append("columns", JSON.stringify(columns));
+        form.append("column_rules", JSON.stringify(Object.fromEntries(
+          Object.entries(dorisEncryptFileDecryptRules).filter(([column, rule]) => columns.includes(column) && rule && rule !== "FULL")
+        )));
         if (keyMode === "manual") {
           form.append("sm4_key", key);
         } else if (keyMode === "saved") {
@@ -8483,6 +8696,7 @@
         $("dorisEncryptFileDecryptSummary").textContent = "尚未执行文件解密。";
         $("dorisEncryptFileDecryptDownloadBtn").disabled = true;
         dorisEncryptFileDecryptColumns = [];
+        dorisEncryptFileDecryptRules = {};
         dorisEncryptFileDecryptResult = null;
         updateDorisEncryptFileDecryptKeyModeView();
         renderDorisEncryptFileDecryptColumns();
@@ -12718,11 +12932,13 @@
         setMessage("dorisEncryptMessage", "正在扫描 Doris 库表字段...", "");
         dorisEncryptCatalog = await api("/api/v1/doris-encryption/catalog", { method: "POST", body: JSON.stringify(body) });
         dorisEncryptSelections = new Map();
+        dorisEncryptColumnRules = new Map();
         dorisEncryptSelectedTables = new Set();
         dorisEncryptExpandedTables = new Set();
         (dorisEncryptCatalog.tables || []).forEach((table) => {
           const selectedColumns = new Set((table.columns || []).filter((column) => column.selected).map((column) => column.name));
           dorisEncryptSelections.set(table.name, selectedColumns);
+          dorisEncryptColumnRules.set(table.name, new Map());
           if (selectedColumns.size && table.mask_role !== "masked") dorisEncryptSelectedTables.add(table.name);
         });
         renderDorisEncryptTables();
@@ -12755,9 +12971,11 @@
           const chips = (table.columns || []).map((column) => {
             const checked = selected.has(column.name);
             const matched = (column.matched_keywords || []).length ? ` / 命中：${column.matched_keywords.join("，")}` : "";
-            return `<button class="field-chip ${checked ? "selected" : ""}" type="button" data-doris-encrypt-column="${escapeHtml(column.name)}" data-table-index="${tableIndex}">
+            const ruleCode = dorisEncryptColumnRules.get(table.name)?.get(column.name) || "FULL";
+            const ruleSelect = checked ? `<select data-doris-encrypt-rule="${escapeHtml(column.name)}" data-table-index="${tableIndex}" aria-label="${escapeHtml(column.name)} 加密规则" style="min-width:220px">${dorisEncryptPartialRules.map(([value, label]) => `<option value="${value}" ${value === ruleCode ? "selected" : ""}>${label}</option>`).join("")}</select>` : "";
+            return `<span class="actions" style="display:inline-flex;margin:3px 6px 3px 0"><button class="field-chip ${checked ? "selected" : ""}" type="button" data-doris-encrypt-column="${escapeHtml(column.name)}" data-table-index="${tableIndex}">
               ${escapeHtml(column.name)}${checked ? " ✓" : ""}<span class="muted"> ${escapeHtml(column.type || "")}${escapeHtml(matched)}</span>
-            </button>`;
+            </button>${ruleSelect}</span>`;
           }).join("");
           const fieldPanel = expanded
             ? `<div style="margin-top: 8px">${chips || '<span class="muted">没有字段。</span>'}</div>`
@@ -12790,8 +13008,10 @@
         const table = (dorisEncryptCatalog?.tables || [])[tableIndex];
         if (!table) return;
         const selected = dorisEncryptSelections.get(table.name) || new Set();
-        if (selected.has(columnName)) selected.delete(columnName);
-        else selected.add(columnName);
+        if (selected.has(columnName)) {
+          selected.delete(columnName);
+          dorisEncryptColumnRules.get(table.name)?.delete(columnName);
+        } else selected.add(columnName);
         dorisEncryptSelections.set(table.name, selected);
         if (!selected.size) dorisEncryptSelectedTables.delete(table.name);
         renderDorisEncryptTables();
@@ -12828,7 +13048,11 @@
           .map((table) => ({
             table_name: table.name,
             target_database: targetDatabase || dorisEncryptCatalog?.database || null,
-            columns: selectedDorisEncryptColumns(table)
+            columns: selectedDorisEncryptColumns(table),
+            column_rules: Object.fromEntries(
+              Array.from(dorisEncryptColumnRules.get(table.name) || [])
+                .filter(([column, rule]) => selectedDorisEncryptColumns(table).includes(column) && rule && rule !== "FULL")
+            )
           }))
           .filter((item) => item.columns.length);
       }
@@ -13157,9 +13381,11 @@
         await dorisEncryptLoadCatalog();
         dorisEncryptSelectedTables = new Set();
         dorisEncryptSelections = new Map();
+        dorisEncryptColumnRules = new Map();
         (task.tables || []).forEach((item) => {
           dorisEncryptSelectedTables.add(item.table_name);
           dorisEncryptSelections.set(item.table_name, new Set(item.columns || []));
+          dorisEncryptColumnRules.set(item.table_name, new Map(Object.entries(item.column_rules || {})));
         });
         renderDorisEncryptTables();
         showDorisEncryptTaskEditor(true);
@@ -14392,7 +14618,8 @@
           const previous = previousCapabilities?.get(database);
           return [database, previous || {
             encrypt: deployment ? deployment.encrypt_enabled !== false : true,
-            decrypt: deployment ? deployment.decrypt_enabled !== false : false
+            decrypt: deployment ? deployment.decrypt_enabled !== false : false,
+            like: deployment ? deployment.like_enabled === true : false
           }];
         }));
         renderDorisEncryptFunctionDatabaseTree();
@@ -14420,13 +14647,14 @@
             <span class="sm4-function-db-name">${escapeHtml(database)}</span>
             <span><label><input type="checkbox" data-sm4-capability="encrypt" data-database="${escapeHtml(database)}" ${dorisEncryptFunctionCapabilities.get(database)?.encrypt ? "checked" : ""}>加密</label></span>
             <span><label><input type="checkbox" data-sm4-capability="decrypt" data-database="${escapeHtml(database)}" ${dorisEncryptFunctionCapabilities.get(database)?.decrypt ? "checked" : ""}>解密</label></span>
+            <span><label><input type="checkbox" data-sm4-capability="like" data-database="${escapeHtml(database)}" ${dorisEncryptFunctionCapabilities.get(database)?.like ? "checked" : ""}>LIKE</label></span>
             <span class="sm4-function-db-status ${state}">${statusText}</span>
             <span class="sm4-function-db-detail">${escapeHtml(detail)}</span>
           </label>`;
         }).join("");
         tree.innerHTML = `<label class="sm4-function-tree-row root">
           <span class="sm4-function-db-name">全部业务库</span>
-          <span class="muted">加密能力</span><span class="muted">解密能力</span>
+          <span class="muted">加密能力</span><span class="muted">解密能力</span><span class="muted">LIKE 查询</span>
           <span class="sm4-function-db-detail">最近一次创建结果</span>
         </label>${rows}`;
         updateDorisEncryptFunctionSelectionSummary();
@@ -14435,7 +14663,7 @@
       function updateDorisEncryptFunctionSelectionSummary() {
         const selectedCount = dorisEncryptFunctionDatabases.filter((item) => {
           const capability = dorisEncryptFunctionCapabilities.get(item);
-          return capability?.encrypt || capability?.decrypt;
+          return capability?.encrypt || capability?.decrypt || capability?.like;
         }).length;
         const count = $("dorisEncryptFunctionDatabaseCount");
         if (count) count.textContent = `已选 ${selectedCount} / ${dorisEncryptFunctionDatabases.length}`;
@@ -14451,21 +14679,22 @@
         const databaseCapabilities = dorisEncryptFunctionDatabases.map((database) => ({
           database,
           encrypt_enabled: !!dorisEncryptFunctionCapabilities.get(database)?.encrypt,
-          decrypt_enabled: !!dorisEncryptFunctionCapabilities.get(database)?.decrypt
+          decrypt_enabled: !!dorisEncryptFunctionCapabilities.get(database)?.decrypt,
+          like_enabled: !!dorisEncryptFunctionCapabilities.get(database)?.like
         }));
-        const selectedDatabases = databaseCapabilities.filter((item) => item.encrypt_enabled || item.decrypt_enabled);
+        const selectedDatabases = databaseCapabilities.filter((item) => item.encrypt_enabled || item.decrypt_enabled || item.like_enabled);
         if (keyMode === "manual" && !manualKey) throw new Error("请输入手动 SM4 密钥种子。");
         if (keyMode === "existing" && !existingKeyId) throw new Error("请选择已有密钥版本。");
         if (keyMode !== "existing" && !databaseCapabilities.some((item) => item.encrypt_enabled)) throw new Error("生成新密钥时至少需要在一个数据库启用加密函数。");
         const changes = databaseCapabilities.filter((item) => {
           const old = dorisEncryptFunctionDeployments.get(item.database);
-          return !old || old.encrypt_enabled !== item.encrypt_enabled || old.decrypt_enabled !== item.decrypt_enabled || (existingKeyId && old.key_version_id !== existingKeyId);
+          return !old || old.encrypt_enabled !== item.encrypt_enabled || old.decrypt_enabled !== item.decrypt_enabled || old.like_enabled !== item.like_enabled || (existingKeyId && old.key_version_id !== existingKeyId);
         });
-        const capabilityText = (encrypt, decrypt) => [encrypt ? "加密" : "", decrypt ? "解密" : ""].filter(Boolean).join("+") || "无函数";
+        const capabilityText = (encrypt, decrypt, like) => [encrypt ? "加密" : "", decrypt ? "解密" : "", like ? "LIKE" : ""].filter(Boolean).join("+") || "无函数";
         const changeDetails = changes.map((item) => {
           const old = dorisEncryptFunctionDeployments.get(item.database);
-          const before = old ? capabilityText(old.encrypt_enabled !== false, old.decrypt_enabled !== false) : "未部署";
-          const after = capabilityText(item.encrypt_enabled, item.decrypt_enabled);
+          const before = old ? capabilityText(old.encrypt_enabled !== false, old.decrypt_enabled !== false, old.like_enabled === true) : "未部署";
+          const after = capabilityText(item.encrypt_enabled, item.decrypt_enabled, item.like_enabled);
           const keyChanged = existingKeyId && old?.key_version_id !== existingKeyId ? "（切换密钥）" : "";
           return `- ${item.database}：${before} → ${after}${keyChanged}`;
         });
@@ -18442,6 +18671,7 @@
         renderDorisEncryptCoverageContractSummary();
         dorisEncryptCatalog = null;
         dorisEncryptSelections = new Map();
+        dorisEncryptColumnRules = new Map();
         dorisEncryptSelectedTables = new Set();
         dorisEncryptExpandedTables = new Set();
         renderDorisEncryptTables();
@@ -22319,7 +22549,7 @@
           if (!checkbox) return;
           const database = checkbox.getAttribute("data-database") || "";
           const capability = checkbox.getAttribute("data-sm4-capability") || "";
-          const current = dorisEncryptFunctionCapabilities.get(database) || { encrypt: false, decrypt: false };
+          const current = dorisEncryptFunctionCapabilities.get(database) || { encrypt: false, decrypt: false, like: false };
           current[capability] = checkbox.checked;
           dorisEncryptFunctionCapabilities.set(database, current);
           updateDorisEncryptFunctionSelectionSummary();
@@ -22329,11 +22559,13 @@
           if (!button) return;
           const action = button.getAttribute("data-sm4-capability-batch") || "";
           dorisEncryptFunctionDatabases.forEach((database) => {
-            const current = dorisEncryptFunctionCapabilities.get(database) || { encrypt: false, decrypt: false };
+            const current = dorisEncryptFunctionCapabilities.get(database) || { encrypt: false, decrypt: false, like: false };
             if (action === "encrypt-on" || action === "both-on") current.encrypt = true;
             if (action === "encrypt-off" || action === "both-off") current.encrypt = false;
             if (action === "decrypt-on" || action === "both-on") current.decrypt = true;
             if (action === "decrypt-off" || action === "both-off") current.decrypt = false;
+            if (action === "like-on" || action === "both-on") current.like = true;
+            if (action === "like-off" || action === "both-off") current.like = false;
             dorisEncryptFunctionCapabilities.set(database, current);
           });
           renderDorisEncryptFunctionDatabaseTree();
@@ -23074,6 +23306,19 @@
           }
         });
         $("dorisEncryptTables").addEventListener("change", (event) => {
+          const rule = event.target.closest("[data-doris-encrypt-rule]");
+          if (rule) {
+            const tableIndex = Number(rule.getAttribute("data-table-index"));
+            const tableData = (dorisEncryptCatalog?.tables || [])[tableIndex];
+            const column = rule.getAttribute("data-doris-encrypt-rule") || "";
+            if (tableData && column) {
+              const tableRules = dorisEncryptColumnRules.get(tableData.name) || new Map();
+              if (rule.value && rule.value !== "FULL") tableRules.set(column, rule.value);
+              else tableRules.delete(column);
+              dorisEncryptColumnRules.set(tableData.name, tableRules);
+            }
+            return;
+          }
           const table = event.target.closest("[data-doris-encrypt-table]");
           if (table) toggleDorisEncryptTable(Number(table.getAttribute("data-doris-encrypt-table")), table.checked);
         });
