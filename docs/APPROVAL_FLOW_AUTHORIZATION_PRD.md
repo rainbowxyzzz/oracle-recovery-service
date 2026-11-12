@@ -1,5 +1,15 @@
 # 审批流自动授权模块 PRD
 
+## 2026-10-22 人员权限追加部门目录授权
+
+- 保留 `importDataPermissions.resourcePermissions` 原有的连接对象（`resourceId`、`isFolder=0` 和可配置权限均不变），追加一个 `resourceType=DATA_CONNECTION`、`isFolder=1` 的目录对象，不修改顶层 `path`。
+- 目录按 `getDetail.createUserDepartment` 原值（现有上下文 `department_raw`）生成：以 `重庆市审计局/` 开头，使用 `["处室审计数仓", 去掉该前缀后的部门]`；其他单位使用 `["区县审计数仓", 第一个斜杠前的单位]`。复用现有部门提取规则，不改变数据库映射；多级市局部门保留前缀后的全部字符串，没有斜杠的其他单位按原单位名处理。
+- 目录权限固定为截图的 `view/addModel/edit/add/customSql/sqlFetch/sqlFetchCopyData/sqlFetchExport/sqlFetchShare/updateData/relationship`，不从原连接权限列表推导；目录对象不填写 `resourceId`。
+- 原值缺失、非字符串、提取名称为空或仅为 `重庆市审计局` 时阻断本次人员授权，不能猜测目录或悄悄只发送连接权限。失败沿用步骤日志与阻断回写逻辑；不引入回滚先前 Doris/API 写入的机制。
+- 单步测试增加 `department_raw` 输入和目录授权影响提示；完整运行、监听直接复用详情上下文，无新增配置、数据库表或接口。日志提取结果增加 `resource_name_paths`。
+- 历史已成功导入的申请不自动补授目录权限，原“仅重试审批状态回写”行为保持不变。
+- 回归范围：两类部门及异常原值、原连接权限/顶层目录/人员/有效期不变、完整步骤顺序和失败阻断回写、单步测试输入传递及日志脱敏。本次只本地修改验证，不打包、不部署。
+
 ## 2026-10-16 管理员按用户名读取默认密码
 
 - 提供独立 `scripts/find-approval-doris-password.sh`，在应用部署宿主机执行；必填 Doris 用户名，可选 API 容器名（默认 `oracle-recovery-api`）。复用容器中的系统库连接与凭据密钥，不要求重新填写 `.env`。

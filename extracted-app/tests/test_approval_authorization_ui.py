@@ -47,3 +47,11 @@ def test_approval_authorization_workspace_keeps_existing_contract_and_structures
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/runs' in html
     assert '/api/v1/approval-authorization/configs/${encodeURIComponent(approvalAuthSelectedConfigId)}/watch-scan' in html
     assert "创建后自动调用 apiUpdate，以返回的 defaultSchemaName 设置默认库和库限制。" in html
+
+
+def test_import_permission_step_exposes_raw_department_context():
+    html = UI_HTML.read_text(encoding="utf-8")
+    assert 'import_permissions: {\n            department_raw: "",' in html
+    assert 'approvalAuthContextInput("department_raw", "申请人部门原值（createUserDepartment）", context.department_raw' in html
+    assert 'if (step === "import_permissions") return { department_raw: value("department_raw"),' in html
+    assert "并包含目录 edit/add 权限；部门原值必填。" in html

@@ -979,6 +979,17 @@ class _Runtime:
         return extracted
 
     def _step_import_permissions(self, context: dict[str, Any], apply_flow_id: str | None) -> dict[str, Any]:
+        department_raw = context.get("department_raw")
+        if not isinstance(department_raw, str) or not department_raw.strip():
+            raise ValueError("目录授权缺少 getDetail 的 createUserDepartment 原值（department_raw）。")
+        department_raw = department_raw.strip()
+        department = _extract_department_name(department_raw)
+        if not department or department_raw == "重庆市审计局":
+            raise ValueError("createUserDepartment 缺少可授权的部门或单位名称。")
+        resource_name_paths = [
+            "处室审计数仓" if department_raw.startswith("重庆市审计局/") else "区县审计数仓",
+            department,
+        ]
         token = self._youdata_token(context)
         unique_ids = list(dict.fromkeys(str(item).strip() for item in (context.get("unique_ids") or []) if str(item).strip()))
         expire_at = _expire_at(str(context.get("query_end_time") or ""))
@@ -1005,14 +1016,23 @@ class _Runtime:
                         "resourceId": resource_id,
                         "permissions": self.config_dict["youdata_permissions"],
                         "isFolder": 0,
-                    }
+                    },
+                    {
+                        "resourceNamePaths": resource_name_paths,
+                        "resourceType": "DATA_CONNECTION",
+                        "isFolder": 1,
+                        "permissions": [
+                            "view", "addModel", "edit", "add", "customSql", "sqlFetch",
+                            "sqlFetchCopyData", "sqlFetchExport", "sqlFetchShare", "updateData", "relationship",
+                        ],
+                    },
                 ],
             }
         )
         url = self._youdata_url("import_permissions_path")
         response = self._post_json(url, body)
         role_id = _json_path(response, self.config_dict["import_permissions_role_id_path"])
-        extracted = {"unique_ids": unique_ids, "expire_at": expire_at, "resource_id": resource_id, "role_id": role_id, "role_name": role_name}
+        extracted = {"unique_ids": unique_ids, "expire_at": expire_at, "resource_id": resource_id, "role_id": role_id, "role_name": role_name, "resource_name_paths": resource_name_paths}
         self.log_event("import_permissions", STEP_NAMES["import_permissions"], "success", "有数人员权限导入完成。", apply_flow_id=apply_flow_id, request={"url": url, "body": body}, response=response, extracted=extracted)
         return {"role_id": role_id}
 

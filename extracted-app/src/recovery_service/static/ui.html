@@ -11758,6 +11758,7 @@
             doris_password: ""
           },
           import_permissions: {
+            department_raw: "",
             unique_ids: [""],
             query_end_time: "",
             resource_id: ""
@@ -11795,7 +11796,7 @@
         ["internal_grant", "内部 Doris 用户与表授权", "创建或复用用户并授予表权限。", "会改变 Doris 用户和权限。"],
         ["youdata_token", "获取有数 token", "验证有数账号并获取访问令牌。", "调用登录接口，不创建授权。"],
         ["api_add", "创建有数数据连接", "创建后自动调用 apiUpdate，以返回的 defaultSchemaName 设置默认库和库限制。", "会创建有数连接并设置库限制；更新失败不会继续导入人员权限。"],
-        ["import_permissions", "导入有数人员权限", "把连接资源权限授予目标人员。", "会改变有数人员权限。"],
+        ["import_permissions", "导入有数人员权限", "同时授予连接资源及申请部门对应目录权限。", "会改变有数人员权限，并包含目录 edit/add 权限；部门原值必填。"],
         ["audit_status_update", "回写审批状态", "将当前申请标记为已完成处理。", "会修改审批单处理状态。"]
       ];
 
@@ -11822,7 +11823,7 @@
         else if (step === "department_mapping") fields = approvalAuthContextInput("department", "申请部门", context.department, "必填；用于查询单位与数据库映射表。") ;
         else if (step === "data_list" || step === "audit_status_update") fields = approvalAuthContextInput("apply_flow_id", "申请编号", context.apply_flow_id, "必填；用于定位当前审批申请。") ;
         else if (step === "api_add") fields = approvalAuthContextInput("database_name", "数据库名称", context.database_name, "必填；需要创建连接的 Doris 数据库。") + approvalAuthContextInput("doris_username", "Doris 用户名", context.doris_username, "必填；连接使用的授权用户。") + approvalAuthContextInput("doris_password", "Doris 用户密码", context.doris_password, "仅用于本次连接请求，日志按敏感字段处理。", "password");
-        else if (step === "import_permissions") fields = approvalAuthContextInput("unique_ids", "人员唯一编号", (context.unique_ids || []).join(","), "一个或多个编号使用英文逗号分隔。") + approvalAuthContextInput("query_end_time", "授权截止时间", context.query_end_time, "目标权限的有效期截止时间。", "datetime-local") + approvalAuthContextInput("resource_id", "数据连接资源编号", context.resource_id, "由创建有数数据连接步骤返回。") ;
+        else if (step === "import_permissions") fields = approvalAuthContextInput("department_raw", "申请人部门原值（createUserDepartment）", context.department_raw, "填写 getDetail 原值，例如重庆市审计局/财政处或其他单位/某部门；自动选择处室或区县审计数仓目录。") + approvalAuthContextInput("unique_ids", "人员唯一编号", (context.unique_ids || []).join(","), "一个或多个编号使用英文逗号分隔。") + approvalAuthContextInput("query_end_time", "授权截止时间", context.query_end_time, "目标权限的有效期截止时间。", "datetime-local") + approvalAuthContextInput("resource_id", "数据连接资源编号", context.resource_id, "由创建有数数据连接步骤返回。") ;
         else if (step === "table_schema_lookup") {
           const item = context.data_items?.[0] || {};
           fields = `<div class="approval-auth-context-object"><h4>授权数据项</h4>${approvalAuthContextInput("data_item_title", "表名称", item.datatitle, "需要查询 schema（模式）的业务表名称。")}${approvalAuthContextInput("data_item_level", "数据级别", item.dataLevel, "审批申请中的数据授权级别。")}</div>`;
@@ -11844,7 +11845,7 @@
         if (step === "auth_info_insert") return { apply_flow_id: value("apply_flow_id"), grant_records: [{ datatitle: value("grant_title"), dataLevel: value("grant_level"), schema_name: value("grant_schema") }] };
         if (step === "internal_grant") return { generated_username: value("generated_username"), grant_records: [{ datatitle: value("grant_title"), dataLevel: value("grant_level"), schema_name: value("grant_schema") }] };
         if (step === "api_add") return { database_name: value("database_name"), doris_username: value("doris_username"), doris_password: value("doris_password") };
-        if (step === "import_permissions") return { unique_ids: value("unique_ids").split(/[,\r\n]+/).map((item) => item.trim()).filter(Boolean), query_end_time: value("query_end_time").replace("T", " "), resource_id: value("resource_id") };
+        if (step === "import_permissions") return { department_raw: value("department_raw"), unique_ids: value("unique_ids").split(/[,\r\n]+/).map((item) => item.trim()).filter(Boolean), query_end_time: value("query_end_time").replace("T", " "), resource_id: value("resource_id") };
         return {};
       }
 

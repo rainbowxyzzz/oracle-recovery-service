@@ -338,6 +338,86 @@ class ApprovalAuthorizationRuntimeTests(unittest.TestCase):
         self.assertEqual(_extract_department_name("重庆市财政局/预算处"), "重庆市财政局")
         self.assertEqual(_extract_department_name("重庆市审计局"), "重庆市审计局")
 
+    def test_import_permissions_appends_department_folder_without_changing_connection(self):
+        runtime = self._runtime()
+        runtime.config_dict["youdata_permissions"] = ["view"]
+        for raw, paths in (
+            ("重庆市审计局/财政处", ["处室审计数仓", "财政处"]),
+            ("重庆市审计局/财政二处", ["处室审计数仓", "财政二处"]),
+            ("其他单位/某部门", ["区县审计数仓", "其他单位"]),
+            ("其他单位", ["区县审计数仓", "其他单位"]),
+            (" 重庆市审计局/财政处/科室 ", ["处室审计数仓", "财政处/科室"]),
+        ):
+            with self.subTest(raw=raw), patch.object(runtime, "_post_json", return_value={"result": 123}) as post:
+                result = runtime.execute_step("import_permissions", {
+                    "department_raw": raw, "department": "不能使用此覆盖值",
+                    "youdata_token": "secret-token", "unique_ids": ["13800000001", "13800000001"],
+                    "query_end_time": "2026-12-31", "resource_id": 4018, "api_add_name": "连接名称",
+                }, "FLOW001")
+                url, body = post.call_args.args
+                self.assertTrue(url.endswith("/importDataPermissions"))
+                self.assertEqual(result, {"role_id": 123})
+                self.assertEqual(body["resourcePermissions"], [
+                    {"resourceType": "DATA_CONNECTION", "resourceId": 4018,
+                     "permissions": ["view"], "isFolder": 0},
+                    {"resourceNamePaths": paths, "resourceType": "DATA_CONNECTION", "isFolder": 1,
+                     "permissions": ["view", "addModel", "edit", "add", "customSql", "sqlFetch",
+                                     "sqlFetchCopyData", "sqlFetchExport", "sqlFetchShare", "updateData", "relationship"]},
+                ])
+                self.assertEqual(body["path"], ["API授权"])
+                self.assertEqual(body["roleName"], "连接名称")
+                self.assertEqual(body["token"], "secret-token")
+                self.assertEqual(body["uniqueIds"], ["13800000001"])
+                self.assertEqual(body["userExpireMap"], {"13800000001": "2026-12-31 23:59:59"})
+                log = self.session.get(ApprovalAuthorizationStepLog, runtime.last_log_id)
+                self.assertEqual(log.extracted_data["resource_name_paths"], paths)
+                self.assertNotIn("secret-token", str(log.request_data))
+
+    def test_import_permissions_rejects_missing_or_empty_department_before_http(self):
+        runtime = self._runtime()
+        for raw in (None, "", "  ", "重庆市审计局/", "重庆市审计局/  ", "重庆市审计局", "/某部门", 123):
+            with self.subTest(raw=raw), patch.object(runtime, "_post_json") as post:
+                with self.assertRaisesRegex(ValueError, "createUserDepartment"):
+                    runtime.execute_step("import_permissions", {
+                        "department_raw": raw, "unique_ids": ["13800000001"], "resource_id": 4018,
+                    }, "FLOW001")
+                post.assert_not_called()
+                log = self.session.get(ApprovalAuthorizationStepLog, runtime.last_log_id)
+                self.assertEqual((log.step_key, log.status), ("import_permissions", "failed"))
+
+    def test_full_flow_passes_detail_department_to_folder_and_blocks_audit_on_failure(self):
+        for reject in (False, True):
+            with self.subTest(reject=reject):
+                runtime = self._runtime()
+                execute = runtime.execute_step
+                calls = []
+
+                def step(key, context, flow_id):
+                    calls.append(key)
+                    if key in ("detail", "import_permissions"):
+                        return execute(key, context, flow_id)
+                    return {}
+
+                def post(url, body, headers=None):
+                    if url.endswith("/getDetail"):
+                        return {"data": {"createUserDepartment": "重庆市审计局/财政处",
+                                         "queryUserList": [{"tel": "13800000001"}], "queryEndTime": "2026-12-31"}}
+                    self.assertEqual(body["resourcePermissions"][1]["resourceNamePaths"], ["处室审计数仓", "财政处"])
+                    if reject:
+                        raise ValueError("folder rejected")
+                    return {"result": 123}
+
+                with patch.object(runtime, "execute_step", side_effect=step), patch.object(runtime, "_post_json", side_effect=post):
+                    context = {"workflow_token": "workflow-token", "youdata_token": "youdata-token",
+                               "todo_create_time": "2026-10-22 10:00:00", "resource_id": 4018}
+                    if reject:
+                        with self.assertRaisesRegex(ValueError, "folder rejected"):
+                            _run_one_apply_flow(runtime, context, "FLOW001")
+                        self.assertNotIn("audit_status_update", calls)
+                    else:
+                        _run_one_apply_flow(runtime, context, "FLOW001")
+                        self.assertEqual(calls[-1], "audit_status_update")
+
     def test_new_config_defaults_use_ai_recovery_and_api_auto_authorization_path(self):
         config = _normalized_config({})
 
