@@ -57,6 +57,7 @@ class FakeDocker:
         self.items[1]["Config"]["Env"] += ["CELERY_BROKER_URL=redis://redis:6379/0"]
         self.fail_create = fail_create
         self.calls = []
+        self.start_failures = set()
 
     def inspect(self, name):
         return next(x for x in self.items if x["Id"] == name or x["Name"] == "/" + name)
@@ -69,7 +70,10 @@ class FakeDocker:
         if args[0] == "inspect":
             return json.dumps(self.items).encode()
         if args[0] in ("start", "restart", "stop"):
-            self.inspect(args[-1])["State"]["Running"] = args[0] != "stop"
+            target = self.inspect(args[-1])
+            if args[0] == "start" and target["Id"] in self.start_failures:
+                raise RuntimeError("Docker start failed for " + args[-1])
+            target["State"]["Running"] = args[0] != "stop"
         elif args[0] == "kill":
             self.inspect(args[-1])["State"]["Running"] = False
         elif args[0] == "rename":
@@ -227,3 +231,37 @@ def test_task_appearing_after_api_stop_restores_api(tmp_path):
     assert fake.inspect("oracle-recovery-worker-sm4")["State"]["Running"]
     assert not any(call[0] in {"rename", "commit", "cp"} for call in fake.calls)
     assert path.read_text() == "REDIS_HOST=redis\n"
+
+
+def test_failed_redis_start_preserves_original_clients_and_reports_rollback_failure(tmp_path, capsys):
+    path = tmp_path / ".env"
+    old = "REDIS_HOST=redis\n"
+    path.write_text(old)
+    fake = FakeDocker(redis_running=True)
+    fake.inspect("oracle-recovery-api")["State"]["Running"] = True
+    worker = item("oracle-recovery-worker-sm4", True)
+    worker["Mounts"] = []
+    fake.items.append(worker)
+    fake.start_failures = {"oracle-recovery-redis-new-id", "oracle-recovery-api-id"}
+    with patch.object(tool, "docker", fake.run), patch.object(tool, "inspect", fake.inspect), \
+         patch.object(tool, "create", fake.create), patch.object(tool, "wait_redis"), \
+         patch.object(tool, "check_client"), patch.object(tool, "redis_cli", return_value="OK"), \
+         patch.object(tool.getpass, "getpass", return_value=PASSWORD), \
+         pytest.raises(RuntimeError, match="oracle-recovery-redis.*oracle-recovery-api"):
+        tool.configure(path)
+    assert path.read_text() == old
+    assert fake.inspect("oracle-recovery-redis")["Id"] == "oracle-recovery-redis-id"
+    assert fake.inspect("oracle-recovery-redis")["State"]["Running"]
+    assert fake.inspect(worker["Id"])["State"]["Running"]
+    assert not any(call[0] == "commit" for call in fake.calls)
+    assert "回滚" in capsys.readouterr().err
+
+
+def test_docker_start_error_names_container_and_saves_details_privately(tmp_path):
+    with patch.object(tool.subprocess, "run") as run:
+        run.return_value = tool.subprocess.CompletedProcess([], 1, b"", b"daemon diagnostic\n")
+        with pytest.raises(RuntimeError, match="start.*oracle-recovery-redis") as error:
+            tool.docker("start", "oracle-recovery-redis")
+    assert "daemon diagnostic" not in str(error.value)
+    tool.record_docker_error(tmp_path, "update", error.value)
+    assert "daemon diagnostic" in (tmp_path / "docker-update-error.txt").read_text()

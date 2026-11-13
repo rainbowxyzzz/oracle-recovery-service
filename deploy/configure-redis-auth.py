@@ -19,11 +19,19 @@ from urllib.parse import quote, urlsplit, urlunsplit
 URL_KEYS = {"REDIS_URL", "CELERY_BROKER_URL", "CELERY_RESULT_BACKEND"}
 
 
+class DockerError(RuntimeError):
+    def __init__(self, operation, detail):
+        super().__init__("Docker operation failed: " + operation)
+        self.detail = detail.decode("utf-8", errors="replace").strip()
+
+
 def docker(*args, data=None, allow_error=False):
     result = subprocess.run(["docker", *args], input=data, capture_output=True, check=False)
     if result.returncode and not allow_error:
-        # Docker error text can contain environment values or connection URLs.
-        raise RuntimeError("Docker operation failed: " + args[0])
+        operation = args[0]
+        if operation in ("start", "stop", "restart", "rename", "rm", "inspect"):
+            operation += " " + args[-1]
+        raise DockerError(operation, result.stderr)
     return result.stdout + (result.stderr if allow_error else b"")
 
 
@@ -81,6 +89,18 @@ def write_private(path, data):
     path.chmod(0o600)
 
 
+def record_docker_error(folder, phase, error):
+    if isinstance(error, DockerError) and error.detail:
+        # Daemon diagnostics can include connection URLs and credentials.
+        path = folder / ("docker-" + phase + "-error.txt")
+        try:
+            with path.open("a", encoding="utf-8") as log:
+                log.write(str(error) + "\n" + error.detail + "\n")
+            path.chmod(0o600)
+        except OSError:
+            print("无法保存 Docker 诊断：" + str(path), file=sys.stderr)
+
+
 class Engine(http.client.HTTPConnection):
     def __init__(self):
         super().__init__("localhost", timeout=120)
@@ -99,7 +119,7 @@ def create(name, body):
         response = conn.getresponse()
         payload = response.read()
         if response.status != 201:
-            raise RuntimeError("Docker create failed for " + name)
+            raise DockerError("create " + name, payload)
         return json.loads(payload)["Id"]
     finally:
         conn.close()
@@ -228,36 +248,47 @@ def wait_client(item):
 
 def rollback(folder):
     state = json.loads((folder / "state.json").read_text())
-    if all(inspect(e["id"])["Name"] == "/" + e["name"] for e in state["containers"]):
-        # No replacement happened: a busy-worker recheck must not prevent API recovery.
-        write_private(Path(state["env_file"]), (folder / "env.before").read_text())
-        for entry in state["containers"]:
-            if entry["running"] and not inspect(entry["id"])["State"]["Running"]:
-                docker("start", entry["name"])
-        print("原容器及配置已恢复。")
-        return
+    redis_name = "oracle-recovery-redis"
     names = docker("ps", "-a", "--format", "{{.Names}}").decode().splitlines()
-    current_clients = [inspect(entry["name"]) for entry in state["containers"]
-                       if entry["name"] != "oracle-recovery-redis" and entry["name"] in names]
-    check_idle(current_clients)
-    stop_clients(current_clients)
-    for entry in reversed(state["containers"]):
-        old = inspect(entry["id"])
-        if old["Name"] == "/" + entry["name"]:
-            continue
-        names = docker("ps", "-a", "--format", "{{.Names}}").decode().splitlines()
-        if entry["name"] in names:
-            current = inspect(entry["name"])
-            if (current["Config"].get("Labels") or {}).get("oracle-recovery.redis-auth") != str(folder):
-                raise RuntimeError("Replacement identity changed; refusing rollback")
-            if current["State"]["Running"]:
-                docker("stop", "-t", "60", entry["name"])
-            docker("rm", entry["name"])
-        docker("rename", entry["id"], entry["name"])
-    write_private(Path(state["env_file"]), (folder / "env.before").read_text())
+    renamed = []
+    replacements = {}
     for entry in state["containers"]:
-        if entry["running"]:
-            docker("start", entry["name"])
+        name = entry["name"]
+        if inspect(entry["id"])["Name"] == "/" + name:
+            continue
+        renamed.append(entry)
+        if name in names:
+            current = inspect(name)
+            if (current["Config"].get("Labels") or {}).get("oracle-recovery.redis-auth") != str(folder):
+                raise RuntimeError("Replacement identity changed; refusing rollback: " + name)
+            replacements[name] = current
+    clients = [item for name, item in replacements.items() if name != redis_name]
+    check_idle(clients)
+    stop_clients(clients)
+    for entry in reversed(renamed):
+        name = entry["name"]
+        if name in replacements:
+            if name == redis_name and inspect(name)["State"]["Running"]:
+                docker("stop", "-t", "60", name)
+            docker("rm", name)
+        docker("rename", entry["id"], name)
+    write_private(Path(state["env_file"]), (folder / "env.before").read_text())
+    errors = []
+    for entry in state["containers"]:
+        name = entry["name"]
+        running = inspect(entry["id"])["State"]["Running"]
+        try:
+            if entry["running"] and not running:
+                docker("start", name)
+            elif name == redis_name and not entry["running"] and running:
+                docker("stop", "-t", "60", name)
+        except RuntimeError as error:
+            record_docker_error(folder, "rollback", error)
+            errors.append(str(error))
+            if name == redis_name:
+                break
+    if errors:
+        raise RuntimeError("回滚启动未完成：" + "，".join(errors))
     print("已回滚：旧容器、配置和原运行状态已恢复。")
 
 
@@ -329,14 +360,11 @@ def configure(env_file):
         for item in [redis, *clients]]}
     write_private(folder / "state.json", json.dumps(state))
     print("Backup: " + str(folder), flush=True)
-    redis_started = False
-    replaced = []
     try:
         print("自动停止服务并更新 Redis 密码…", flush=True)
         stop_clients(clients)
         if not redis["State"]["Running"]:
             docker("start", name)
-            redis_started = True
         old_password = env_map(redis["Config"].get("Env") or []).get("REDIS_PASSWORD", values.get("REDIS_PASSWORD", ""))
         wait_redis(name, old_password)
         if redis_cli(name, old_password, "SAVE") != "OK":
@@ -370,16 +398,16 @@ def configure(env_file):
             body["Labels"]["oracle-recovery.redis-auth"] = str(folder)
             docker("rename", item["Id"], container_name + "-auth-backup-" + folder.name.split("backup-")[1])
             create(container_name, body)
-            replaced.append(container_name)
+            if item is redis:
+                docker("start", name)
+                wait_redis(name, password)
+                if "NOAUTH" not in redis_cli(name, "", "PING"):
+                    raise RuntimeError("Unauthenticated access is still allowed")
+                if redis_cli(name, password + "_wrong", "PING") == "PONG":
+                    raise RuntimeError("Wrong password was accepted")
+                docker("restart", "-t", "60", name)
+                wait_redis(name, password)
         write_private(env_file, updated_text)
-        docker("start", name)
-        wait_redis(name, password)
-        if "NOAUTH" not in redis_cli(name, "", "PING"):
-            raise RuntimeError("Unauthenticated access is still allowed")
-        if redis_cli(name, password + "_wrong", "PING") == "PONG":
-            raise RuntimeError("Wrong password was accepted")
-        docker("restart", "-t", "60", name)
-        wait_redis(name, password)
         for item in clients:
             if item["State"]["Running"]:
                 docker("start", item["Name"][1:])
@@ -388,15 +416,17 @@ def configure(env_file):
             docker("stop", "-t", "60", name)
         print("配置完成：Redis 认证已验证，原来运行的服务已自动恢复。")
         print("原来停止的服务保持停止。备份目录：" + str(folder))
-    except BaseException:
-        for container_name in replaced:
-            if container_name != name:
-                stop_client(container_name)
-        if name in replaced:
-            docker("stop", "-t", "60", name)
-        rollback(folder)
-        if redis_started and inspect(name)["State"]["Running"]:
-            docker("stop", "-t", "60", name)
+    except BaseException as error:
+        record_docker_error(folder, "update", error)
+        print("更新失败，正在回滚：" + (str(error) or type(error).__name__), file=sys.stderr)
+        try:
+            rollback(folder)
+        except (OSError, ValueError, RuntimeError, KeyError) as rollback_error:
+            record_docker_error(folder, "rollback", rollback_error)
+            raise RuntimeError(
+                f"更新失败：{str(error) or type(error).__name__}。"
+                f"回滚失败：{rollback_error}。备份目录：{folder}"
+            ) from None
         raise
 
 
@@ -411,8 +441,10 @@ def main():
             rollback(args.rollback.resolve())
         else:
             configure(args.env_file.resolve(strict=True))
-    except (OSError, ValueError, RuntimeError, StopIteration, KeyboardInterrupt) as exc:
-        print("FAILED: " + str(exc), file=sys.stderr)
+    except (OSError, ValueError, RuntimeError, StopIteration, EOFError, KeyboardInterrupt) as exc:
+        if args.rollback:
+            record_docker_error(args.rollback.resolve(), "rollback", exc)
+        print("FAILED: " + (str(exc) or type(exc).__name__), file=sys.stderr)
         return 1
     return 0
 

@@ -46,6 +46,19 @@ python3 ./configure-redis-auth.py --rollback /绝对路径/redis-auth-backup-时
 备份目录包含密码，权限为仅当前管理员可读。需要可写部署目录、可访问
 `/var/run/docker.sock`、足够存储空间。脚本保留原端口暴露，不自动修改防火墙。
 
+如果 Docker 启动容器失败，终端会显示容器名及更新或回滚阶段，Docker 原始报错写入备份目录的 `docker-update-error.txt` 或 `docker-rollback-error.txt`。只在服务器本地查看这些文件，分享前应移除凭据。
+
+若手动 `docker start` 也报 `overlay2 ... merged: device or resource busy`，先处理宿主机挂载占用。用下面的只读命令检查一个报错容器的挂载，换成实际容器名。返回的 `/proc/<PID>/mountinfo` 可用于定位持有挂载的进程。
+
+```sh
+p=$(docker inspect --format '{{index .GraphDriver.Data "MergedDir"}}' oracle-recovery-worker-sm4)
+[ -n "$p" ] && grep -Fl -- " $p " /proc/[0-9]*/mountinfo 2>/dev/null
+```
+
+有匹配时，用 `ps -p <PID> -o pid,ppid,comm` 确认进程归属；同一挂载命名空间可能有多个 PID。没有匹配时，可用 `journalctl -u docker -n 80 --no-pager` 查看 Docker 侧的挂载和卸载错误。保留原容器、备份及数据卷。若需重启 Docker，应先确认同机其他容器的停机窗口。
+
+待 Docker 能正常启动容器后，用本工具的 `--rollback` 读取此次备份，恢复更新前的 `.env` 和原先运行的服务。确认应用恢复后再尝试配置密码。
+
 ## 同一服务器全量更新
 
 1. 确认没有在途任务，备份旧部署目录的 `.env`、现场修改过的 `config/` 文件和系统 MySQL 数据库。页面里保存的任务、调度、数据库连接、审批授权配置及用户都在系统 MySQL 中。核对本机 MySQL 实际挂载的数据卷，或者核对外部 MySQL 地址和数据库名。若配置了 `DATABASE_URL`，以它指定的数据库为准。
