@@ -35,7 +35,7 @@ python3 ./configure-redis-auth.py --env-file ./.env
 
 交互输入并确认新密码，等待“配置完成”提示即可，不需要手动停止或启动容器。
 发现任务忙或检查失败会明确报错，换密码前退出时不会改变密码。不要删除备份容器或快照镜像。
-以后修改密码运行同一命令即可。升级仍保留此 `.env`；不要用模板覆盖。
+配置成功后，脚本会把实际密码写入当前部署的 `.env` 的 `REDIS_PASSWORD`。旧 `.env` 缺少该字段时会自动添加，已有字段时会更新。如果 `.env` 显式设置了 `REDIS_URL`、`CELERY_BROKER_URL` 或 `CELERY_RESULT_BACKEND`，脚本也会同步其中的密码。以后修改密码运行同一命令即可。实际密码保存在部署服务器的 `.env` 中，GitHub 只保留文档和脚本。
 
 需要时也可单条命令回滚；工具先检查任务并自动停止当前客户端：
 
@@ -45,8 +45,20 @@ python3 ./configure-redis-auth.py --rollback /绝对路径/redis-auth-backup-时
 
 备份目录包含密码，权限为仅当前管理员可读。需要可写部署目录、可访问
 `/var/run/docker.sock`、足够存储空间。脚本保留原端口暴露，不自动修改防火墙。
-现有启动脚本遇到 Redis 容器会直接启动；不要删除新 Redis 容器后期待旧脚本自动重建认证。
-本次不修改旧交付包或其校验清单。
+
+## 同一服务器全量更新
+
+1. 确认没有在途任务，备份旧部署目录的 `.env`、现场修改过的 `config/` 文件和系统 MySQL 数据库。页面里保存的任务、调度、数据库连接、审批授权配置及用户都在系统 MySQL 中。核对本机 MySQL 实际挂载的数据卷，或者核对外部 MySQL 地址和数据库名。若配置了 `DATABASE_URL`，以它指定的数据库为准。
+2. 解压新包后，先在新包目录运行 `sh ./verify-package.sh`。通过后把**正在使用的旧 `.env`** 复制到新包目录，并设置 `chmod 600 .env`。原样保留数据库连接参数、`MYSQL_DATA_VOLUME`（本机 MySQL）、`CREDENTIAL_ENCRYPTION_KEY`、`SECRET_KEY` 和 Redis 连接参数。需要时逐项合并现场修改过的 `config/` 文件。包内 `package-images.env` 使用新包自带的版本。
+3. 保留现有系统 MySQL、Redis 容器及其数据卷。若已用本工具设置密码，也要保留旧目录中 Redis 容器挂载的 `redis-auth-backup-*/redis.conf`，它是正在使用的服务端配置。升级时保持 `STOP_LOCAL_INFRA=false`，保留 SM4 JAR、查询导出等业务数据卷及 Oracle 宿主机数据目录。旧目录仍含 Redis 挂载文件时，应保留该目录。
+4. 在新包目录运行 `sh ./start-service.sh`。启动脚本重建 API 和 Worker，使其加载复制过来的 `.env`。运行 `sh ./status-service.sh`，登录页面检查原有任务、连接、调度和授权配置，并确认 Worker 能正常连接 Redis。
+
+Redis 的两种升级情形：
+
+- **旧 Redis 已启用认证**：复制带实际密码的旧 `.env` 后继续使用现有 Redis 容器。若旧 `.env` 缺少 `REDIS_PASSWORD`，在服务器本地补上 Redis 当前实际使用的密码，并核对显式 Redis/Celery URL 中的密码一致。
+- **旧 Redis 未启用认证，或使用当前完整包新建本机 Redis**：先以空的 `REDIS_PASSWORD=` 和匹配的连接配置启动，再运行本工具。当前完整包新建 Redis 时，`.env` 中的密码只会传给应用，Redis 服务端认证由本工具设置。
+
+若系统 MySQL 数据卷已经丢失，或改在另一台服务器部署，需要先恢复系统 MySQL 备份，并配置应用连接恢复后的数据库。复制 `.env` 本身无法恢复任务、连接或历史记录。
 
 ## 本地验证
 

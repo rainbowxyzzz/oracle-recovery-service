@@ -250,6 +250,8 @@ oracle-recovery-service-docker-run-20260715-oracle-logs-sm4-coverage-no-business
 - 系统 MySQL 是否包含或明确提示执行数据同步运行日志调优配置：`sort_buffer_size=16777216`、`tmp_table_size=268435456`、`max_heap_table_size=268435456`、`max_allowed_packet=268435456`、`innodb_buffer_pool_size=536870912` 等。
 - 是否没有打入业务库镜像。
 - `.env.example` 是否说明 `START_LOCAL_MYSQL=true/false` 两种模式。
+- 完整包 `.env.example` 的 Redis 分组必须保留空的 `REDIS_PASSWORD=`，并随包提供 `deploy/configure-redis-auth.py` 和 [Redis 配置及升级步骤](REDIS_AUTH_UPDATE.md)。验收时覆盖旧 `.env` 缺少该字段的情况，确认设置密码后实际值写入部署 `.env`，升级时复用该文件和原 Redis 服务端配置。包内模板、发布记录和 Git 不得包含实际密码。
+- 完整包 README 必须明确同机升级需复制正在使用的 `.env`，保留系统 MySQL 及其实际数据卷（或外部元数据库连接），并说明页面配置、任务和数据库连接来自系统 MySQL。现场修改的 `config/` 文件按需合并到新包。
 - `doris_sm4_function.py` 是否强制把 SM4 Java UDF 编译为 Java 8 兼容 class：优先 `javac --release 8`，不支持时退回 `-source 8 -target 8`。Doris Java 8 运行时只能识别 class file version 52.0，不能打出 Java 17 的 61.0。
 - 包名是否带清晰版本后缀，避免用户拿错旧包。
 - 是否生成 `.sha256` 校验文件。

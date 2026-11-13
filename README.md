@@ -17,6 +17,8 @@ Production-oriented microservice for intelligent Oracle Data Pump (DMP) recovery
 | **纯 Python（推荐调试）** | `./install-python.sh` → `./start-python.sh` | **远程 MySQL + 本机 Redis**，见 **[DEPLOY-PYTHON.md](DEPLOY-PYTHON.md)** |
 | Docker 全量 | `./install.sh` | 可选；会询问确认 |
 
+Docker Run 离线包的 Redis 密码设置、旧 `.env` 复用和系统数据保留步骤见 [Redis 配置与全量升级](docs/REDIS_AUTH_UPDATE.md)。
+
 **本机无需 Oracle**。DMP 在 B 机 Docker 内时见 **[DEPLOY.md](DEPLOY.md)**。
 
 ```bash
